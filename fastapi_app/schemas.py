@@ -353,3 +353,42 @@ class GenerateFlashcardsResponse(BaseModel):
     flashcard_set_id: str = ""
     total_count: int = 0
     result_path: str = ""
+
+
+# ===================== Quiz 相关模型 =====================
+
+class QuizOption(BaseModel):
+    """Quiz 选项"""
+    label: str  # A, B, C, D
+    text: str   # 选项内容
+
+class QuizQuestion(BaseModel):
+    """Quiz 题目"""
+    id: str
+    question: str
+    options: List[QuizOption]  # 4个选项
+    correct_answer: str  # 正确答案 (A/B/C/D)
+    explanation: str  # 答案解释
+    source_excerpt: Optional[str] = None  # 来源摘录
+    difficulty: Optional[str] = None  # 难度等级
+    category: Optional[str] = None  # 题目类型（理解/应用/分析）
+
+class GenerateQuizRequest(BaseModel):
+    """生成 Quiz 请求"""
+    file_paths: List[str]
+    email: str
+    user_id: str
+    notebook_id: Optional[str] = None
+    api_url: str
+    api_key: str
+    model: str = "deepseek-v3.2"
+    language: str = "en"
+    question_count: int = 10  # 题目数量
+
+class GenerateQuizResponse(BaseModel):
+    """生成 Quiz 响应"""
+    success: bool
+    questions: List[QuizQuestion] = []
+    quiz_id: str = ""
+    total_count: int = 0
+    result_path: str = ""

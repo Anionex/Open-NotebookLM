@@ -4,7 +4,7 @@ import {
   BarChart2, Zap, AudioLines, Video, FileText,
   Filter, MoreVertical, Search, Image as ImageIcon, FileStack, Sparkles,
   Mic2, Video as VideoIcon, BrainCircuit, Send, Bot, User, Loader2, Upload, X,
-  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen
+  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -17,6 +17,8 @@ import { SettingsModal } from '../components/SettingsModal';
 import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardGenerator } from '../components/flashcards/FlashcardGenerator';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
+import { QuizGenerator } from '../components/quiz/QuizGenerator';
+import { QuizContainer } from '../components/quiz/QuizContainer';
 
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
@@ -99,6 +101,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [flashcards, setFlashcards] = useState<any[]>([]);
   const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
   const [flashcardSetId, setFlashcardSetId] = useState<string>('');
+
+  // Quiz state
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
+  const [showQuizContainer, setShowQuizContainer] = useState(false);
+  const [quizId, setQuizId] = useState<string>('');
 
   // Output preview
   const [previewOutput, setPreviewOutput] = useState<{
@@ -204,6 +211,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO', id: 'drawio' },
     { icon: <Mic2 className="text-red-500" />, label: 'Knowledge Podcast', id: 'podcast' },
     { icon: <BookOpen className="text-indigo-500" />, label: 'Flashcards', id: 'flashcard' },
+    { icon: <Brain className="text-blue-500" />, label: 'Quiz', id: 'quiz' },
     // Video narration temporarily disabled
     // { icon: <VideoIcon className="text-blue-600" />, label: 'Video narration', id: 'video' },
   ];
@@ -2710,6 +2718,21 @@ rel="noopener noreferrer"
               />
             )}
 
+            {/* Quiz Generator */}
+            {activeTool === 'quiz' && !showQuizContainer && (
+              <QuizGenerator
+                selectedFiles={files.filter((f: KnowledgeFile) => selectedIds.has(f.id)).map((f: KnowledgeFile) => f.url).filter(Boolean) as string[]}
+                notebookId={notebook?.id || ''}
+                email={effectiveUser?.email || effectiveUser?.id || 'default'}
+                userId={effectiveUser?.id || 'default'}
+                onGenerated={(quizId: string, questions: any[]) => {
+                  setQuizId(quizId);
+                  setQuizQuestions(questions);
+                  setShowQuizContainer(true);
+                }}
+              />
+            )}
+
           {/* Output Feed */}
           {outputFeed.length > 0 && (
             <div className="mt-6">
@@ -3271,6 +3294,24 @@ rel="noopener noreferrer"
             <FlashcardViewer
               flashcards={flashcards}
               onClose={() => setShowFlashcardViewer(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Quiz Container Modal */}
+      {showQuizContainer && quizQuestions.length > 0 && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowQuizContainer(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-[90vw] max-w-4xl max-h-[90vh] overflow-auto"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <QuizContainer
+              questions={quizQuestions}
+              onClose={() => setShowQuizContainer(false)}
             />
           </div>
         </div>

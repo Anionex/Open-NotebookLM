@@ -2107,3 +2107,92 @@ async def generate_flashcards(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-quiz")
+async def generate_quiz(
+    file_paths: List[str] = Body(..., embed=True),
+    email: str = Body(..., embed=True),
+    user_id: str = Body(..., embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
+    api_url: str = Body(..., embed=True),
+    api_key: str = Body(..., embed=True),
+    model: str = Body("deepseek-v3.2", embed=True),
+    language: str = Body("en", embed=True),
+    question_count: int = Body(10, embed=True),
+):
+    """
+    生成 Quiz 测验题目
+    """
+    from fastapi_app.services.quiz_service import generate_quiz_with_llm
+
+    try:
+        # 1. 解析文件路径
+        local_paths = []
+        for f in file_paths:
+            ps = (f or "").strip()
+            if ps.startswith("http://") or ps.startswith("https://"):
+                local_md = _resolve_link_to_local_md(email, notebook_id, ps)
+                if local_md and local_md.exists():
+                    local_paths.append(str(local_md))
+            else:
+                local_path = _resolve_local_path(f)
+                if local_path.exists():
+                    local_paths.append(str(local_path))
+
+        if not local_paths:
+            raise HTTPException(status_code=400, detail="No valid files provided")
+
+        # 2. 提取文本内容
+        text_content = _extract_text_from_files(local_paths, max_chars=50000)
+        if not text_content.strip():
+            raise HTTPException(status_code=400, detail="No text content extracted")
+
+        log.info(f"[generate-quiz] 文本长度: {len(text_content)}, 文件数: {len(local_paths)}")
+
+        # 3. 调用 LLM 生成 Quiz
+        questions = await generate_quiz_with_llm(
+            text_content=text_content,
+            api_url=api_url,
+            api_key=api_key,
+            model=model,
+            language=language,
+            question_count=question_count,
+        )
+
+        if not questions:
+            raise HTTPException(status_code=500, detail="Failed to generate quiz")
+
+        # 4. 保存 Quiz 到本地
+        ts = int(time.time())
+        quiz_id = f"quiz_{ts}"
+        output_dir = _outputs_dir(email, notebook_id, quiz_id)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        quiz_data = {
+            "id": quiz_id,
+            "notebook_id": notebook_id,
+            "questions": [q.dict() for q in questions],
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "source_files": file_paths,
+            "total_count": len(questions),
+        }
+
+        json_path = output_dir / "quiz.json"
+        json_path.write_text(json.dumps(quiz_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        log.info(f"[generate-quiz] 成功生成 {len(questions)} 道题目")
+
+        return {
+            "success": True,
+            "questions": [q.dict() for q in questions],
+            "quiz_id": quiz_id,
+            "total_count": len(questions),
+            "result_path": _to_outputs_url(str(output_dir)),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
