@@ -26,4 +26,4 @@ export interface ChatMessage {
 }
 
 export type SectionType = 'library' | 'upload' | 'output' | 'settings';
-export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video' | 'search' | 'drawio';
+export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video' | 'search' | 'drawio' | 'flashcard';

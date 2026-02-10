@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ChevronLeft, Plus, Share2, Settings, MessageSquare, 
-  BarChart2, Zap, AudioLines, Video, FileText, 
+import {
+  ChevronLeft, Plus, Share2, Settings, MessageSquare,
+  BarChart2, Zap, AudioLines, Video, FileText,
   Filter, MoreVertical, Search, Image as ImageIcon, FileStack, Sparkles,
   Mic2, Video as VideoIcon, BrainCircuit, Send, Bot, User, Loader2, Upload, X,
-  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download
+  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -15,6 +15,8 @@ import ReactMarkdown from 'react-markdown';
 import { MermaidPreview } from '../components/knowledge-base/tools/MermaidPreview';
 import { SettingsModal } from '../components/SettingsModal';
 import DrawioInlineEditor from '../components/DrawioInlineEditor';
+import { FlashcardGenerator } from '../components/flashcards/FlashcardGenerator';
+import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
 
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
@@ -92,6 +94,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // Flashcard state
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
+  const [flashcardSetId, setFlashcardSetId] = useState<string>('');
 
   // Output preview
   const [previewOutput, setPreviewOutput] = useState<{
@@ -196,6 +203,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     { icon: <BrainCircuit className="text-purple-500" />, label: 'Mind Map', id: 'mindmap' },
     { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO', id: 'drawio' },
     { icon: <Mic2 className="text-red-500" />, label: 'Knowledge Podcast', id: 'podcast' },
+    { icon: <BookOpen className="text-indigo-500" />, label: 'Flashcards', id: 'flashcard' },
     // Video narration temporarily disabled
     // { icon: <VideoIcon className="text-blue-600" />, label: 'Video narration', id: 'video' },
   ];
@@ -2687,6 +2695,21 @@ rel="noopener noreferrer"
               </div>
             )}
 
+            {/* Flashcard Generator */}
+            {activeTool === 'flashcard' && !showFlashcardViewer && (
+              <FlashcardGenerator
+                selectedFiles={files.filter((f: KnowledgeFile) => selectedIds.has(f.id)).map((f: KnowledgeFile) => f.url).filter(Boolean) as string[]}
+                notebookId={notebook?.id || ''}
+                email={effectiveUser?.email || effectiveUser?.id || 'default'}
+                userId={effectiveUser?.id || 'default'}
+                onGenerated={(flashcardSetId: string, flashcards: any[]) => {
+                  setFlashcardSetId(flashcardSetId);
+                  setFlashcards(flashcards);
+                  setShowFlashcardViewer(true);
+                }}
+              />
+            )}
+
           {/* Output Feed */}
           {outputFeed.length > 0 && (
             <div className="mt-6">
@@ -3231,6 +3254,24 @@ rel="noopener noreferrer"
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Flashcard Viewer Modal */}
+      {showFlashcardViewer && flashcards.length > 0 && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowFlashcardViewer(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-[90vw] max-w-4xl max-h-[90vh] overflow-auto"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <FlashcardViewer
+              flashcards={flashcards}
+              onClose={() => setShowFlashcardViewer(false)}
+            />
           </div>
         </div>
       )}

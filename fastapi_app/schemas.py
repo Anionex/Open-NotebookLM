@@ -300,3 +300,56 @@ class Paper2PPTResponse(BaseModel):
     pagecontent: List[Dict[str, Any]] = []
     result_path: str = ""
     all_output_files: List[str] = []
+
+
+# ===================== Flashcard 闪卡相关 =====================
+
+class FlashcardType(str):
+    """闪卡类型"""
+    QA = "qa"  # 问答型
+    FILL_BLANK = "fill_blank"  # 填空型
+    CONCEPT = "concept"  # 概念解释型
+
+
+class FlashcardDifficulty(str):
+    """闪卡难度"""
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
+
+
+class Flashcard(BaseModel):
+    """单个闪卡"""
+    id: str
+    question: str  # 问题/正面
+    answer: str  # 答案/背面
+    type: str = "qa"
+    difficulty: Optional[str] = None
+    source_file: Optional[str] = None  # 来源文件
+    source_excerpt: Optional[str] = None  # 来源摘录（最多200字）
+    tags: List[str] = []
+    created_at: Optional[str] = None
+
+
+class GenerateFlashcardsRequest(BaseModel):
+    """生成闪卡请求"""
+    file_paths: List[str]  # 知识库文件路径列表
+    email: str
+    user_id: str
+    notebook_id: Optional[str] = None
+    api_url: str
+    api_key: str
+    model: str = "deepseek-v3.2"
+    language: str = "zh"
+    card_count: int = 20  # 生成闪卡数量
+    difficulty: Optional[str] = None
+    card_types: List[str] = ["qa"]
+
+
+class GenerateFlashcardsResponse(BaseModel):
+    """生成闪卡响应"""
+    success: bool
+    flashcards: List[Flashcard] = []
+    flashcard_set_id: str = ""
+    total_count: int = 0
+    result_path: str = ""
