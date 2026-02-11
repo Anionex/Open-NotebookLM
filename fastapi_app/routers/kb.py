@@ -2742,3 +2742,121 @@ async def generate_quiz(
     except Exception as e:
         log.exception("[generate-quiz] failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===================== Flashcard / Quiz 读取端点 =====================
+
+@router.get("/list-flashcard-sets")
+async def list_flashcard_sets(
+    notebook_id: str,
+    notebook_title: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    """列出某 notebook 下所有已保存的闪卡集合（按时间倒序）"""
+    try:
+        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        flashcard_root = paths.root / "flashcard"
+        sets = []
+        if flashcard_root.exists():
+            for ts_dir in flashcard_root.iterdir():
+                if not ts_dir.is_dir():
+                    continue
+                json_file = ts_dir / "flashcards.json"
+                if not json_file.exists():
+                    continue
+                try:
+                    data = json.loads(json_file.read_text(encoding="utf-8"))
+                    sets.append({
+                        "set_id": ts_dir.name,
+                        "id": data.get("id", ""),
+                        "created_at": data.get("created_at", ""),
+                        "total_count": data.get("total_count", 0),
+                        "source_files": data.get("source_files", []),
+                    })
+                except Exception:
+                    continue
+        sets.sort(key=lambda x: x["set_id"], reverse=True)
+        return {"success": True, "sets": sets}
+    except Exception as e:
+        log.exception("[list-flashcard-sets] failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/list-quiz-sets")
+async def list_quiz_sets(
+    notebook_id: str,
+    notebook_title: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    """列出某 notebook 下所有已保存的测验集合（按时间倒序）"""
+    try:
+        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        quiz_root = paths.root / "quiz"
+        sets = []
+        if quiz_root.exists():
+            for ts_dir in quiz_root.iterdir():
+                if not ts_dir.is_dir():
+                    continue
+                json_file = ts_dir / "quiz.json"
+                if not json_file.exists():
+                    continue
+                try:
+                    data = json.loads(json_file.read_text(encoding="utf-8"))
+                    sets.append({
+                        "set_id": ts_dir.name,
+                        "id": data.get("id", ""),
+                        "created_at": data.get("created_at", ""),
+                        "total_count": data.get("total_count", 0),
+                        "source_files": data.get("source_files", []),
+                    })
+                except Exception:
+                    continue
+        sets.sort(key=lambda x: x["set_id"], reverse=True)
+        return {"success": True, "sets": sets}
+    except Exception as e:
+        log.exception("[list-quiz-sets] failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/get-flashcard-set")
+async def get_flashcard_set(
+    notebook_id: str,
+    set_id: str,
+    notebook_title: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    """读取指定闪卡集合的完整数据"""
+    try:
+        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        json_file = paths.root / "flashcard" / set_id / "flashcards.json"
+        if not json_file.exists():
+            raise HTTPException(status_code=404, detail="Flashcard set not found")
+        data = json.loads(json_file.read_text(encoding="utf-8"))
+        return {"success": True, **data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("[get-flashcard-set] failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/get-quiz-set")
+async def get_quiz_set(
+    notebook_id: str,
+    set_id: str,
+    notebook_title: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    """读取指定测验集合的完整数据"""
+    try:
+        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        json_file = paths.root / "quiz" / set_id / "quiz.json"
+        if not json_file.exists():
+            raise HTTPException(status_code=404, detail="Quiz set not found")
+        data = json.loads(json_file.read_text(encoding="utf-8"))
+        return {"success": True, **data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("[get-quiz-set] failed")
+        raise HTTPException(status_code=500, detail=str(e))

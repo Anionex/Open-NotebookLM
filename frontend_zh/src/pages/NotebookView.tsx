@@ -15,9 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import { MermaidPreview } from '../components/knowledge-base/tools/MermaidPreview';
 import { SettingsModal } from '../components/SettingsModal';
 import DrawioInlineEditor from '../components/DrawioInlineEditor';
-import { FlashcardGenerator } from '../components/flashcards/FlashcardGenerator';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
-import { QuizGenerator } from '../components/quiz/QuizGenerator';
 import { QuizContainer } from '../components/quiz/QuizContainer';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -86,7 +84,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [toolLoading, setToolLoading] = useState(false);
   const [outputFeed, setOutputFeed] = useState<Array<{
     id: string;
-    type: 'ppt' | 'mindmap' | 'podcast' | 'drawio';
+    type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz';
     title: string;
     sources: string;
     url?: string;
@@ -94,6 +92,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     previewUrl?: string;
     createdAt: string;
     mermaidCode?: string;
+    setId?: string;
   }>>([]);
 
   // Settings modal
@@ -102,13 +101,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   // Output preview
   const [previewOutput, setPreviewOutput] = useState<{
     id: string;
-    type: 'ppt' | 'mindmap' | 'podcast' | 'drawio';
+    type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz';
     title: string;
     sources: string;
     url?: string;
     previewUrl?: string;
     createdAt: string;
     mermaidCode?: string;
+    setId?: string;
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   /** DrawIO 预览：从 url 拉取后的 xml，用于在弹窗内嵌编辑 */
@@ -168,6 +168,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [showQuizContainer, setShowQuizContainer] = useState(false);
   const [quizId, setQuizId] = useState<string>('');
 
+  // Loading state for saved flashcard/quiz sets
+  const [loadingSetId, setLoadingSetId] = useState<string | null>(null);
+
   // 三栏可拖拽宽度（左 / 右，中间 flex 自适应）
   const [leftPanelWidth, setLeftPanelWidth] = useState(256);
   const [rightPanelWidth, setRightPanelWidth] = useState(320);
@@ -217,7 +220,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   ];
 
   // Studio：每个功能卡片各自配置，点卡片上的「…」翻转进该卡片的设置
-  type StudioToolId = 'ppt' | 'mindmap' | 'drawio' | 'podcast' | 'video';
+  type StudioToolId = 'ppt' | 'mindmap' | 'drawio' | 'flashcard' | 'quiz' | 'podcast' | 'video';
   const [studioPanelView, setStudioPanelView] = useState<'tools' | 'settings'>('tools');
   const [studioSettingsTool, setStudioSettingsTool] = useState<StudioToolId | null>(null);
   const STORAGE_STUDIO_CONFIG = `kb_studio_config_${effectiveUser?.id || 'default'}`;
@@ -225,6 +228,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     ppt: { llmModel: 'deepseek-v3.2', genFigModel: 'gemini-2.5-flash-image', stylePreset: 'modern', stylePrompt: '', language: 'zh', page_count: '10' },
     mindmap: { llmModel: 'deepseek-v3.2', mindmapStyle: 'default' },
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
+    flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
+    quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
     podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore', voiceNameB: 'Puck' },
     video: { llmModel: 'deepseek-v3.2' },
   };
@@ -323,7 +328,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     localStorage.setItem(key, JSON.stringify(items));
   };
 
-  const inferOutputType = (urlOrName?: string): 'ppt' | 'mindmap' | 'podcast' | 'drawio' => {
+  const inferOutputType = (urlOrName?: string): 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz' => {
     const value = (urlOrName || '').toLowerCase();
     if (value.endsWith('.wav') || value.endsWith('.mp3') || value.endsWith('.m4a')) return 'podcast';
     if (value.endsWith('.mmd') || value.endsWith('.mermaid')) return 'mindmap';
@@ -331,11 +336,43 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return 'ppt';
   };
 
-  const getOutputTitle = (type: 'ppt' | 'mindmap' | 'podcast' | 'drawio') => {
+  const getOutputTitle = (type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz') => {
     if (type === 'mindmap') return '思维导图';
     if (type === 'podcast') return '播客生成';
     if (type === 'drawio') return 'DrawIO 图表';
+    if (type === 'flashcard') return '闪卡';
+    if (type === 'quiz') return '测验';
     return 'PPT 生成';
+  };
+
+  const handleLoadSavedSet = async (item: typeof outputFeed[number]) => {
+    if (!item.setId) {
+      alert('加载失败：该条目没有保存的集合 ID，可能是在持久化功能添加之前创建的。');
+      return;
+    }
+    setLoadingSetId(item.id);
+    try {
+      const endpoint = item.type === 'flashcard'
+        ? `/api/v1/kb/get-flashcard-set?notebook_id=${encodeURIComponent(notebook.id)}&set_id=${encodeURIComponent(item.setId)}`
+        : `/api/v1/kb/get-quiz-set?notebook_id=${encodeURIComponent(notebook.id)}&set_id=${encodeURIComponent(item.setId)}`;
+      const res = await apiFetch(endpoint);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.detail || '加载失败');
+      if (item.type === 'flashcard') {
+        setFlashcards(data.flashcards || []);
+        setFlashcardSetId(data.id || '');
+        setShowFlashcardViewer(true);
+      } else {
+        setQuizQuestions(data.questions || []);
+        setQuizId(data.id || '');
+        setShowQuizContainer(true);
+      }
+    } catch (err) {
+      console.error('Load saved set error:', err);
+      alert('加载失败，数据可能已被删除。');
+    } finally {
+      setLoadingSetId(null);
+    }
   };
 
   const mergeOutputFeeds = (remote: typeof outputFeed, local: typeof outputFeed) => {
@@ -1377,6 +1414,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         case 'drawio':
           endpoint = '/api/v1/kb/generate-drawio';
           break;
+        case 'flashcard':
+          endpoint = '/api/v1/kb/generate-flashcards';
+          break;
+        case 'quiz':
+          endpoint = '/api/v1/kb/generate-quiz';
+          break;
         default:
           throw new Error('Unsupported tool');
       }
@@ -1463,6 +1506,24 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           diagram_style: cfg.diagramStyle || 'default',
           language: cfg.language || 'zh',
         };
+      } else if (tool === 'flashcard') {
+        const cfg = getStudioConfig('flashcard');
+        bodyData = {
+          ...baseBody,
+          file_paths: selectedFileUrls,
+          model: cfg.llmModel || 'deepseek-v3.2',
+          language: cfg.language || 'zh',
+          card_count: Math.max(5, Math.min(50, parseInt(String(cfg.cardCount || '20'), 10) || 20)),
+        };
+      } else if (tool === 'quiz') {
+        const cfg = getStudioConfig('quiz');
+        bodyData = {
+          ...baseBody,
+          file_paths: selectedFileUrls,
+          model: cfg.llmModel || 'deepseek-v3.2',
+          language: cfg.language || 'zh',
+          question_count: Math.max(5, Math.min(30, parseInt(String(cfg.questionCount || '10'), 10) || 10)),
+        };
       } else {
         bodyData = {
           ...baseBody,
@@ -1539,6 +1600,40 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
             url,
             createdAt: now,
+          },
+          ...prev,
+        ]);
+      } else if (tool === 'flashcard') {
+        setFlashcards(data.flashcards || []);
+        setFlashcardSetId(data.flashcard_set_id || '');
+        if (data.flashcards?.length) setShowFlashcardViewer(true);
+        const fcSetId = (data.flashcard_set_id || '').replace('flashcard_', '');
+        setOutputFeed(prev => [
+          {
+            id: data.flashcard_set_id || `flashcard_${Date.now()}`,
+            type: 'flashcard',
+            title: '闪卡',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
+            url: '',
+            createdAt: now,
+            setId: fcSetId || String(Date.now()),
+          },
+          ...prev,
+        ]);
+      } else if (tool === 'quiz') {
+        setQuizQuestions(data.questions || []);
+        setQuizId(data.quiz_id || '');
+        if (data.questions?.length) setShowQuizContainer(true);
+        const qzSetId = (data.quiz_id || '').replace('quiz_', '');
+        setOutputFeed(prev => [
+          {
+            id: data.quiz_id || `quiz_${Date.now()}`,
+            type: 'quiz',
+            title: '测验',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
+            url: '',
+            createdAt: now,
+            setId: qzSetId || String(Date.now()),
           },
           ...prev,
         ]);
@@ -2377,6 +2472,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 {studioSettingsTool === 'mindmap' && '思维导图'}
                 {studioSettingsTool === 'drawio' && 'DrawIO 图表'}
                 {studioSettingsTool === 'podcast' && '知识播客'}
+                {studioSettingsTool === 'flashcard' && '闪卡'}
+                {studioSettingsTool === 'quiz' && '测验'}
                 {/* {studioSettingsTool === 'video' && '视频讲解'} */}
               </h3>
               <div className="space-y-4">
@@ -2521,6 +2618,86 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                     </>
                   );
                 })()}
+                {studioSettingsTool === 'flashcard' && (() => {
+                  const c = getStudioConfig('flashcard');
+                  return (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
+                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('flashcard', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="zh">中文</option>
+                          <option value="en">English</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">卡片数量</label>
+                        <input
+                          type="number"
+                          min={5}
+                          max={50}
+                          value={c.cardCount ?? '20'}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '');
+                            if (v === '') { setStudioConfigForTool('flashcard', { cardCount: '' }); return; }
+                            const n = parseInt(v, 10);
+                            if (!Number.isNaN(n)) setStudioConfigForTool('flashcard', { cardCount: String(Math.max(5, Math.min(50, n))) });
+                          }}
+                          onBlur={(e) => {
+                            const n = parseInt(e.target.value || '20', 10);
+                            if (Number.isNaN(n) || n < 5 || n > 50) setStudioConfigForTool('flashcard', { cardCount: '20' });
+                          }}
+                          placeholder="5–50"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">5–50 张卡片</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
+                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('flashcard', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </>
+                  );
+                })()}
+                {studioSettingsTool === 'quiz' && (() => {
+                  const c = getStudioConfig('quiz');
+                  return (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
+                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('quiz', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="zh">中文</option>
+                          <option value="en">English</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">题目数量</label>
+                        <input
+                          type="number"
+                          min={5}
+                          max={30}
+                          value={c.questionCount ?? '10'}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '');
+                            if (v === '') { setStudioConfigForTool('quiz', { questionCount: '' }); return; }
+                            const n = parseInt(v, 10);
+                            if (!Number.isNaN(n)) setStudioConfigForTool('quiz', { questionCount: String(Math.max(5, Math.min(30, n))) });
+                          }}
+                          onBlur={(e) => {
+                            const n = parseInt(e.target.value || '10', 10);
+                            if (Number.isNaN(n) || n < 5 || n > 30) setStudioConfigForTool('quiz', { questionCount: '10' });
+                          }}
+                          placeholder="5–30"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">5–30 道题</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
+                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('quiz', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </>
+                  );
+                })()}
                 {/* 视频讲解暂未开放
                 {studioSettingsTool === 'video' && (() => {
                   const c = getStudioConfig('video');
@@ -2641,35 +2818,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               </div>
             )}
 
-            {/* Flashcard Generator */}
-            {activeTool === 'flashcard' && !showFlashcardViewer && (
-              <FlashcardGenerator
-                selectedFiles={files.filter(f => selectedIds.has(f.id)).map(f => f.url || f.name)}
-                notebookId={notebook?.id || ''}
-                email={effectiveUser.email || ''}
-                userId={effectiveUser.id || ''}
-                onGenerated={(id: string, cards: any[]) => {
-                  setFlashcardSetId(id);
-                  setFlashcards(cards);
-                  setShowFlashcardViewer(true);
-                }}
-              />
-            )}
-
-            {/* Quiz Generator */}
-            {activeTool === 'quiz' && !showQuizContainer && (
-              <QuizGenerator
-                selectedFiles={files.filter(f => selectedIds.has(f.id)).map(f => f.url || f.name)}
-                notebookId={notebook?.id || ''}
-                email={effectiveUser.email || ''}
-                userId={effectiveUser.id || ''}
-                onGenerated={(id: string, questions: any[]) => {
-                  setQuizId(id);
-                  setQuizQuestions(questions);
-                  setShowQuizContainer(true);
-                }}
-              />
-            )}
 
           {/* Output Feed */}
           {outputFeed.length > 0 && (
@@ -2680,20 +2828,41 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               </div>
               <div className="space-y-3">
                 {outputFeed.map(item => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="bg-white border border-gray-200 rounded-xl p-3 hover:shadow-md transition-all cursor-pointer"
-                    onClick={() => setPreviewOutput(item)}
+                    onClick={() => {
+                      if (item.type === 'flashcard' || item.type === 'quiz') {
+                        handleLoadSavedSet(item);
+                      } else {
+                        setPreviewOutput(item);
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium text-gray-900">{item.title}</div>
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                        {item.type === 'flashcard' && <BookOpen size={14} className="text-purple-500" />}
+                        {item.type === 'quiz' && <Brain size={14} className="text-orange-500" />}
+                        {item.title}
+                      </div>
                       <div className="text-[10px] text-gray-400">{item.createdAt}</div>
                     </div>
                     <div className="mt-1 text-xs text-gray-500 line-clamp-1">
                       来源：{item.sources}
                     </div>
                     <div className="mt-2 flex items-center gap-2">
-                      {item.url ? (
+                      {(item.type === 'flashcard' || item.type === 'quiz') ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLoadSavedSet(item);
+                          }}
+                          disabled={loadingSetId === item.id}
+                          className="text-xs px-2.5 py-1 rounded-full bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                        >
+                          {loadingSetId === item.id ? '加载中...' : item.type === 'flashcard' ? '学习' : '做测验'}
+                        </button>
+                      ) : item.url ? (
                         <>
                           <button
                             onClick={(e) => {
