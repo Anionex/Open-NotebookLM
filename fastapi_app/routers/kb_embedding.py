@@ -7,6 +7,7 @@ from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.dependencies.auth import get_supabase_client
+from fastapi_app.notebook_paths import get_notebook_paths
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base Embedding"])
 
@@ -62,13 +63,22 @@ def _write_manifest_ids_to_supabase(manifest: Dict[str, Any]) -> None:
                         {"kb_file_id": file_id}
                     ).eq("user_email", email).eq("file_name", filename).execute()
         except Exception as e:
-            print(f"[kb_embedding] Supabase writeback failed: {e}")
+            # 表无 kb_file_id 列等 schema 问题时静默跳过，不误导为“入库失败”或 API Key 错误
+            err_msg = (getattr(e, "message", None) or getattr(e, "msg", None) or str(e) or "")
+            if isinstance(err_msg, dict):
+                err_msg = str(err_msg)
+            err_msg = err_msg.lower()
+            if any(x in err_msg for x in ("kb_file_id", "pgrst204", "schema", "column", "could not find")):
+                pass
+            else:
+                print(f"[kb_embedding] Supabase writeback failed: {e}")
 
 @router.post("/embedding")
 async def create_embedding(
     files: List[Dict[str, Optional[str]]] = Body(..., embed=True),
     email: Optional[str] = Body(None, embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model_name: Optional[str] = Body(None, embed=True),
@@ -78,7 +88,8 @@ async def create_embedding(
 ):
     """
     Generate embeddings for knowledge base files.
-    Uses per-notebook vector store: kb_data/{email}/{notebook_id}/vector_store
+    Uses per-notebook vector store under the new notebook-centric layout when possible,
+    falling back to legacy kb_data/{email}/{notebook_id}/vector_store.
     """
     try:
         project_root = get_project_root()
@@ -111,30 +122,50 @@ async def create_embedding(
         if not process_list:
             return {"success": False, "message": "No valid files found to process."}
 
-        vector_store_dir = _vector_store_dir(user_email, notebook_id)
-        vector_store_dir.mkdir(parents=True, exist_ok=True)
+        # New layout: use NotebookPaths for vector store & MinerU paths
+        if notebook_id:
+            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", user_email)
+            vector_store_dir = nb_paths.vector_store_dir
+            mineru_output_base = nb_paths.sources_dir
+        else:
+            vector_store_dir = _vector_store_dir(user_email, notebook_id)
+            safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
+            mineru_output_base = project_root / "outputs" / "kb_mineru" / (user_email or "default") / safe_nb
 
+        vector_store_dir.mkdir(parents=True, exist_ok=True)
+        mineru_output_base.mkdir(parents=True, exist_ok=True)
+
+        # 入库只用本地 embedding（Octen），不传 api_url，由 VectorStoreManager 使用环境变量 EMBEDDING_API_URL
         manifest = await process_knowledge_base_files(
             process_list,
             base_dir=str(vector_store_dir),
-            api_url=api_url,
+            api_url=None,
             api_key=api_key,
             model_name=model_name,
             multimodal_model=multimodal_model,
             image_model=image_model,
-            video_model=video_model
+            video_model=video_model,
+            mineru_output_base=str(mineru_output_base),
         )
 
-        failed = [f for f in (manifest.get("files") or []) if f.get("status") == "failed"]
+        current_paths = {str(Path(p.get("path", "")).resolve()) for p in process_list if p.get("path")}
+        failed = [
+            f for f in (manifest.get("files") or [])
+            if f.get("status") == "failed"
+            and str(Path(f.get("original_path", "")).resolve()) in current_paths
+        ]
         if failed:
-            first_err = failed[0].get("error") or "未知错误"
+            first_err = (failed[0].get("error") or "").strip()
+            if not first_err:
+                failed_names = [Path(f.get("original_path", "")).name for f in failed]
+                first_err = f"未知错误（失败文件: {', '.join([n for n in failed_names if n])}）"
             try:
                 _write_manifest_ids_to_supabase(manifest)
             except Exception as e:
                 print(f"[kb_embedding] writeback error: {e}")
             raise HTTPException(
                 status_code=422,
-                detail=f"向量入库失败（如 401 请检查 API Key 是否有效）: {first_err}"
+                detail=f"向量入库失败: {first_err}"
             )
 
         try:
@@ -153,17 +184,36 @@ async def create_embedding(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/list")
-async def list_kb_files(email: Optional[str] = None, notebook_id: Optional[str] = None):
+async def list_kb_files(
+    email: Optional[str] = None,
+    notebook_id: Optional[str] = None,
+    notebook_title: Optional[str] = None,
+):
     """
     List processed files in the knowledge base (per-notebook vector store).
     """
     try:
-        vector_store_dir = _vector_store_dir(email, notebook_id)
+        if notebook_id:
+            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", email)
+            vector_store_dir = nb_paths.vector_store_dir
+        else:
+            vector_store_dir = _vector_store_dir(email, notebook_id)
+
         manifest_path = vector_store_dir / "knowledge_manifest.json"
         if manifest_path.exists():
             import json
             with open(manifest_path, "r", encoding="utf-8") as f:
                 return json.load(f)
+
+        # Fallback: try legacy path if new layout has no manifest
+        if notebook_id:
+            legacy_dir = _vector_store_dir(email, notebook_id)
+            legacy_manifest = legacy_dir / "knowledge_manifest.json"
+            if legacy_manifest.exists():
+                import json
+                with open(legacy_manifest, "r", encoding="utf-8") as f:
+                    return json.load(f)
+
         return {"project_name": "kb_project", "files": []}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -174,6 +224,7 @@ async def delete_vector(
     file_id: Optional[str] = Body(None, embed=True),
     email: Optional[str] = Body(None, embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
 ):
     """
     Remove one file's vectors from the knowledge base (per-notebook vector store).
@@ -181,7 +232,11 @@ async def delete_vector(
     if not file_id:
         raise HTTPException(status_code=400, detail="file_id is required")
     try:
-        vector_store_dir = _vector_store_dir(email, notebook_id)
+        if notebook_id:
+            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", email)
+            vector_store_dir = nb_paths.vector_store_dir
+        else:
+            vector_store_dir = _vector_store_dir(email, notebook_id)
         kwargs = {"base_dir": str(vector_store_dir)}
         manager = VectorStoreManager(**kwargs)
         manager.remove_file(file_id)
@@ -198,6 +253,7 @@ async def search_kb(
     top_k: int = Body(5, embed=True),
     email: Optional[str] = Body(None, embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model_name: Optional[str] = Body(None, embed=True),
@@ -207,7 +263,18 @@ async def search_kb(
     Vector search in knowledge base (per-notebook).
     """
     try:
-        base_dir = _vector_store_dir(email, notebook_id)
+        if notebook_id:
+            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", email)
+            base_dir = nb_paths.vector_store_dir
+        else:
+            base_dir = _vector_store_dir(email, notebook_id)
+
+        # Fallback: if new layout has no manifest, try legacy path
+        if notebook_id and not (base_dir / "knowledge_manifest.json").exists():
+            legacy = _vector_store_dir(email, notebook_id)
+            if (legacy / "knowledge_manifest.json").exists():
+                base_dir = legacy
+
         kwargs = {"base_dir": str(base_dir)}
         if api_url:
             if "/embeddings" not in api_url:

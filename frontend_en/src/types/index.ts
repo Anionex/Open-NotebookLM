@@ -23,6 +23,7 @@ export interface ChatMessage {
     filename: string;
     analysis: string;
   }[];
+  sourceMapping?: Record<string, string>;
 }
 
 export type SectionType = 'library' | 'upload' | 'output' | 'settings';

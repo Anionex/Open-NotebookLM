@@ -52,7 +52,13 @@ Conversation History:
 {history}
 
 Based on the above analyses and history, provide a comprehensive and final answer to the user's question.
-Cite specific files where information is drawn from.
+
+Citation rules:
+- A numbered "Sources:" mapping is provided at the end of the file analyses. Use the bracketed numbers (e.g. [1], [2]) to cite sources inline in your answer.
+- Place citation numbers immediately after the relevant sentence or claim, e.g. "...技术架构采用了 Transformer [1]。"
+- Do NOT use filenames as citations. Only use the numbered format [1], [2], etc.
+- Do NOT add a "References" or "来源" section at the end of your answer. Only use inline citations.
+
 Answer in the same language as the user's question (likely Chinese).
 """
 

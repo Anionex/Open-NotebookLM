@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 import json
@@ -15,6 +16,7 @@ from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract, _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.req_understanding import call_image_understanding_async
 
 log = get_logger(__name__)
 
@@ -45,6 +47,21 @@ def _abs_path(p: str) -> str:
         return str(Path(p).expanduser().resolve())
     except Exception:
         return p
+
+
+def _find_mineru_auto_dir(paper_dir: Path) -> Path | None:
+    """
+    探测 MinerU 实际输出的子目录（auto / hybrid_auto 等）。
+    """
+    candidates = ["auto", "hybrid_auto"]
+    for name in candidates:
+        d = paper_dir / name
+        if d.exists() and d.is_dir():
+            return d
+    for child in sorted(paper_dir.iterdir()):
+        if child.is_dir() and list(child.glob("*.md")):
+            return child
+    return None
 
 
 @register("paper2page_content")
@@ -85,16 +102,34 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     def _get_pagecontent_raw_for_refine(state: Paper2FigureState):
         return state.pagecontent or []
 
+    # ---------- image pipeline pre_tools ----------
+    @builder.pre_tool("image_items_json", "image_filter_agent")
+    def _get_image_items_json_for_filter(state: Paper2FigureState):
+        return json.dumps(getattr(state, "image_items", []) or [], ensure_ascii=False)
+
+    @builder.pre_tool("query", "image_filter_agent")
+    def _get_query_for_filter(state: Paper2FigureState):
+        return getattr(state, "kb_query", "") or ""
+
+    @builder.pre_tool("pagecontent_json", "kb_image_insert_agent")
+    def _get_pagecontent_json_for_insert(state: Paper2FigureState):
+        return json.dumps(state.pagecontent or [], ensure_ascii=False)
+
+    @builder.pre_tool("image_items_json", "kb_image_insert_agent")
+    def _get_image_items_json_for_insert(state: Paper2FigureState):
+        return json.dumps(getattr(state, "filtered_image_items", []) or [], ensure_ascii=False)
+
     # ==============================================================
     # NODES
     # ==============================================================
     def _start_(state: Paper2FigureState) -> Paper2FigureState:
         _ensure_result_path(state)
-        # 清理/初始化 paper2ppt 专用字段（避免复用 state 时脏数据串场）
         state.minueru_output = state.minueru_output or ""
         state.text_content = state.text_content or ""
         state.pagecontent = state.pagecontent or []
         state.outline_feedback = state.outline_feedback or ""
+        state.image_items = getattr(state, "image_items", []) or []
+        state.filtered_image_items = getattr(state, "filtered_image_items", []) or []
         return state
 
     async def parse_pdf_pages(state: Paper2FigureState) -> Paper2FigureState:
@@ -120,22 +155,30 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         result_root.mkdir(parents=True, exist_ok=True)
 
         pdf_stem = paper_pdf_path.stem
-        paper_dir = result_root / pdf_stem           # e.g. outputs/2506.02454v1
-        auto_dir = paper_dir / "auto"                # e.g. outputs/2506.02454v1/auto
+        paper_dir = result_root / pdf_stem
 
-        # 若不存在 MinerU 结果，则触发 MinerU：输出到 result_root 下
-        # MinerU 内部会创建 <pdf_stem>/auto 结构
-        if not auto_dir.exists():
+        # 探测已有的 MinerU 输出目录（auto / hybrid_auto 等）
+        auto_dir = _find_mineru_auto_dir(paper_dir) if paper_dir.exists() else None
+
+        if auto_dir is None:
             try:
                 run_mineru_pdf_extract(str(paper_pdf_path), str(result_root), "modelscope")
             except Exception as e:
                 log.error(f"[paper2page_content] run_mineru_pdf_extract 失败: {e}")
                 state.minueru_output = ""
                 return state
+            auto_dir = _find_mineru_auto_dir(paper_dir)
 
-        # 重新计算一次 auto_dir，防止 MinerU 在内部调整目录结构
-        auto_dir = (result_root / pdf_stem / "auto").resolve()
+        if auto_dir is None:
+            log.error(f"[paper2page_content] MinerU 输出目录不存在: {paper_dir}")
+            state.minueru_output = ""
+            return state
+
+        auto_dir = auto_dir.resolve()
         markdown_path = auto_dir / f"{pdf_stem}.md"
+        if not markdown_path.exists():
+            md_files = list(auto_dir.glob("*.md"))
+            markdown_path = md_files[0] if md_files else markdown_path
         if not markdown_path.exists():
             log.error(f"[paper2page_content] Markdown 文件不存在: {markdown_path}")
             state.minueru_output = ""
@@ -265,6 +308,114 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state = await agent.execute(state=state)
         return state
 
+    # ---------- image pipeline nodes (mirroring kb_page_content) ----------
+
+    async def extract_md_images(state: Paper2FigureState) -> Paper2FigureState:
+        """从 MinerU 输出的 markdown 中提取图片引用路径。"""
+        mineru_root = getattr(state, "mineru_root", "") or ""
+        image_paths: List[str] = []
+        if mineru_root:
+            try:
+                md_files = list(Path(mineru_root).glob("*.md"))
+                md_text = md_files[0].read_text(encoding="utf-8") if md_files else ""
+            except Exception as e:
+                log.error(f"[paper2page_content] 读取 md 失败: {e}")
+                md_text = ""
+
+            if md_text:
+                md_imgs = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", md_text)
+                html_imgs = re.findall(r"<img[^>]+src=[\"']([^\"']+)[\"']", md_text)
+                for rel in md_imgs + html_imgs:
+                    rel = rel.strip()
+                    if not rel:
+                        continue
+                    img_path = Path(mineru_root) / rel
+                    if img_path.exists():
+                        image_paths.append(str(img_path.resolve()))
+
+        state.kb_md_images = list(dict.fromkeys(image_paths))
+        log.info("[paper2page_content] extract_md_images: found %s images", len(state.kb_md_images))
+        return state
+
+    async def caption_images(state: Paper2FigureState) -> Paper2FigureState:
+        """合并 MinerU 提取图片与用户图片，并行补全 caption。"""
+        user_images = getattr(state, "kb_user_images", []) or []
+        md_images = getattr(state, "kb_md_images", []) or []
+        items: List[Dict[str, Any]] = []
+
+        for p in md_images:
+            items.append({"path": p, "caption": "", "source": "mineru"})
+        for item in user_images:
+            path = item.get("path") or item.get("url") or ""
+            if not path:
+                continue
+            caption = item.get("description") or item.get("caption") or ""
+            items.append({"path": path, "caption": caption, "source": "user"})
+
+        # 去重
+        unique = {}
+        for it in items:
+            unique[it["path"]] = it
+        items = list(unique.values())
+
+        async def _caption_one(it: Dict[str, Any]) -> Dict[str, Any]:
+            if it.get("caption"):
+                return it
+            try:
+                desc = await call_image_understanding_async(
+                    model=getattr(state.request, "vlm_model", "gemini-2.5-flash"),
+                    messages=[{"role": "user", "content": "Please provide a concise caption for this image for PPT slide selection."}],
+                    api_url=state.request.chat_api_url,
+                    api_key=state.request.chat_api_key or state.request.api_key,
+                    image_path=it.get("path"),
+                )
+                it["caption"] = desc.strip()
+            except Exception as e:
+                log.error(f"[paper2page_content] caption failed: {e}")
+            return it
+
+        tasks = [_caption_one(it) for it in items]
+        if tasks:
+            items = list(await asyncio.gather(*tasks))
+
+        state.image_items = items
+        log.info("[paper2page_content] caption_images: %s items", len(items))
+        return state
+
+    async def filter_images_agent(state: Paper2FigureState) -> Paper2FigureState:
+        """按 query 筛选相关图片；无 query 则全部保留。"""
+        query = (getattr(state, "kb_query", "") or "").strip()
+        if not state.image_items:
+            state.filtered_image_items = []
+            return state
+        if not query:
+            state.filtered_image_items = list(state.image_items)
+            return state
+
+        agent = create_react_agent(
+            name="image_filter_agent",
+            temperature=0.1,
+            max_retries=3,
+            parser_type="json",
+        )
+        state = await agent.execute(state=state)
+        if not getattr(state, "filtered_image_items", None):
+            state.filtered_image_items = list(state.image_items)
+        return state
+
+    async def insert_images_agent(state: Paper2FigureState) -> Paper2FigureState:
+        """将筛选后的图片作为独立页面插入 pagecontent。"""
+        if not getattr(state, "filtered_image_items", None):
+            return state
+        agent = create_react_agent(
+            name="kb_image_insert_agent",
+            temperature=0.2,
+            max_retries=3,
+            parser_type="json",
+        )
+        state = await agent.execute(state=state)
+        return state
+
     # ==============================================================
     # 注册 nodes / edges
     # ==============================================================
@@ -290,6 +441,14 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         log.error(f"[paper2page_content] Invalid input_type: {t}")
         return "_end_"
 
+    def _route_after_outline(state: Paper2FigureState) -> str:
+        """outline_agent 完成后，判断是否有图片需要处理。"""
+        mineru_root = getattr(state, "mineru_root", "") or ""
+        user_images = getattr(state, "kb_user_images", []) or []
+        if mineru_root or user_images:
+            return "extract_md_images"
+        return "_end_"
+
     nodes = {
         "_start_": _start_,
         "parse_pdf_pages": parse_pdf_pages,
@@ -298,6 +457,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         "deep_research_agent": deep_research_agent,
         "outline_agent": outline_agent,
         "outline_refine_agent": outline_refine_agent,
+        "extract_md_images": extract_md_images,
+        "caption_images": caption_images,
+        "filter_images_agent": filter_images_agent,
+        "insert_images_agent": insert_images_agent,
         "_end_": lambda state: state,
     }
 
@@ -307,8 +470,14 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         ("deep_research_agent", "outline_agent"),
         ("ppt_to_images", "_end_"),
         ("outline_refine_agent", "_end_"),
-        ("outline_agent", "_end_"),
+        # image pipeline chain
+        ("extract_md_images", "caption_images"),
+        ("caption_images", "filter_images_agent"),
+        ("filter_images_agent", "insert_images_agent"),
+        ("insert_images_agent", "_end_"),
     ]
 
-    builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", _route_input)
+    builder.add_nodes(nodes).add_edges(edges)
+    builder.add_conditional_edge("_start_", _route_input)
+    builder.add_conditional_edge("outline_agent", _route_after_outline)
     return builder

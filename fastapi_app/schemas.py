@@ -304,36 +304,22 @@ class Paper2PPTResponse(BaseModel):
 
 # ===================== Flashcard 闪卡相关 =====================
 
-class FlashcardType(str):
-    """闪卡类型"""
-    QA = "qa"  # 问答型
-    FILL_BLANK = "fill_blank"  # 填空型
-    CONCEPT = "concept"  # 概念解释型
-
-
-class FlashcardDifficulty(str):
-    """闪卡难度"""
-    EASY = "easy"
-    MEDIUM = "medium"
-    HARD = "hard"
-
-
 class Flashcard(BaseModel):
     """单个闪卡"""
     id: str
-    question: str  # 问题/正面
-    answer: str  # 答案/背面
+    question: str
+    answer: str
     type: str = "qa"
     difficulty: Optional[str] = None
-    source_file: Optional[str] = None  # 来源文件
-    source_excerpt: Optional[str] = None  # 来源摘录（最多200字）
+    source_file: Optional[str] = None
+    source_excerpt: Optional[str] = None
     tags: List[str] = []
     created_at: Optional[str] = None
 
 
 class GenerateFlashcardsRequest(BaseModel):
     """生成闪卡请求"""
-    file_paths: List[str]  # 知识库文件路径列表
+    file_paths: List[str]
     email: str
     user_id: str
     notebook_id: Optional[str] = None
@@ -341,9 +327,7 @@ class GenerateFlashcardsRequest(BaseModel):
     api_key: str
     model: str = "deepseek-v3.2"
     language: str = "zh"
-    card_count: int = 20  # 生成闪卡数量
-    difficulty: Optional[str] = None
-    card_types: List[str] = ["qa"]
+    card_count: int = 20
 
 
 class GenerateFlashcardsResponse(BaseModel):
@@ -359,19 +343,21 @@ class GenerateFlashcardsResponse(BaseModel):
 
 class QuizOption(BaseModel):
     """Quiz 选项"""
-    label: str  # A, B, C, D
-    text: str   # 选项内容
+    label: str
+    text: str
+
 
 class QuizQuestion(BaseModel):
     """Quiz 题目"""
     id: str
     question: str
-    options: List[QuizOption]  # 4个选项
-    correct_answer: str  # 正确答案 (A/B/C/D)
-    explanation: str  # 答案解释
-    source_excerpt: Optional[str] = None  # 来源摘录
-    difficulty: Optional[str] = None  # 难度等级
-    category: Optional[str] = None  # 题目类型（理解/应用/分析）
+    options: List[QuizOption]
+    correct_answer: str
+    explanation: str
+    source_excerpt: Optional[str] = None
+    difficulty: Optional[str] = None
+    category: Optional[str] = None
+
 
 class GenerateQuizRequest(BaseModel):
     """生成 Quiz 请求"""
@@ -383,7 +369,8 @@ class GenerateQuizRequest(BaseModel):
     api_key: str
     model: str = "deepseek-v3.2"
     language: str = "en"
-    question_count: int = 10  # 题目数量
+    question_count: int = 10
+
 
 class GenerateQuizResponse(BaseModel):
     """生成 Quiz 响应"""

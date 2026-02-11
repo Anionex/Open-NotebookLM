@@ -77,6 +77,9 @@ langchain-core==0.3.76
 langchain-openai==0.3.33
 langchain-text-splitters==0.3.11
 faiss-cpu==1.12.0
+
+# 本地 Embedding（Octen-Embedding-0.6B，USE_LOCAL_EMBEDDING=1 时启用）
+sentence-transformers>=3.0.0
 onnxruntime
 mkdocs-material
 beautifulsoup4

@@ -258,7 +258,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
         style = getattr(state.request, "style", None) or "kartoon"
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
-        
+        image_resolution = getattr(state.request, "image_resolution", None) or "2K"
+
         page_items = state.pagecontent or []
         if not page_items:
             log.warning("Pagecontent is empty, nothing to generate.")
@@ -311,6 +312,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
                             model=state.request.gen_fig_model,
                             aspect_ratio=aspect_ratio,
+                            resolution=image_resolution,
                         )
                     )
                 else:
@@ -329,6 +331,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             model=state.request.gen_fig_model,
                             image_path=image_path,
                             use_edit=True,
+                            resolution=image_resolution,
                         )
                     )
 
@@ -387,6 +390,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
                             model=state.request.gen_fig_model,
                             aspect_ratio=aspect_ratio,
+                            resolution=image_resolution,
                         )
                     )
                 else:
@@ -412,22 +416,24 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             model=state.request.gen_fig_model,
                             image_path=ref_img_path,  # Use ref as base
                             use_edit=True,
+                            resolution=image_resolution,
                         )
                     )
-            
+
             # 2. 如果没有 Ref 图 (比如是第0页，或者第0页生成失败)
             else:
                 if is_edit_originally:
                     final_prompt = (
                         f"{base_content}\n\n"
-                        f"根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n "
-                        f"使用语言：{state.request.language} !!!"
+                        f"TASK: Generate a {style} style presentation slide based on the content above.\n"
+                        f"Incorporate the provided image as part of the slide content.\n"
+                        f"Language: {state.request.language}"
                     )
                 else:
                     final_prompt = (
                         f"{base_content}\n\n"
-                        f"根据上述内容。生成{style}风格的 PPT 图像, \n "
-                        f"使用语言：{state.request.language}"
+                        f"TASK: Generate a {style} style presentation slide image based on the content above.\n"
+                        f"Language: {state.request.language}"
                     )
 
                 mode = "origin_edit" if is_edit_originally else "origin_gen"
@@ -443,6 +449,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                         model=state.request.gen_fig_model,
                         image_path=asset_path,
                         use_edit=is_edit_originally,
+                        resolution=image_resolution,
                     )
                 )
 
@@ -587,6 +594,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         temp_save_path = str((img_dir / f"page_{idx:03d}_temp.png").resolve())
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
         style = getattr(state.request, "style", None) or "kartoon"
+        image_resolution = getattr(state.request, "image_resolution", None) or "2K"
 
         # 检查 ref_img
         user_ref_img = getattr(state.request, "ref_img", None)
@@ -622,6 +630,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
                 model=state.request.gen_fig_model,
                 aspect_ratio=aspect_ratio,
+                resolution=image_resolution,
             )
         else:
             # 无参考图 -> 单图编辑
@@ -647,6 +656,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 model=state.request.gen_fig_model,
                 image_path=old_path,
                 use_edit=True,
+                resolution=image_resolution,
             )
 
         # 使用版本管理器保存版本化图片

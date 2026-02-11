@@ -21,6 +21,7 @@ from dataflow_agent.toolkits.multimodaltool.mineru_tool import _shrink_markdown
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 
+from fastapi_app.notebook_paths import get_notebook_paths
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
 
 log = get_logger(__name__)
@@ -39,15 +40,24 @@ def _to_serializable(obj: Any):
     return str(obj)
 
 
-def _ensure_result_path_for_full(email: str | None) -> Path:
+def _ensure_result_path_for_full(
+    email: str | None,
+    notebook_id: str | None = None,
+    notebook_title: str | None = None,
+) -> Path:
     """
-    为 full pipeline 统一一个根输出目录：
-    outputs/{email or 'default'}/paper2ppt/<timestamp>/
+    为 full pipeline 统一一个根输出目录。
+    New layout: outputs/{title}_{id}/ppt/{timestamp}/
+    Legacy fallback: outputs/{email or 'default'}/paper2ppt/<timestamp>/
     """
-    project_root = get_project_root()
     ts = int(time.time())
-    code = email or "default"
-    base_dir = (project_root / "outputs" / code / "paper2ppt" / str(ts)).resolve()
+    if notebook_id:
+        nb_paths = get_notebook_paths(notebook_id, notebook_title or "", email)
+        base_dir = nb_paths.feature_output_dir("ppt", ts)
+    else:
+        project_root = get_project_root()
+        code = email or "default"
+        base_dir = (project_root / "outputs" / code / "paper2ppt" / str(ts)).resolve()
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
@@ -109,15 +119,23 @@ def _init_state_from_request(
 def _try_load_existing_mineru_markdown(result_root: Path) -> tuple[str, str]:
     """
     从既有的 result_root 中尝试加载 MinerU 解析的 markdown。
-    期望路径形态：<pdf_stem>/auto/<pdf_stem>.md
+    兼容 auto / hybrid_auto 等不同 MinerU backend 输出目录。
 
     Returns:
         (mineru_output, mineru_root_dir)
     """
-    try:
-        candidates = list(result_root.glob("*/auto/*.md"))
-    except Exception:
-        candidates = []
+    candidates = []
+    for pattern in ["*/auto/*.md", "*/hybrid_auto/*.md"]:
+        try:
+            candidates.extend(result_root.glob(pattern))
+        except Exception:
+            pass
+    if not candidates:
+        # 兜底：任意子目录下的 .md
+        try:
+            candidates = list(result_root.glob("*/*/*.md"))
+        except Exception:
+            candidates = []
 
     if not candidates:
         return "", ""
@@ -132,7 +150,12 @@ def _try_load_existing_mineru_markdown(result_root: Path) -> tuple[str, str]:
     return mineru_output, str(md_path.parent.resolve())
 
 
-async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
+async def run_paper2page_content_wf_api(
+    req: Paper2PPTRequest,
+    result_path: Path | None = None,
+    notebook_id: str | None = None,
+    notebook_title: str | None = None,
+) -> Paper2PPTResponse:
     """
     只执行 paper2page_content 工作流，主要用于从 PDF / PPTX / TEXT
     中解析出结构化的 pagecontent。
@@ -143,9 +166,9 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
         - pagecontent: 解析后的页面内容（结构化列表）
         - result_path: 本次 workflow 使用的统一输出目录
     """
-    # 统一 result_path：若调用方希望自定义，可在 req 中扩展字段；目前统一使用 email 路径
+    # 统一 result_path：优先使用调用方指定的路径，否则按 notebook 布局生成
     if result_path is None:
-        result_root = _ensure_result_path_for_full(req.email)
+        result_root = _ensure_result_path_for_full(req.email, notebook_id, notebook_title)
     else:
         result_root = result_path
 
@@ -176,12 +199,14 @@ async def run_paper2page_content_refine_wf_api(
     pagecontent: list[dict],
     outline_feedback: str,
     result_path: Path | None = None,
+    notebook_id: str | None = None,
+    notebook_title: str | None = None,
 ) -> Paper2PPTResponse:
     """
     只执行 paper2page_content 工作流，用于基于反馈修订已有 outline。
     """
     if result_path is None:
-        result_root = _ensure_result_path_for_full(req.email)
+        result_root = _ensure_result_path_for_full(req.email, notebook_id, notebook_title)
     else:
         result_root = result_path
 
@@ -264,8 +289,23 @@ async def run_paper2ppt_wf_api(
             except Exception as e:  # pragma: no cover
                 log.warning(f"[paper2ppt_wf_api] auto_fill_generated_pages failed: {e}")
          
-    #  mineru_root 写死
-    state.mineru_root = f"{base_dir}/input/auto"
+    #  mineru_root 自动探测（兼容 auto / hybrid_auto）
+    mineru_root_found = ""
+    if base_dir is not None:
+        input_dir = base_dir / "input"
+        if input_dir.exists():
+            for sub in ["auto", "hybrid_auto"]:
+                candidate = input_dir / sub
+                if candidate.exists() and candidate.is_dir():
+                    mineru_root_found = str(candidate)
+                    break
+            if not mineru_root_found:
+                # 兜底：扫描 input 下含 .md 的子目录
+                for child in sorted(input_dir.iterdir()):
+                    if child.is_dir() and list(child.glob("*.md")):
+                        mineru_root_found = str(child)
+                        break
+    state.mineru_root = mineru_root_found or f"{base_dir}/input/auto"
 
     # 尝试回填 mineru_output (markdown)，供 table_extractor 等使用
     try:
@@ -311,7 +351,11 @@ async def run_paper2ppt_wf_api(
     return Paper2PPTResponse(**resp_data)
 
 
-async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTResponse:
+async def run_paper2ppt_full_pipeline(
+    req: Paper2PPTRequest,
+    notebook_id: str | None = None,
+    notebook_title: str | None = None,
+) -> Paper2PPTResponse:
     """
     full pipeline：
     - 先跑 paper2page_content：根据 PDF/PPT/TEXT 解析 pagecontent
@@ -329,7 +373,7 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
         - result_path
     """
     # 统一输出根目录，两个 workflow 共用
-    result_root = _ensure_result_path_for_full(req.email)
+    result_root = _ensure_result_path_for_full(req.email, notebook_id, notebook_title)
 
     # ---------- 第一步：paper2page_content ----------
     state_pc = _init_state_from_request(req, result_path=result_root)

@@ -16,6 +16,11 @@ from dataflow_agent.promptstemplates.resources.pt_qa_agent_repo import QaAgent a
 
 log = get_logger(__name__)
 
+# 文档上下文长度限制（字符数）
+MAX_DOC_CONTEXT_CHARS = 48000
+RAG_TOP_K = 30
+MAX_HISTORY_TURNS = 10
+
 # Try importing office libraries
 try:
     from docx import Document
@@ -48,6 +53,28 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
         except Exception:
             return ""
         return ""
+
+    def _get_embedded_file_paths(state: IntelligentQAState) -> set:
+        """从 vector store manifest 读取已入库文件的 resolved 路径集合。"""
+        base_dir = getattr(state.request, "vector_store_base_dir", None) or ""
+        if not base_dir:
+            return set()
+        try:
+            from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
+            manager = VectorStoreManager(base_dir=base_dir)
+            manifest_files = manager.manifest.get("files", []) or []
+            embedded = set()
+            for f in manifest_files:
+                orig = f.get("original_path") or ""
+                if orig:
+                    try:
+                        embedded.add(str(Path(orig).resolve()))
+                    except Exception:
+                        pass
+            return embedded
+        except Exception as e:
+            log.debug(f"Could not read embedded file paths: {e}")
+            return set()
 
     def _start_(state: IntelligentQAState) -> IntelligentQAState:
         # Ensure request fields
@@ -85,6 +112,18 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
 
         target_files = _infer_target_files(state.request.query or "", files)
         files_to_process = target_files if target_files else files
+
+        # Filter out already-embedded files — they will be handled by RAG retrieval in chat_node
+        embedded_paths = _get_embedded_file_paths(state)
+        if embedded_paths:
+            before_count = len(files_to_process)
+            files_to_process = [
+                f for f in files_to_process
+                if str(Path(f).resolve()) not in embedded_paths
+            ]
+            skipped = before_count - len(files_to_process)
+            if skipped:
+                log.info(f"Skipping {skipped} embedded files from parallel parse")
 
         async def process_file(file_path: str) -> Dict[str, Any]:
             file_path_obj = Path(file_path)
@@ -258,40 +297,145 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
         state.file_analyses = results
         return state
 
-    async def chat_node(state: IntelligentQAState) -> IntelligentQAState:
-        """
-        Final synthesis using aggregated analyses
-        """
-        # Construct history string
-        history_str = ""
-        for msg in state.request.history:
+    def _try_rag_retrieve(state: IntelligentQAState) -> None:
+        """若配置了 vector_store_base_dir 且索引存在，按 query 检索 Top-K 片段并写入 state.retrieved_chunks。"""
+        base_dir = getattr(state.request, "vector_store_base_dir", None) or ""
+        if not base_dir or not state.request.files or not state.request.query:
+            return
+        base_path = Path(base_dir)
+        if not base_path.exists():
+            return
+        try:
+            from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
+            manager = VectorStoreManager(base_dir=base_dir)
+            if manager.index is None or manager.index.ntotal == 0:
+                return
+            # 从 manifest 中按「选中文件路径」解析出 kb file_ids
+            manifest_files = manager.manifest.get("files", []) or []
+            local_paths = {Path(p).resolve() for p in state.request.files}
+            file_ids = []
+            for f in manifest_files:
+                orig = f.get("original_path") or ""
+                if not orig:
+                    continue
+                try:
+                    if Path(orig).resolve() in local_paths:
+                        file_ids.append(f.get("id"))
+                except Exception:
+                    pass
+            if not file_ids:
+                file_ids = None
+            results = manager.search(
+                query=state.request.query,
+                top_k=RAG_TOP_K,
+                file_ids=file_ids,
+            )
+            state.retrieved_chunks = results
+            log.info(f"RAG 检索到 {len(results)} 个片段")
+        except Exception as e:
+            log.warning(f"RAG 检索跳过: {e}")
+            state.retrieved_chunks = []
+
+    def _format_history(history: List[Dict[str, str]]) -> str:
+        """将 state.request.history 格式化为对话历史字符串，最多保留最近 MAX_HISTORY_TURNS 轮。"""
+        if not history:
+            return ""
+        recent = history[-MAX_HISTORY_TURNS * 2:]
+        lines = []
+        for msg in recent:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            history_str += f"{role}: {content}\n"
-        
-        # Format analyses for the prompt
-        analyses_str = ""
-        for item in state.file_analyses:
-            analyses_str += f"--- Analysis of {item['filename']} ---\n{item['analysis']}\n\n"
-            
+            if role == "user":
+                lines.append(f"User: {content}")
+            else:
+                lines.append(f"Assistant: {content}")
+        return "\n".join(lines)
+
+    def _build_doc_context(state: IntelligentQAState) -> str:
+        """构建文档上下文字符串：RAG 片段优先填充，file_analyses 补充，共享 MAX_DOC_CONTEXT_CHARS 预算。
+        编号按 state.request.files 顺序（与前端左侧来源面板一致），映射表存入 state.source_mapping。"""
+        parts: List[str] = []
+        total = 0
+
+        # 按 request.files 顺序建立 filename -> 编号 映射
+        file_index_map: Dict[str, int] = {}
+        source_mapping: Dict[int, str] = {}
+        for idx, fpath in enumerate(state.request.files, 1):
+            name = Path(fpath).name
+            file_index_map[name] = idx
+            source_mapping[idx] = name
+        state.source_mapping = source_mapping
+
+        # 1) RAG chunks（精准片段，优先填充）
+        if state.retrieved_chunks:
+            manifest_files: Dict[str, str] = {}
+            try:
+                from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
+                base_dir = getattr(state.request, "vector_store_base_dir", None) or ""
+                if base_dir:
+                    mgr = VectorStoreManager(base_dir=base_dir)
+                    for f in (mgr.manifest.get("files") or []):
+                        if f.get("id"):
+                            manifest_files[f["id"]] = Path(f.get("original_path", "")).name or f["id"]
+            except Exception:
+                pass
+            for item in state.retrieved_chunks:
+                content = (item.get("content") or "").strip()
+                if not content:
+                    continue
+                fid = item.get("source_file_id", "")
+                name = manifest_files.get(fid, fid)
+                block = f"--- [{name}] ---\n{content}\n\n"
+                if total + len(block) > MAX_DOC_CONTEXT_CHARS:
+                    break
+                parts.append(block)
+                total += len(block)
+
+        # 2) file_analyses（非入库文件的全文分析，补充剩余预算）
+        if state.file_analyses:
+            for item in state.file_analyses:
+                fname = item.get('filename', '')
+                block = f"--- Analysis of {fname} ---\n{item.get('analysis', '')}\n\n"
+                if total + len(block) > MAX_DOC_CONTEXT_CHARS:
+                    break
+                parts.append(block)
+                total += len(block)
+
+        # 3) 附加编号来源映射表供 LLM 引用
+        if source_mapping:
+            mapping_lines = ["Sources:"]
+            for idx in sorted(source_mapping.keys()):
+                mapping_lines.append(f"[{idx}] {source_mapping[idx]}")
+            parts.append("\n".join(mapping_lines) + "\n")
+
+        return "".join(parts)
+
+    async def chat_node(state: IntelligentQAState) -> IntelligentQAState:
+        """
+        Final synthesis: RAG 检索 + 文档上下文长度截断 + 对话历史。
+        """
+        _try_rag_retrieve(state)
+        doc_context = _build_doc_context(state)
+        history_str = _format_history(state.request.history)
+
         final_prompt = QaAgentPrompts.final_qa_prompt.format(
             query=state.request.query,
-            file_analyses=analyses_str,
-            history=history_str
+            file_analyses=doc_context,
+            history=history_str,
         )
-        
+
         agent = create_agent(
             name="kb_prompt_agent",
             model_name=state.request.model,
             chat_api_url=state.request.chat_api_url,
             temperature=0.7,
-            parser_type="text"
+            parser_type="text",
         )
 
         new_state = await agent.execute(state, prompt=final_prompt)
         answer_text = _extract_text_result(new_state, "kb_prompt_agent")
         state.answer = answer_text or "Sorry, I couldn't generate an answer."
-            
+
         return state
 
     nodes = {

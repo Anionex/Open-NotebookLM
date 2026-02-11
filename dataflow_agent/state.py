@@ -358,6 +358,7 @@ class Paper2FigureState(MainState):
     kb_query: str = ""
     kb_retrieval_text: str = ""
     kb_user_images: List[Dict[str, Any]] = field(default_factory=list)
+    kb_md_images: List[str] = field(default_factory=list)
     kb_multi_source_text: str = ""  # 多来源时按「来源1:\n...\n\n来源2:\n...」拼接，outline 优先用此
     minueru_output: str = ""
     mineru_root: str = ""
@@ -406,9 +407,10 @@ class IntelligentQARequest(MainRequest):
     """
     智能问答请求
     """
-    files: List[str] = field(default_factory=list)  # 文件路径列表
+    files: List[str] = field(default_factory=list)  # 文件路径列表（本地绝对路径）
     query: str = ""  # 用户问题
     history: List[Dict[str, str]] = field(default_factory=list)  # 历史记录 [{"role": "user", "content": "..."}]
+    vector_store_base_dir: Optional[str] = None  # 可选，用于 RAG：向量库根目录（与 kb_embedding 约定一致）
 
 @dataclass
 class IntelligentQAState(MainState):
@@ -422,6 +424,12 @@ class IntelligentQAState(MainState):
 
     # 新增: 存储每个文件的分析结果
     file_analyses: List[Dict[str, Any]] = field(default_factory=list)
+
+    # RAG 检索到的片段（当使用 vector_store 时）
+    retrieved_chunks: List[Dict[str, Any]] = field(default_factory=list)
+
+    # 来源编号映射 {1: "filename.md", 2: "doc.pdf", ...}
+    source_mapping: Dict[int, str] = field(default_factory=dict)
 
     # 最终回答
     answer: str = ""

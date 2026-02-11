@@ -159,9 +159,10 @@ def run_mineru_pdf_extract(
     output_dir: str = "",
     source: str = "modelscope",
     mineru_executable: Optional[str] = None,
+    backend: Optional[str] = None,
 ):
     """
-    使用 MinerU 命令行方式提取 PDF 中的结构化内容，
+    使用 MinerU 命令行方式提取 PDF 中的结构化内容。
 
     参数:
         pdf_path: PDF 文件路径
@@ -171,6 +172,9 @@ def run_mineru_pdf_extract(
             - 不传时：优先从环境变量 MINERU_CMD 中读取，
               若没有则从 PATH 中查找 'mineru'
             - 传入绝对路径时：直接使用该路径
+        backend: 解析后端。传 "pipeline" 时使用 pipeline 后端（不依赖 vLLM，避免与 vLLM 新版的
+            ParallelConfig.world_size 等不兼容）；不传则使用 MinerU 默认（多为 hybrid-auto-engine，依赖 vLLM）。
+            也可通过环境变量 MINERU_BACKEND 指定（如 MINERU_BACKEND=pipeline）。
 
     返回:
         解析的所有图片、markdown格式的内容
@@ -189,6 +193,8 @@ def run_mineru_pdf_extract(
                 "3) 调用 run_mineru_pdf_extract 时显式传入 mineru_executable 参数。"
             )
 
+    backend = backend or os.environ.get("MINERU_BACKEND", "").strip() or None
+
     mineru_cmd = [
         str(mineru_executable),
         "-p",
@@ -198,6 +204,8 @@ def run_mineru_pdf_extract(
         "--source",
         source,
     ]
+    if backend:
+        mineru_cmd.extend(["--backend", backend])
 
     # 2. 可选：自动创建 output_dir
     if output_dir:

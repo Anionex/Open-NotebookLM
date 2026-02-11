@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 # 加载 .env，使 SUPABASE_* 等环境变量在 os.getenv 中可用
@@ -21,6 +26,55 @@ from fastapi_app.routers import kb, kb_embedding, files, paper2drawio, paper2ppt
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from dataflow_agent.utils import get_project_root
 
+# 本地 Embedding 服务端口（Octen-Embedding-0.6B）
+LOCAL_EMBEDDING_PORT = 17997
+LOCAL_EMBEDDING_URL = f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/v1/embeddings"
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # 默认使用本地 Embedding（Octen-Embedding-0.6B），不再用远程；设 USE_LOCAL_EMBEDDING=0 可关闭
+    use_local = os.getenv("USE_LOCAL_EMBEDDING", "1").strip().lower() in ("1", "true", "yes")
+    proc = None
+    if use_local:
+        try:
+            proc = subprocess.Popen(
+                [
+                    sys.executable, "-m", "uvicorn",
+                    "fastapi_app.embedding_server:app",
+                    "--host", "127.0.0.1",
+                    "--port", str(LOCAL_EMBEDDING_PORT),
+                ],
+                cwd=str(Path(__file__).resolve().parent.parent),
+                stdout=None,
+                stderr=None,
+            )
+            os.environ["EMBEDDING_API_URL"] = LOCAL_EMBEDDING_URL
+            os.environ["EMBEDDING_MODEL"] = "Octen-Embedding-0.6B"
+            for _ in range(60):
+                time.sleep(0.5)
+                if proc.poll() is not None:
+                    print("[WARN] 本地 Embedding 子进程已退出，请检查上方日志")
+                    break
+                try:
+                    import urllib.request
+                    urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=1)
+                    print(f"[INFO] 本地 Embedding 已就绪 (Octen-Embedding-0.6B) @ {LOCAL_EMBEDDING_URL}")
+                    break
+                except Exception:
+                    continue
+            else:
+                print("[WARN] 本地 Embedding 启动超时，请检查 sentence-transformers 是否已安装及上方日志")
+        except Exception as e:
+            print(f"[WARN] 启动本地 Embedding 失败: {e}")
+    yield
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
 
 def create_app() -> FastAPI:
     """
@@ -35,6 +89,7 @@ def create_app() -> FastAPI:
         title="DataFlow Agent FastAPI Backend",
         version="0.1.0",
         description="HTTP API wrapper for dataflow_agent.workflow.* pipelines",
+        lifespan=_lifespan,
     )
 
     app.add_middleware(

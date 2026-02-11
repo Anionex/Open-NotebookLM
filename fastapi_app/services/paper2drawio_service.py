@@ -1,10 +1,14 @@
 """
 Paper2Drawio Service：AI 驱动 DrawIO 图表生成。
 与 dataflow_agent.workflow.wf_paper2drawio 配合使用。
+支持两种模式：
+- 文本模式：LLM 从文本生成 drawio（paper2drawio workflow）
+- 图片模式：SAM3 从图片分割生成 drawio（paper2drawio_sam3 workflow）
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -116,6 +120,113 @@ class Paper2DrawioService:
                 "file_path": "",
                 "error": str(e),
             }
+
+    async def generate_diagram_from_image(
+        self,
+        image_path: str,
+        chat_api_url: str,
+        api_key: str,
+        model: Optional[str] = None,
+        vlm_model: Optional[str] = None,
+        language: str = "en",
+        email: Optional[str] = None,
+        sam3_cache_dir: Optional[str] = None,
+        output_dir: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        SAM3 模式：从图片生成 drawio。
+        如果提供 sam3_cache_dir 且已有缓存，跳过 SAM3 预测直接用缓存。
+        """
+        if output_dir:
+            run_dir = Path(output_dir)
+            run_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            run_dir = self._create_run_dir("paper2drawio_sam3", email)
+
+        state = Paper2DrawioState(
+            request=Paper2DrawioRequest(
+                language=language,
+                chat_api_url=chat_api_url,
+                api_key=api_key,
+                model=model or _get_setting("PAPER2DRAWIO_DEFAULT_MODEL", "deepseek-v3.2"),
+                vlm_model=vlm_model or _get_setting("PAPER2DRAWIO_VLM_MODEL", "deepseek-v3.2"),
+                input_type="IMAGE",
+            ),
+            paper_file=image_path,
+            text_content="",
+            result_path=str(run_dir),
+        )
+
+        # Inject cache dir into state temp_data for workflow to use
+        if sam3_cache_dir:
+            state.temp_data = state.temp_data or {}
+            state.temp_data["sam3_cache_dir"] = sam3_cache_dir
+
+        from dataflow_agent.workflow.registry import RuntimeRegistry
+
+        try:
+            async with task_semaphore:
+                factory = RuntimeRegistry.get("paper2drawio_sam3")
+                builder = factory()
+                graph = builder.build()
+                final_state = await graph.ainvoke(state)
+
+            raw_xml = (
+                final_state.get("drawio_xml", "")
+                if isinstance(final_state, dict)
+                else (getattr(final_state, "drawio_xml", "") or "")
+            )
+            output_path = (
+                final_state.get("drawio_output_path", "")
+                if isinstance(final_state, dict)
+                else (getattr(final_state, "drawio_output_path", "") or "")
+            )
+            xml_content = wrap_xml(raw_xml) if raw_xml else ""
+
+            # Save SAM3 results to cache if available
+            if sam3_cache_dir:
+                self._save_sam3_cache(final_state, sam3_cache_dir)
+
+            return {
+                "success": bool(xml_content),
+                "xml_content": xml_content,
+                "file_path": output_path,
+                "error": None if xml_content else "Failed to generate diagram from image",
+            }
+        except Exception as e:
+            log.exception("paper2drawio_sam3 generate_diagram_from_image failed: %s", e)
+            return {
+                "success": False,
+                "xml_content": "",
+                "file_path": "",
+                "error": str(e),
+            }
+
+    @staticmethod
+    def _save_sam3_cache(final_state: Any, cache_dir: str) -> None:
+        """Save SAM3 intermediate results to cache directory."""
+        cache_path = Path(cache_dir)
+        cache_path.mkdir(parents=True, exist_ok=True)
+        try:
+            temp_data = (
+                final_state.get("temp_data", {})
+                if isinstance(final_state, dict)
+                else (getattr(final_state, "temp_data", {}) or {})
+            )
+            sam3_results = temp_data.get("sam3_results")
+            if sam3_results:
+                (cache_path / "sam3_results.json").write_text(
+                    json.dumps(sam3_results, ensure_ascii=False, default=str),
+                    encoding="utf-8",
+                )
+            drawio_elements = temp_data.get("drawio_elements")
+            if drawio_elements:
+                (cache_path / "drawio_elements.json").write_text(
+                    json.dumps(drawio_elements, ensure_ascii=False, default=str),
+                    encoding="utf-8",
+                )
+        except Exception as e:
+            log.warning("[paper2drawio] Failed to save SAM3 cache: %s", e)
 
     async def chat_edit(
         self,

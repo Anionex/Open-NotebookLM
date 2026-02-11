@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -26,6 +27,8 @@ from fastapi_app.schemas import Paper2PPTRequest
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url
 from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
 from fastapi_app.dependencies.auth import get_supabase_admin_client
+from fastapi_app.notebook_paths import NotebookPaths, get_notebook_paths
+from fastapi_app.source_manager import SourceManager
 from fastapi_app.services.fast_research_service import fast_research_search
 from fastapi_app.services.deep_research_report_service import generate_report_from_search
 from dataflow_agent.toolkits.research_tools import fetch_page_text
@@ -122,6 +125,141 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 DOC_EXTENSIONS = {".pdf", ".docx", ".doc", ".pptx", ".ppt", ".md", ".markdown"}
 
 
+def _find_mineru_stem_dir(
+    pdf_stem: str,
+    email: str,
+    notebook_id: Optional[str],
+    notebook_title: Optional[str] = None,
+) -> Optional[Path]:
+    """
+    查找指定 pdf_stem 的 MinerU 输出目录。
+    查找顺序：
+    1. 笔记本新布局: outputs/{title}_{id}/sources/{pdf_stem}/mineru/
+    2. kb_mineru 新结构: kb_mineru/{email}/{notebook_id}/{pdf_stem}/auto/
+    3. kb_mineru 旧结构: kb_mineru/{email}/{notebook_id}/{uuid}/{pdf_stem}/auto/
+    返回包含 auto/ 或 hybrid_auto/ 的目录，找不到返回 None。
+    """
+    project_root = get_project_root()
+
+    # 1) 笔记本新布局: outputs/{title}_{id}/sources/{pdf_stem}/mineru/
+    if notebook_id:
+        nb_paths = get_notebook_paths(notebook_id, notebook_title or "", email)
+        mineru_dir = nb_paths.sources_dir / pdf_stem / "mineru"
+        if mineru_dir.exists():
+            # 直接在 mineru/ 下找 auto/ 或 hybrid_auto/
+            for sub in ("auto", "hybrid_auto"):
+                if (mineru_dir / sub).is_dir() and list((mineru_dir / sub).glob("*.md")):
+                    log.info("[find_mineru] 在新布局找到缓存: %s/%s", mineru_dir, sub)
+                    return mineru_dir
+            # 兼容: mineru/{pdf_stem}/auto/ (MinerU 可能多嵌套一层)
+            nested = mineru_dir / pdf_stem
+            if nested.exists():
+                for sub in ("auto", "hybrid_auto"):
+                    if (nested / sub).is_dir() and list((nested / sub).glob("*.md")):
+                        log.info("[find_mineru] 在新布局(嵌套)找到缓存: %s/%s", nested, sub)
+                        return nested
+
+    # 2) Legacy: kb_mineru/{email}/{notebook_id}/
+    safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
+    mineru_base = project_root / "outputs" / "kb_mineru" / (email or "default") / safe_nb
+
+    if not mineru_base.exists():
+        return None
+
+    stem_dir = mineru_base / pdf_stem
+    if stem_dir.exists():
+        for sub in ("auto", "hybrid_auto"):
+            if (stem_dir / sub).is_dir() and list((stem_dir / sub).glob("*.md")):
+                return stem_dir
+
+    # 3) 旧结构兼容：kb_mineru/{email}/{nb}/{uuid}/{pdf_stem}/auto/
+    for child in mineru_base.iterdir():
+        if not child.is_dir():
+            continue
+        nested = child / pdf_stem
+        if not nested.exists():
+            continue
+        for sub in ("auto", "hybrid_auto"):
+            if (nested / sub).is_dir() and list((nested / sub).glob("*.md")):
+                return nested
+
+    return None
+
+
+def _read_mineru_md_if_cached(
+    pdf_path: Path,
+    email: str,
+    notebook_id: Optional[str],
+    max_chars: int = 50000,
+    notebook_title: Optional[str] = None,
+) -> Optional[str]:
+    """
+    尝试从已有的 MinerU 缓存中读取 markdown 内容。
+    找到则返回 markdown 文本，否则返回 None。
+    """
+    stem_dir = _find_mineru_stem_dir(pdf_path.stem, email, notebook_id, notebook_title)
+    if stem_dir is None:
+        return None
+
+    for sub in ("auto", "hybrid_auto"):
+        candidate = stem_dir / sub
+        if not candidate.is_dir():
+            continue
+        md_files = list(candidate.glob("*.md"))
+        if md_files:
+            try:
+                text = md_files[0].read_text(encoding="utf-8")
+                if text.strip():
+                    log.info("[read_mineru_md] 从缓存读取 %s, len=%s", md_files[0], len(text))
+                    return text[:max_chars] if len(text) > max_chars else text
+            except Exception as e:
+                log.warning("[read_mineru_md] 读取失败 %s: %s", md_files[0], e)
+    return None
+
+
+def _reuse_mineru_cache(
+    pdf_paths: List[Path],
+    output_dir: Path,
+    email: str,
+    notebook_id: Optional[str],
+    notebook_title: Optional[str] = None,
+) -> int:
+    """
+    将已有的 MinerU 解析结果复制/软链到 PPT workflow 的 output_dir 下，
+    使 parse_pdf_pages 能直接发现 {output_dir}/{pdf_stem}/auto/*.md 而跳过重新解析。
+    返回成功复用的 PDF 数量。
+    """
+    reused = 0
+    for pdf_path in pdf_paths:
+        stem = pdf_path.stem
+        cached_stem_dir = _find_mineru_stem_dir(stem, email, notebook_id, notebook_title)
+        if cached_stem_dir is None:
+            log.info("[reuse_mineru] 未找到 %s 的 MinerU 缓存", stem)
+            continue
+
+        target = output_dir / stem
+        if target.exists():
+            # 已存在（可能之前已复用或本次 workflow 已生成），跳过
+            log.info("[reuse_mineru] 目标已存在，跳过: %s", target)
+            reused += 1
+            continue
+
+        try:
+            target.symlink_to(cached_stem_dir.resolve())
+            log.info("[reuse_mineru] 软链成功: %s -> %s", target, cached_stem_dir)
+            reused += 1
+        except OSError:
+            # 软链失败（跨文件系统等），回退到复制
+            try:
+                shutil.copytree(str(cached_stem_dir), str(target))
+                log.info("[reuse_mineru] 复制成功: %s -> %s", target, cached_stem_dir)
+                reused += 1
+            except Exception as e:
+                log.warning("[reuse_mineru] 复制失败 %s: %s", stem, e)
+
+    return reused
+
+
 def _resolve_local_path(path_or_url: str) -> Path:
     if not path_or_url:
         raise HTTPException(status_code=400, detail="Empty file path")
@@ -195,10 +333,12 @@ async def upload_kb_file(
     email: str = Form(...),
     user_id: str = Form(...),
     notebook_id: Optional[str] = Form(None),
+    notebook_title: Optional[str] = Form(None),
 ):
     """
     Upload a file to the notebook's knowledge base directory.
-    Stores at: outputs/kb_data/{email}/{notebook_id}/{filename} (per-notebook isolation)
+    New layout: outputs/{title}_{id}/sources/{stem}/original/
+    Fallback: also writes to legacy kb_data path for backward compat.
     """
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
@@ -213,29 +353,64 @@ async def upload_kb_file(
         )
 
     try:
-        user_dir = _notebook_dir(email, notebook_id)
-        user_dir.mkdir(parents=True, exist_ok=True)
-
         filename = file.filename or f"unnamed_{user_id}"
         filename = os.path.basename(filename)
-        file_path = user_dir / filename
 
-        with open(file_path, "wb") as buffer:
+        # --- New notebook-centric layout ---
+        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        mgr = SourceManager(paths)
+
+        # Save uploaded bytes to a temp location first, then import
+        tmp_dir = paths.root / "_tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = tmp_dir / filename
+        with open(tmp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # URL: encode @ as %40 so browser request decodes to disk path (email with @)
-        rel = file_path.relative_to(get_project_root())
-        static_path = "/" + rel.as_posix().replace("@", "%40")
-        if not static_path.startswith("/"):
-            static_path = "/" + static_path
+        source_info = await mgr.import_file(tmp_path, filename)
+
+        # Clean up temp
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        # Build static URL from the original path in new layout
+        project_root = get_project_root()
+        rel = source_info.original_path.relative_to(project_root)
+        static_path = "/" + rel.as_posix()
+
+        # --- Also write to legacy path for backward compat ---
+        legacy_dir = _notebook_dir(email, notebook_id)
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        legacy_path = legacy_dir / filename
+        if not legacy_path.exists():
+            shutil.copy2(str(source_info.original_path), str(legacy_path))
+
+        # Auto-embed using new vector_store path
+        embedded = False
+        try:
+            vector_base = str(paths.vector_store_dir)
+            mineru_base = str(paths.source_mineru_dir(filename))
+            file_list = [{"path": str(source_info.original_path)}]
+            await process_knowledge_base_files(
+                file_list=file_list,
+                base_dir=vector_base,
+                mineru_output_base=mineru_base,
+            )
+            embedded = True
+            log.info("[upload] auto-embedding done: %s", filename)
+        except Exception as emb_err:
+            log.warning("[upload] auto-embedding failed for %s: %s", filename, emb_err)
 
         return {
             "success": True,
             "filename": filename,
-            "file_size": os.path.getsize(file_path),
-            "storage_path": str(file_path),
+            "file_size": os.path.getsize(source_info.original_path),
+            "storage_path": str(source_info.original_path),
             "static_url": static_path,
-            "file_type": file.content_type
+            "file_type": file.content_type,
+            "embedded": embedded,
         }
 
     except Exception as e:
@@ -250,38 +425,71 @@ def _sanitize_md_filename(title: str, prefix: str = "doc") -> str:
     return safe + f"_{int(time.time())}.md"
 
 
+def _url_to_pdf(url: str, output_path: Path, timeout_ms: int = 30000) -> None:
+    """
+    使用 Playwright 打开 URL 并打印为 PDF，便于后续统一走 MinerU。
+    若 Playwright 未安装或失败，抛出异常。
+    """
+    from playwright.sync_api import sync_playwright
+    url = (url or "").strip()
+    if not url.startswith(("http://", "https://")):
+        raise ValueError("Invalid url")
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+            page.pdf(path=str(output_path), format="A4", print_background=True)
+        finally:
+            browser.close()
+
+
 @router.post("/add-text-source")
 async def add_text_source(
     notebook_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     user_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     title: str = Body("直接输入", embed=True),
     content: str = Body(..., embed=True),
 ) -> Dict[str, Any]:
     """
     将纯文本保存为笔记本内的 .md 文件并作为来源。用于「直接输入」引入。
+    New layout: outputs/{title}_{id}/sources/{stem}/
     """
     if not notebook_id or not email:
         raise HTTPException(status_code=400, detail="notebook_id and email are required")
     if not (content or "").strip():
         raise HTTPException(status_code=400, detail="content is required")
+
+    # New layout
+    paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+    mgr = SourceManager(paths)
+    source_info = await mgr.import_text(content, title)
+
+    # Legacy compat
     user_dir = _notebook_dir(email, notebook_id)
     user_dir.mkdir(parents=True, exist_ok=True)
-    filename = _sanitize_md_filename(title, "直接输入")
-    file_path = user_dir / filename
-    try:
-        file_path.write_text((content or "").strip(), encoding="utf-8")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    rel = file_path.relative_to(get_project_root())
-    static_path = "/" + rel.as_posix().replace("@", "%40")
+    legacy_filename = _sanitize_md_filename(title, "直接输入")
+    legacy_path = user_dir / legacy_filename
+    if not legacy_path.exists():
+        try:
+            shutil.copy2(str(source_info.original_path), str(legacy_path))
+        except Exception:
+            pass
+
+    project_root = get_project_root()
+    rel = source_info.original_path.relative_to(project_root)
+    static_path = "/" + rel.as_posix()
     return {
         "success": True,
-        "filename": filename,
-        "file_size": file_path.stat().st_size,
-        "storage_path": str(file_path),
+        "filename": source_info.original_path.name,
+        "file_size": source_info.original_path.stat().st_size,
+        "storage_path": str(source_info.original_path),
         "static_url": static_path,
-        "id": f"file-{filename}",
+        "id": f"file-{source_info.original_path.name}",
     }
 
 
@@ -290,45 +498,61 @@ async def import_url_as_source(
     notebook_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     user_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     url: str = Body(..., embed=True),
 ) -> Dict[str, Any]:
     """
-    抓取 URL 对应网页正文（去 HTML 标签）并保存为笔记本内的 .md 文件，作为来源。用于「网站」引入。
+    抓取 URL 网页正文存为 .md 文件，作为来源。
+    New layout: outputs/{title}_{id}/sources/{stem}/
     """
     if not notebook_id or not email:
         raise HTTPException(status_code=400, detail="notebook_id and email are required")
     url = (url or "").strip()
     if not url.startswith("http://") and not url.startswith("https://"):
         raise HTTPException(status_code=400, detail="Invalid url")
+
+    # Fetch page text
     try:
-        content = fetch_page_text(url, max_chars=100000)
+        text = await asyncio.to_thread(fetch_page_text, url)
+        if not text or text.startswith("[抓取失败"):
+            raise RuntimeError(text or "fetch_page_text returned empty")
     except Exception as e:
         log.warning("fetch_page_text failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
-    if not content or content.startswith("["):
-        raise HTTPException(status_code=400, detail="无法抓取该页面正文或页面非 HTML")
-    user_dir = _notebook_dir(email, notebook_id)
-    user_dir.mkdir(parents=True, exist_ok=True)
+        raise HTTPException(status_code=500, detail=f"网页抓取失败: {e}")
+
+    # Parse title from URL
     try:
         parsed = urlparse(url)
         title = (parsed.netloc or "网页") + "_" + (parsed.path.strip("/") or "page")[:30]
     except Exception:
         title = "网页"
-    filename = _sanitize_md_filename(title, "网页")
-    file_path = user_dir / filename
-    try:
-        file_path.write_text(content, encoding="utf-8")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    rel = file_path.relative_to(get_project_root())
-    static_path = "/" + rel.as_posix().replace("@", "%40")
+
+    # New layout
+    paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+    mgr = SourceManager(paths)
+    source_info = await mgr.import_url(url, text, title)
+
+    # Legacy compat
+    user_dir = _notebook_dir(email, notebook_id)
+    user_dir.mkdir(parents=True, exist_ok=True)
+    legacy_filename = _sanitize_md_filename(title, "网页")
+    legacy_path = user_dir / legacy_filename
+    if not legacy_path.exists():
+        try:
+            shutil.copy2(str(source_info.original_path), str(legacy_path))
+        except Exception:
+            pass
+
+    project_root = get_project_root()
+    rel = source_info.original_path.relative_to(project_root)
+    static_path = "/" + rel.as_posix()
     return {
         "success": True,
-        "filename": filename,
-        "file_size": file_path.stat().st_size,
-        "storage_path": str(file_path),
+        "filename": source_info.original_path.name,
+        "file_size": source_info.original_path.stat().st_size,
+        "storage_path": str(source_info.original_path),
         "static_url": static_path,
-        "id": f"file-{filename}",
+        "id": f"file-{source_info.original_path.name}",
     }
 
 
@@ -359,17 +583,34 @@ async def delete_kb_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def _vector_store_base_dir(email: Optional[str], notebook_id: Optional[str]) -> Optional[str]:
+    """与 kb_embedding 约定一致：返回该 notebook 的向量库根目录，供 RAG 使用。"""
+    root = get_project_root()
+    if not email:
+        base = root / "outputs" / "kb_data" / "vector_store_main"
+    else:
+        base = root / "outputs" / "kb_data" / (email or "default")
+        if notebook_id:
+            safe_nb = notebook_id.replace("/", "_").replace("\\", "_")[:128]
+            base = base / safe_nb / "vector_store"
+        else:
+            base = base / "_shared" / "vector_store"
+    return str(base) if base.exists() else None
+
+
 @router.post("/chat")
 async def chat_with_kb(
     files: List[str] = Body(..., embed=True),
     query: str = Body(..., embed=True),
     history: List[Dict[str, str]] = Body([], embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model: str = Body(settings.KB_CHAT_MODEL, embed=True),
 ):
     """
-    Intelligent QA Chat
+    Intelligent QA Chat. 若传 email/notebook_id 且该 notebook 已建索引，会优先用 RAG 检索片段作为上下文。
     """
     try:
         # Normalize file paths (web path -> local absolute path)
@@ -392,11 +633,14 @@ async def chat_with_kb(
              # Just return empty answer or handle logic
              pass
 
+        vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
+
         # Construct Request
         req = IntelligentQARequest(
             files=local_files,
             query=query,
             history=history,
+            vector_store_base_dir=vector_store_base_dir,
             chat_api_url=api_url or os.getenv("DF_API_URL"),
             api_key=api_key or os.getenv("DF_API_KEY"),
             model=model
@@ -414,18 +658,25 @@ async def chat_with_kb(
         
         answer = ""
         file_analyses = []
-        
+        source_mapping = {}
+
         if isinstance(result_state, dict):
             answer = result_state.get("answer", "")
             file_analyses = result_state.get("file_analyses", [])
+            source_mapping = result_state.get("source_mapping", {})
         else:
             answer = getattr(result_state, "answer", "")
             file_analyses = getattr(result_state, "file_analyses", [])
-            
+            source_mapping = getattr(result_state, "source_mapping", {})
+
+        # 将 source_mapping 的 int key 转为 str（JSON 要求）
+        source_mapping_str = {str(k): v for k, v in source_mapping.items()} if source_mapping else {}
+
         return {
             "success": True,
             "answer": answer,
-            "file_analyses": file_analyses
+            "file_analyses": file_analyses,
+            "source_mapping": source_mapping_str
         }
 
     except HTTPException:
@@ -768,17 +1019,24 @@ async def list_notebooks(
     for row in rows:
         nb_id = row.get("id")
         if nb_id:
+            count = 0
+            # New layout count
+            try:
+                paths = get_notebook_paths(nb_id, row.get("name", ""), uid)
+                if paths.sources_dir.exists():
+                    count += sum(1 for d in paths.sources_dir.iterdir() if d.is_dir() and (d / "original").exists())
+            except Exception:
+                pass
+            # Legacy count (avoid double-counting)
             nb_dir = _notebook_dir(email_for_path, nb_id)
             try:
-                # 来源数 = 磁盘文件数（排除 link_sources.json）+ Search 引入的链接条数
-                if not nb_dir.exists():
-                    row["sources"] = 0
-                else:
+                if nb_dir.exists():
                     file_count = sum(1 for _ in nb_dir.iterdir() if _.is_file() and _.name != LINK_SOURCES_FILENAME)
                     link_count = len(_load_link_sources(nb_dir))
-                    row["sources"] = file_count + link_count
+                    count = max(count, file_count + link_count)
             except Exception:
-                row["sources"] = 0
+                pass
+            row["sources"] = count
         else:
             row.setdefault("sources", 0)
     return {"success": True, "notebooks": rows}
@@ -789,73 +1047,111 @@ async def list_notebook_files(
     user_id: Optional[str] = None,
     notebook_id: Optional[str] = None,
     email: Optional[str] = None,
+    notebook_title: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List files in a notebook from disk (outputs/kb_data/{email}/{notebook_id}/). No auth."""
+    """List files in a notebook. Reads from new sources/ dir first, then falls back to legacy kb_data/."""
     uid = (user_id or "").strip() or DEFAULT_USER_ID
     em = (email or "").strip() or DEFAULT_EMAIL
     if not notebook_id:
         return {"success": True, "files": []}
-    nb_dir = _notebook_dir(em, notebook_id)
-    if not nb_dir.exists():
-        return {"success": True, "files": []}
+
     files: List[Dict[str, Any]] = []
+    seen_names: set = set()
+    project_root = get_project_root()
+
+    # --- 1) Read from new layout: outputs/{title}_{id}/sources/ ---
+    try:
+        paths = get_notebook_paths(notebook_id, notebook_title or "", uid)
+        sources_dir = paths.sources_dir
+        if sources_dir.exists():
+            for src_dir in sorted(sources_dir.iterdir()):
+                if not src_dir.is_dir():
+                    continue
+                orig_dir = src_dir / "original"
+                if not orig_dir.exists():
+                    continue
+                for f in orig_dir.iterdir():
+                    if not f.is_file():
+                        continue
+                    rel = f.relative_to(project_root)
+                    static_url = "/" + rel.as_posix()
+                    stat = f.stat()
+                    files.append({
+                        "id": f"file-{f.name}-{stat.st_mtime_ns}",
+                        "name": f.name,
+                        "url": static_url,
+                        "static_url": static_url,
+                        "file_size": stat.st_size,
+                        "file_type": (f.suffix or "").lower() or "application/octet-stream",
+                    })
+                    seen_names.add(f.name)
+    except Exception as e:
+        log.warning("[list_notebook_files] new layout read failed: %s", e)
+
+    # --- 2) Fallback: read from legacy kb_data/{email}/{notebook_id}/ ---
+    nb_dir = _notebook_dir(em, notebook_id)
     link_static_urls: set = set()
     try:
-        link_sources_path = nb_dir / LINK_SOURCES_FILENAME
-        if link_sources_path.exists():
-            try:
-                raw = link_sources_path.read_text(encoding="utf-8")
-                link_list = json.loads(raw)
-                if isinstance(link_list, list):
-                    for item in link_list:
-                        su = item.get("static_url") or ""
-                        if su:
-                            link_static_urls.add(su.rstrip("/"))
-            except Exception:
-                pass
-        for f in nb_dir.iterdir():
-            if not f.is_file():
-                continue
-            if f.name == LINK_SOURCES_FILENAME:
-                continue
-            rel = f.relative_to(get_project_root())
-            static_url = "/" + rel.as_posix().replace("@", "%40")
-            if static_url.rstrip("/") in link_static_urls:
-                continue
-            stat = f.stat()
-            files.append({
-                "id": f"file-{f.name}-{stat.st_mtime_ns}",
-                "name": f.name,
-                "url": static_url,
-                "static_url": static_url,
-                "file_size": stat.st_size,
-                "file_type": (f.suffix or "").lower() or "application/octet-stream",
-            })
-        if link_sources_path.exists():
-            try:
-                raw = link_sources_path.read_text(encoding="utf-8")
-                link_list = json.loads(raw)
-                if isinstance(link_list, list):
-                    for i, item in enumerate(link_list):
-                        link_id = item.get("id") or f"link-{i}-{hash(item.get('link', '')) % 10**8}"
-                        static_url = item.get("static_url") or ""
-                        link_url = item.get("link") or ""
-                        url = static_url or link_url
-                        files.append({
-                            "id": link_id,
-                            "name": (item.get("title") or item.get("link") or "Link")[:200],
-                            "url": url,
-                            "static_url": url,
-                            "file_size": 0,
-                            "file_type": "link",
-                            "source_type": "link",
-                            "snippet": item.get("snippet") or "",
-                        })
-            except Exception as e:
-                log.warning("list_notebook_files link_sources read failed: %s", e)
-        files.sort(key=lambda x: (x.get("file_type") == "link", x.get("name", "")))
+        if nb_dir.exists():
+            link_sources_path = nb_dir / LINK_SOURCES_FILENAME
+            if link_sources_path.exists():
+                try:
+                    raw = link_sources_path.read_text(encoding="utf-8")
+                    link_list = json.loads(raw)
+                    if isinstance(link_list, list):
+                        for item in link_list:
+                            su = item.get("static_url") or ""
+                            if su:
+                                link_static_urls.add(su.rstrip("/"))
+                except Exception:
+                    pass
+            for f in nb_dir.iterdir():
+                if not f.is_file():
+                    continue
+                if f.name == LINK_SOURCES_FILENAME:
+                    continue
+                if f.name in seen_names:
+                    continue
+                rel = f.relative_to(project_root)
+                static_url = "/" + rel.as_posix().replace("@", "%40")
+                if static_url.rstrip("/") in link_static_urls:
+                    continue
+                stat = f.stat()
+                files.append({
+                    "id": f"file-{f.name}-{stat.st_mtime_ns}",
+                    "name": f.name,
+                    "url": static_url,
+                    "static_url": static_url,
+                    "file_size": stat.st_size,
+                    "file_type": (f.suffix or "").lower() or "application/octet-stream",
+                })
+            # Link sources
+            if link_sources_path.exists():
+                try:
+                    raw = link_sources_path.read_text(encoding="utf-8")
+                    link_list = json.loads(raw)
+                    if isinstance(link_list, list):
+                        for i, item in enumerate(link_list):
+                            link_id = item.get("id") or f"link-{i}-{hash(item.get('link', '')) % 10**8}"
+                            static_url = item.get("static_url") or ""
+                            link_url = item.get("link") or ""
+                            url = static_url or link_url
+                            files.append({
+                                "id": link_id,
+                                "name": (item.get("title") or item.get("link") or "Link")[:200],
+                                "url": url,
+                                "static_url": url,
+                                "file_size": 0,
+                                "file_type": "link",
+                                "source_type": "link",
+                                "snippet": item.get("snippet") or "",
+                            })
+                except Exception as e:
+                    log.warning("list_notebook_files link_sources read failed: %s", e)
     except Exception as e:
-        log.warning("list_notebook_files failed: %s", e)
+        log.warning("list_notebook_files legacy read failed: %s", e)
+
+    files.sort(key=lambda x: (x.get("file_type") == "link", x.get("name", "")))
     return {"success": True, "files": files}
 
 
@@ -910,6 +1206,72 @@ def _pdf_to_markdown(local_path: str) -> str:
         log.warning("_pdf_to_markdown failed for %s: %s", local_path, e)
         return ""
     return "\n\n".join(text_parts)
+
+
+def _manifest_path_for_storage_path(storage_path: str) -> Optional[Path]:
+    """
+    根据来源文件路径（如 /outputs/kb_data/default/notebook_id/xxx.pdf）推断该笔记本的
+    vector_store 目录并返回 knowledge_manifest.json 路径；若无法推断则返回 None。
+    """
+    raw = _from_outputs_url((storage_path or "").strip())
+    p = Path(raw)
+    if not p.is_absolute():
+        p = (get_project_root() / raw).resolve()
+    parts = p.parts
+    if "kb_data" not in parts:
+        return None
+    idx = parts.index("kb_data")
+    if idx + 2 >= len(parts):
+        return None
+    email = parts[idx + 1]
+    notebook_id = parts[idx + 2]
+    root = get_project_root()
+    safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
+    manifest_path = root / "outputs" / "kb_data" / email / safe_nb / "vector_store" / "knowledge_manifest.json"
+    return manifest_path if manifest_path.exists() else None
+
+
+@router.post("/get-source-display-content")
+async def get_source_display_content(
+    path: str = Body(..., embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
+    email: Optional[str] = Body(None, embed=True),
+) -> Dict[str, Any]:
+    """
+    返回用于前端展示的来源内容。若该来源已建索引且存在 MinerU 产出的 MD，则返回该 MD 内容；
+    否则返回 from_mineru=false，前端可回退到 parse-local-file / fetch-page-content。
+    """
+    if not path or not path.strip():
+        return {"content": None, "from_mineru": False}
+    raw = _from_outputs_url(path.strip())
+    abs_path = Path(raw)
+    if not abs_path.is_absolute():
+        abs_path = (get_project_root() / raw).resolve()
+    if not abs_path.exists() or not abs_path.is_file():
+        return {"content": None, "from_mineru": False}
+    abs_str = str(abs_path.resolve())
+    manifest_path = _manifest_path_for_storage_path(path)
+    if not manifest_path:
+        return {"content": None, "from_mineru": False}
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+    except Exception:
+        return {"content": None, "from_mineru": False}
+    for file_record in (manifest.get("files") or []):
+        orig = (file_record.get("original_path") or "").strip()
+        if not orig:
+            continue
+        if Path(orig).resolve() == abs_path.resolve():
+            md_path = file_record.get("processed_md_path")
+            if md_path and Path(md_path).exists():
+                try:
+                    content = Path(md_path).read_text(encoding="utf-8", errors="replace")
+                    return {"content": content, "from_mineru": True}
+                except Exception:
+                    pass
+            break
+    return {"content": None, "from_mineru": False}
 
 
 @router.post("/parse-local-file")
@@ -1003,20 +1365,29 @@ async def import_link_sources(
     notebook_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     user_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     items: List[Dict[str, Any]] = Body(..., embed=True),
 ) -> Dict[str, Any]:
     """
-    将 Fast Research 返回的候选来源（或其中选中的条目）导入到当前笔记本。
-    引入时即在后端抓取网页正文并保存到笔记本目录下的 .md 文件，不依赖前端存储；生成 PPT 时直接读该文件，不再重新抓取。
-    items: [{ "title", "link", "snippet" }]
+    将 Fast Research 等返回的候选来源导入到当前笔记本。
+    每个 URL 通过 httpx 抓取正文存为 .md，然后自动触发 embedding。
+    New layout: outputs/{title}_{id}/sources/{stem}/
     """
     if not notebook_id or not email:
         raise HTTPException(status_code=400, detail="notebook_id and email are required")
+
+    # New layout
+    paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+    mgr = SourceManager(paths)
+
+    # Legacy compat
     nb_dir = _notebook_dir(email, notebook_id)
     nb_dir.mkdir(parents=True, exist_ok=True)
     existing = _load_link_sources(nb_dir)
     seen_links = {x.get("link") for x in existing if x.get("link")}
     imported = 0
+    saved_md_paths: List[str] = []
+
     for it in items:
         link = (it.get("link") or "").strip()
         if not link or link in seen_links:
@@ -1026,16 +1397,31 @@ async def import_link_sources(
         static_url = ""
         filename = ""
         try:
-            content = fetch_page_text(link, max_chars=100000)
-            if content and not content.startswith("["):
-                filename = _sanitize_md_filename(title[:80], "link")
-                file_path = nb_dir / filename
-                file_path.write_text(content, encoding="utf-8")
-                rel = file_path.relative_to(get_project_root())
-                static_url = "/" + rel.as_posix().replace("@", "%40")
-                log.info("[import-link-sources] 已抓取并保存: %s -> %s", link[:60], filename)
+            text = await asyncio.to_thread(fetch_page_text, link)
+            if not text or text.startswith("[抓取失败"):
+                raise RuntimeError(text or "empty response")
+
+            # Import into new layout
+            source_info = await mgr.import_url(link, text, title[:80])
+            project_root = get_project_root()
+            rel = source_info.original_path.relative_to(project_root)
+            static_url = "/" + rel.as_posix()
+            filename = source_info.original_path.name
+            saved_md_paths.append(str(source_info.original_path))
+
+            # Legacy compat: also save to old path
+            legacy_filename = _sanitize_md_filename(title[:80], "link")
+            legacy_path = nb_dir / legacy_filename
+            if not legacy_path.exists():
+                try:
+                    shutil.copy2(str(source_info.original_path), str(legacy_path))
+                except Exception:
+                    pass
+
+            log.info("[import-link-sources] 已抓取并保存: %s -> %s", link[:60], filename)
         except Exception as e:
             log.warning("[import-link-sources] 抓取失败 %s: %s", link[:60], e)
+
         existing.append({
             "id": f"link-{int(time.time() * 1000)}-{imported}",
             "title": title[:500],
@@ -1047,7 +1433,23 @@ async def import_link_sources(
         seen_links.add(link)
         imported += 1
     _save_link_sources(nb_dir, existing)
-    return {"success": True, "imported": imported}
+
+    # Auto-embed saved .md files using new paths
+    embedded = 0
+    if saved_md_paths:
+        try:
+            vector_base = str(paths.vector_store_dir)
+            file_list = [{"path": p} for p in saved_md_paths]
+            await process_knowledge_base_files(
+                file_list=file_list,
+                base_dir=vector_base,
+            )
+            embedded = len(saved_md_paths)
+            log.info("[import-link-sources] embedding 完成, %d 个文件", embedded)
+        except Exception as e:
+            log.warning("[import-link-sources] embedding 失败: %s", e)
+
+    return {"success": True, "imported": imported, "embedded": embedded}
 
 
 @router.post("/notebooks")
@@ -1056,24 +1458,37 @@ async def create_notebook(
     description: Optional[str] = Body(None, embed=True),
     user_id: str = Body(..., embed=True),
 ) -> Dict[str, Any]:
-    """Create a notebook. Uses Supabase if configured, else local JSON file."""
+    """Create a notebook. Uses Supabase if configured, else local JSON file.
+    Also creates the new outputs/{title}_{id}/sources/ directory."""
     sb = get_supabase_admin_client()
+    nb_data = None
     if sb:
         try:
             ins = sb.table("knowledge_bases").insert({"user_id": user_id, "name": name, "description": description or ""}).execute()
             data = (ins.data or []) if hasattr(ins, "data") else []
-            return {"success": True, "notebook": data[0] if data else None}
+            nb_data = data[0] if data else None
         except Exception as e:
             log.warning("create_notebook failed: %s", e)
             return {"success": False, "message": str(e)}
-    try:
-        nb = _create_notebook_local(user_id, name, description or "")
-        return {"success": True, "notebook": nb}
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.warning("create_notebook local failed: %s", e)
-        return {"success": False, "message": str(e)}
+    else:
+        try:
+            nb_data = _create_notebook_local(user_id, name, description or "")
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.warning("create_notebook local failed: %s", e)
+            return {"success": False, "message": str(e)}
+
+    # Create new directory structure
+    if nb_data and nb_data.get("id"):
+        try:
+            paths = get_notebook_paths(nb_data["id"], name, user_id)
+            paths.sources_dir.mkdir(parents=True, exist_ok=True)
+            log.info("[create_notebook] created dir: %s", paths.root)
+        except Exception as e:
+            log.warning("[create_notebook] dir creation failed: %s", e)
+
+    return {"success": True, "notebook": nb_data}
 
 
 @router.post("/generate-ppt")
@@ -1088,6 +1503,7 @@ async def generate_ppt_from_kb(
     user_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     style: str = Body("modern", embed=True),
@@ -1144,7 +1560,12 @@ async def generate_ppt_from_kb(
 
         ts = int(time.time())
         project_root = get_project_root()
-        output_dir = _outputs_dir(email, notebook_id, f"{ts}_ppt")
+        # New layout: outputs/{title}_{id}/ppt/{ts}/
+        if notebook_id:
+            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = nb_paths.feature_output_dir("ppt", ts)
+        else:
+            output_dir = _outputs_dir(email, notebook_id, f"{ts}_ppt")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         md_exts = {".md", ".markdown"}
@@ -1194,6 +1615,11 @@ async def generate_ppt_from_kb(
                 try:
                     if ext in md_exts:
                         content = local_path.read_text(encoding="utf-8")
+                    elif ext == ".pdf":
+                        # 优先从 MinerU 缓存读取高质量 markdown
+                        content = _read_mineru_md_if_cached(local_path, email, notebook_id, notebook_title=notebook_title)
+                        if not content:
+                            content = _extract_text_from_files([str(local_path)])
                     elif ext in pdf_like_exts:
                         content = _extract_text_from_files([str(local_path)])
                     else:
@@ -1251,27 +1677,31 @@ async def generate_ppt_from_kb(
 
         resolved_image_items.extend(user_image_items)
 
-        # Embedding + retrieval (optional): use notebook-scoped vector store
+        # Embedding + retrieval (optional): use notebook-scoped vector store，入库只用本地 embedding，MinerU 输出到 kb_mineru
         retrieval_text = ""
         if need_embedding:
             base_dir = _notebook_dir(email, notebook_id) / "vector_store"
             embed_api_url = api_url
             if "/embeddings" not in embed_api_url:
                 embed_api_url = embed_api_url.rstrip("/") + "/embeddings"
+            project_root = get_project_root()
+            safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
+            mineru_output_base = project_root / "outputs" / "kb_mineru" / (email or "default") / safe_nb
+            mineru_output_base.mkdir(parents=True, exist_ok=True)
 
             files_for_embed = [{"path": str(p), "description": ""} for p in doc_paths]
             manifest = await process_knowledge_base_files(
                 files_for_embed,
                 base_dir=str(base_dir),
-                api_url=embed_api_url,
+                api_url=None,
                 api_key=api_key,
                 model_name=None,
                 multimodal_model=None,
+                mineru_output_base=str(mineru_output_base),
             )
 
             manager = VectorStoreManager(
                 base_dir=str(base_dir),
-                embedding_api_url=embed_api_url,
                 api_key=api_key,
             )
 
@@ -1310,6 +1740,11 @@ async def generate_ppt_from_kb(
         )
         log.info("[generate-ppt] ppt_req.page_count=%s（将传入 outline 生成）", ppt_req.page_count)
 
+        # 复用 embedding 入库时已有的 MinerU 解析结果，避免重复跑 MinerU
+        if not use_text_input and pdf_paths_for_outline:
+            n_reused = _reuse_mineru_cache(pdf_paths_for_outline, output_dir, email, notebook_id, notebook_title=notebook_title)
+            log.info("[generate-ppt] MinerU 缓存复用: %s/%s 个 PDF", n_reused, len(pdf_paths_for_outline))
+
         # Step 1: 生成大纲（kb_page_content 内含 LLM outline_agent，无人工确认）
         log.info("[generate-ppt] Step 1: 运行 kb_page_content，由 LLM 生成大纲 (outline)")
         state_pc = _init_state_from_request(ppt_req, result_path=output_dir)
@@ -1320,7 +1755,10 @@ async def generate_ppt_from_kb(
         if not use_text_input and len(pdf_paths_for_outline) > 1:
             multi_parts = []
             for i, p in enumerate(pdf_paths_for_outline):
-                part = _extract_text_from_files([str(p)])
+                # 优先从 MinerU 缓存读取高质量 markdown
+                part = _read_mineru_md_if_cached(p, email, notebook_id, notebook_title=notebook_title)
+                if not part:
+                    part = _extract_text_from_files([str(p)])
                 if part.strip():
                     multi_parts.append(f"来源{i + 1}:\n{part}")
             if multi_parts:
@@ -1396,6 +1834,7 @@ async def generate_deep_research_report(
     user_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     language: str = Body("zh", embed=True),
@@ -1418,7 +1857,12 @@ async def generate_deep_research_report(
             raise HTTPException(status_code=400, detail="page_count must be an integer between 1 and 50")
         ts = int(time.time())
         project_root = get_project_root()
-        output_dir = _outputs_dir(email, notebook_id, f"{ts}_deep_research")
+        # New layout: outputs/{title}_{id}/deep_research/{ts}/
+        if notebook_id:
+            dr_paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = dr_paths.feature_output_dir("deep_research", ts)
+        else:
+            output_dir = _outputs_dir(email, notebook_id, f"{ts}_deep_research")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         topic = topic.strip()
@@ -1545,6 +1989,7 @@ async def generate_podcast_from_kb(
     user_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
@@ -1559,7 +2004,12 @@ async def generate_podcast_from_kb(
     """
     try:
         ts = int(time.time())
-        output_dir = _outputs_dir(email, notebook_id, f"{ts}_podcast")
+        # New layout: outputs/{title}_{id}/podcast/{ts}/
+        if notebook_id:
+            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = paths.feature_output_dir("podcast", ts)
+        else:
+            output_dir = _outputs_dir(email, notebook_id, f"{ts}_podcast")
         output_dir.mkdir(parents=True, exist_ok=True)
         project_root = get_project_root()
 
@@ -1729,6 +2179,7 @@ async def generate_mindmap_from_kb(
     user_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
@@ -1742,7 +2193,12 @@ async def generate_mindmap_from_kb(
     try:
         project_root = get_project_root()
         ts = int(time.time())
-        output_dir = _outputs_dir(email, notebook_id, f"{ts}_mindmap_input")
+        # New layout: outputs/{title}_{id}/mindmap/{ts}/
+        if notebook_id:
+            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = paths.feature_output_dir("mindmap", ts)
+        else:
+            output_dir = _outputs_dir(email, notebook_id, f"{ts}_mindmap_input")
         output_dir.mkdir(parents=True, exist_ok=True)
         local_file_paths: List[str] = []
 
@@ -1842,27 +2298,124 @@ async def generate_mindmap_from_kb(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _collect_figure_images(
+    mgr: "SourceManager",
+    file_paths: List[str],
+    project_root: Path,
+) -> List[tuple]:
+    """
+    从 file_paths 对应的 source 中收集 MinerU 提取的 figure 图片。
+    返回 [(source_stem, image_path), ...]
+    """
+    IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"}
+    results: List[tuple] = []
+
+    for fp in (file_paths or []):
+        ps = (fp or "").strip()
+        if ps.startswith("http://") or ps.startswith("https://"):
+            continue
+
+        local_path = _resolve_local_path(ps)
+        stem = local_path.stem
+
+        # 1) 检查 MinerU auto/images/ 目录下的图片
+        mineru_root = mgr.get_mineru_root(stem)
+        if mineru_root and mineru_root.exists():
+            images_dir = mineru_root / "images"
+            scan_dir = images_dir if images_dir.is_dir() else mineru_root
+            for img in sorted(scan_dir.iterdir()):
+                if img.is_file() and img.suffix.lower() in IMAGE_EXTS:
+                    results.append((stem, img))
+
+        # 2) 如果 MinerU 没有图片，检查原始文件本身是否是图片
+        if not any(s == stem for s, _ in results):
+            if local_path.exists() and local_path.suffix.lower() in IMAGE_EXTS:
+                results.append((stem, local_path))
+
+    return results
+
+
 @router.post("/generate-drawio")
 async def generate_drawio_from_kb(
     file_paths: List[str] = Body(..., embed=True),
     user_id: str = Body(..., embed=True),
     email: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
     diagram_type: str = Body("auto", embed=True),
     diagram_style: str = Body("default", embed=True),
     language: str = Body("zh", embed=True),
+    text_content: Optional[str] = Body(None, embed=True),
 ):
     """
-    从知识库选中文件生成 DrawIO 图表。爬取只发生在「引入」时一次，之后一律用本地已存 .md。
-    - 本地路径（/outputs/...）：直接读文件；
-    - http(s) URL：先查该笔记本 link_sources 是否已存该 link 的 .md，有则读本地，没有才抓取（兜底）。
+    从知识库选中文件生成 DrawIO 图表。
+    优先从 MinerU 提取的 figure 图片走 SAM3 分割生成 drawio（缓存到 sources/{stem}/sam3/），
+    没有 figure 图片时 fallback 到文本模式 LLM 生成。
     """
     try:
         log.info("[generate-drawio] 收到 file_paths: %s", file_paths)
         project_root = get_project_root()
+
+        # --- SAM3 图片模式：有 notebook 且能找到 figure 图片时自动走 SAM3 ---
+        if notebook_id:
+            from fastapi_app.services.paper2drawio_service import Paper2DrawioService
+
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email)
+            mgr = SourceManager(paths)
+            ts = int(time.time())
+            output_dir = paths.feature_output_dir("drawio", ts)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # 收集所有 source 中的 figure 图片
+            figure_images = _collect_figure_images(mgr, file_paths, project_root)
+            if not figure_images:
+                log.warning("[generate-drawio] SAM3 模式但未找到 figure 图片，回退到文本模式")
+            else:
+                service = Paper2DrawioService()
+                all_xmls = []
+                for stem, img_path in figure_images:
+                    sam3_cache = str(mgr.ensure_sam3_dir(stem))
+                    result = await service.generate_diagram_from_image(
+                        image_path=str(img_path),
+                        chat_api_url=api_url,
+                        api_key=api_key,
+                        model=model,
+                        language=language,
+                        email=email,
+                        sam3_cache_dir=sam3_cache,
+                        output_dir=str(output_dir),
+                    )
+                    if result.get("success") and result.get("xml_content"):
+                        all_xmls.append(result["xml_content"])
+                        log.info("[generate-drawio] SAM3 成功: stem=%s", stem)
+                    else:
+                        log.warning("[generate-drawio] SAM3 失败: stem=%s err=%s", stem, result.get("error"))
+
+                if all_xmls:
+                    xml_content = all_xmls[0]  # 目前取第一个成功的
+                    drawio_path = output_dir / f"diagram_{ts}.drawio"
+                    drawio_path.write_text(xml_content, encoding="utf-8")
+                    download_url = _to_outputs_url(str(drawio_path))
+                    _save_output_record(
+                        email=email, user_id=user_id, notebook_id=notebook_id,
+                        output_type="drawio", file_name=drawio_path.name,
+                        file_path=str(drawio_path), result_path=str(output_dir),
+                        download_url=download_url,
+                    )
+                    return {
+                        "success": True,
+                        "xml_content": xml_content,
+                        "file_path": download_url,
+                        "error": None,
+                        "output_file_id": f"kb_drawio_{ts}",
+                    }
+                # SAM3 全部失败，fall through 到文本模式
+                log.warning("[generate-drawio] SAM3 全部失败，回退到文本模式")
+
+        # --- 文本模式（原有逻辑） ---
         url_sources = []
         local_file_paths = []
         for f in (file_paths or []):
@@ -1939,14 +2492,14 @@ async def generate_drawio_from_kb(
             }
 
         xml_content = result["xml_content"]
-        output_dir = project_root / OUTPUTS_BASE / (email or "default")
-        if notebook_id:
-            output_dir = output_dir / notebook_id.replace("/", "_").replace("\\", "_")[:128]
-        else:
-            output_dir = output_dir / "_shared"
-        output_dir = output_dir / "drawio"
-        output_dir.mkdir(parents=True, exist_ok=True)
         ts = int(time.time())
+        # New layout: outputs/{title}_{id}/drawio/{ts}/
+        if notebook_id:
+            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = paths.feature_output_dir("drawio", ts)
+        else:
+            output_dir = project_root / OUTPUTS_BASE / (email or "default") / "_shared" / "drawio"
+        output_dir.mkdir(parents=True, exist_ok=True)
         drawio_path = output_dir / f"diagram_{ts}.drawio"
         drawio_path.write_text(xml_content, encoding="utf-8")
         download_url = _to_outputs_url(str(drawio_path))
@@ -2017,7 +2570,7 @@ async def save_mindmap_to_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===================== 闪卡功能 =====================
+# ===================== Flashcard 闪卡 =====================
 
 @router.post("/generate-flashcards")
 async def generate_flashcards(
@@ -2025,19 +2578,17 @@ async def generate_flashcards(
     email: str = Body(..., embed=True),
     user_id: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
     language: str = Body("zh", embed=True),
     card_count: int = Body(20, embed=True),
 ):
-    """
-    从知识库文件生成闪卡
-    """
+    """从知识库文件生成闪卡"""
     try:
         from fastapi_app.services.flashcard_service import generate_flashcards_with_llm
 
-        # 1. 解析文件路径
         local_paths = []
         for f in file_paths:
             ps = (f or "").strip()
@@ -2053,14 +2604,12 @@ async def generate_flashcards(
         if not local_paths:
             raise HTTPException(status_code=400, detail="No valid files provided")
 
-        # 2. 提取文本内容
         text_content = _extract_text_from_files(local_paths, max_chars=50000)
         if not text_content.strip():
             raise HTTPException(status_code=400, detail="No text content extracted")
 
-        log.info(f"[generate-flashcards] 文本长度: {len(text_content)}, 文件数: {len(local_paths)}")
+        log.info("[generate-flashcards] text_len=%d, files=%d", len(text_content), len(local_paths))
 
-        # 3. 调用 LLM 生成闪卡
         flashcards = await generate_flashcards_with_llm(
             text_content=text_content,
             api_url=api_url,
@@ -2069,44 +2618,46 @@ async def generate_flashcards(
             language=language,
             card_count=card_count,
         )
-
         if not flashcards:
             raise HTTPException(status_code=500, detail="Failed to generate flashcards")
 
-        # 4. 保存闪卡集到本地
         ts = int(time.time())
         flashcard_set_id = f"flashcard_{ts}"
-        output_dir = _outputs_dir(email, notebook_id, flashcard_set_id)
+        if notebook_id:
+            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = paths.feature_output_dir("flashcard", ts)
+        else:
+            output_dir = _outputs_dir(email, notebook_id, flashcard_set_id)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         flashcard_data = {
             "id": flashcard_set_id,
             "notebook_id": notebook_id,
-            "flashcards": [f.dict() for f in flashcards],
+            "flashcards": [fc.dict() for fc in flashcards],
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "source_files": file_paths,
             "total_count": len(flashcards),
         }
-
-        json_path = output_dir / "flashcards.json"
-        json_path.write_text(json.dumps(flashcard_data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        log.info(f"[generate-flashcards] 成功生成 {len(flashcards)} 张闪卡")
+        (output_dir / "flashcards.json").write_text(
+            json.dumps(flashcard_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        log.info("[generate-flashcards] 成功生成 %d 张闪卡", len(flashcards))
 
         return {
             "success": True,
-            "flashcards": [f.dict() for f in flashcards],
+            "flashcards": [fc.dict() for fc in flashcards],
             "flashcard_set_id": flashcard_set_id,
             "total_count": len(flashcards),
             "result_path": _to_outputs_url(str(output_dir)),
         }
-
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log.exception("[generate-flashcards] failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===================== Quiz 测验 =====================
 
 @router.post("/generate-quiz")
 async def generate_quiz(
@@ -2114,19 +2665,17 @@ async def generate_quiz(
     email: str = Body(..., embed=True),
     user_id: str = Body(..., embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
     language: str = Body("en", embed=True),
     question_count: int = Body(10, embed=True),
 ):
-    """
-    生成 Quiz 测验题目
-    """
-    from fastapi_app.services.quiz_service import generate_quiz_with_llm
-
+    """生成 Quiz 测验题目"""
     try:
-        # 1. 解析文件路径
+        from fastapi_app.services.quiz_service import generate_quiz_with_llm
+
         local_paths = []
         for f in file_paths:
             ps = (f or "").strip()
@@ -2142,14 +2691,12 @@ async def generate_quiz(
         if not local_paths:
             raise HTTPException(status_code=400, detail="No valid files provided")
 
-        # 2. 提取文本内容
         text_content = _extract_text_from_files(local_paths, max_chars=50000)
         if not text_content.strip():
             raise HTTPException(status_code=400, detail="No text content extracted")
 
-        log.info(f"[generate-quiz] 文本长度: {len(text_content)}, 文件数: {len(local_paths)}")
+        log.info("[generate-quiz] text_len=%d, files=%d", len(text_content), len(local_paths))
 
-        # 3. 调用 LLM 生成 Quiz
         questions = await generate_quiz_with_llm(
             text_content=text_content,
             api_url=api_url,
@@ -2158,14 +2705,16 @@ async def generate_quiz(
             language=language,
             question_count=question_count,
         )
-
         if not questions:
             raise HTTPException(status_code=500, detail="Failed to generate quiz")
 
-        # 4. 保存 Quiz 到本地
         ts = int(time.time())
         quiz_id = f"quiz_{ts}"
-        output_dir = _outputs_dir(email, notebook_id, quiz_id)
+        if notebook_id:
+            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            output_dir = paths.feature_output_dir("quiz", ts)
+        else:
+            output_dir = _outputs_dir(email, notebook_id, quiz_id)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         quiz_data = {
@@ -2176,11 +2725,10 @@ async def generate_quiz(
             "source_files": file_paths,
             "total_count": len(questions),
         }
-
-        json_path = output_dir / "quiz.json"
-        json_path.write_text(json.dumps(quiz_data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        log.info(f"[generate-quiz] 成功生成 {len(questions)} 道题目")
+        (output_dir / "quiz.json").write_text(
+            json.dumps(quiz_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        log.info("[generate-quiz] 成功生成 %d 道题目", len(questions))
 
         return {
             "success": True,
@@ -2189,10 +2737,8 @@ async def generate_quiz(
             "total_count": len(questions),
             "result_path": _to_outputs_url(str(output_dir)),
         }
-
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log.exception("[generate-quiz] failed")
         raise HTTPException(status_code=500, detail=str(e))

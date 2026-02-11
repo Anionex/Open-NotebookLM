@@ -43,6 +43,24 @@ def _abs_path(p: str) -> str:
         return p
 
 
+def _find_mineru_auto_dir(paper_dir: Path) -> Path | None:
+    """
+    探测 MinerU 实际输出的子目录。
+    MinerU 根据 backend 不同会输出到 auto/ 或 hybrid_auto/ 等目录。
+    按优先级依次检查，返回第一个存在的目录；都不存在则返回 None。
+    """
+    candidates = ["auto", "hybrid_auto"]
+    for name in candidates:
+        d = paper_dir / name
+        if d.exists() and d.is_dir():
+            return d
+    # 兜底：扫描 paper_dir 下所有含 .md 文件的子目录
+    for child in sorted(paper_dir.iterdir()):
+        if child.is_dir() and list(child.glob("*.md")):
+            return child
+    return None
+
+
 @register("kb_page_content")
 def create_kb_page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     """
@@ -122,18 +140,31 @@ def create_kb_page_content_graph() -> GenericGraphBuilder:  # noqa: N802
 
         pdf_stem = paper_pdf_path.stem
         paper_dir = result_root / pdf_stem
-        auto_dir = paper_dir / "auto"
 
-        if not auto_dir.exists():
+        # 探测已有的 MinerU 输出目录（auto / hybrid_auto 等）
+        auto_dir = _find_mineru_auto_dir(paper_dir) if paper_dir.exists() else None
+
+        if auto_dir is None:
+            # 没有已有结果，触发 MinerU 解析
             try:
                 run_mineru_pdf_extract(str(paper_pdf_path), str(result_root), "modelscope")
             except Exception as e:
                 log.error(f"[kb_page_content] run_mineru_pdf_extract 失败: {e}")
                 state.minueru_output = ""
                 return state
+            auto_dir = _find_mineru_auto_dir(paper_dir)
 
-        auto_dir = (result_root / pdf_stem / "auto").resolve()
+        if auto_dir is None:
+            log.error(f"[kb_page_content] MinerU 输出目录不存在: {paper_dir}")
+            state.minueru_output = ""
+            return state
+
+        auto_dir = auto_dir.resolve()
         markdown_path = auto_dir / f"{pdf_stem}.md"
+        if not markdown_path.exists():
+            # 兜底：取目录下第一个 .md 文件
+            md_files = list(auto_dir.glob("*.md"))
+            markdown_path = md_files[0] if md_files else markdown_path
         if not markdown_path.exists():
             log.error(f"[kb_page_content] Markdown 文件不存在: {markdown_path}")
             state.minueru_output = ""

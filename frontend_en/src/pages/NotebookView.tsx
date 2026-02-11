@@ -19,6 +19,8 @@ import { FlashcardGenerator } from '../components/flashcards/FlashcardGenerator'
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
 import { QuizGenerator } from '../components/quiz/QuizGenerator';
 import { QuizContainer } from '../components/quiz/QuizContainer';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
@@ -127,9 +129,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [retrievalError, setRetrievalError] = useState('');
   const [retrievalTopK, setRetrievalTopK] = useState(5);
   const [retrievalModel, setRetrievalModel] = useState('text-embedding-3-large');
-  const [embeddingLoading, setEmbeddingLoading] = useState(false);
-  const [embedOnUpload, setEmbedOnUpload] = useState(true);
-  const [fileEmbedLoading, setFileEmbedLoading] = useState<Record<string, boolean>>({});
   const [vectorFiles, setVectorFiles] = useState<any[]>([]);
   const [vectorLoading, setVectorLoading] = useState(false);
   const [vectorError, setVectorError] = useState('');
@@ -143,6 +142,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [fastResearchSelected, setFastResearchSelected] = useState<Set<number>>(new Set());
   const [fastResearchError, setFastResearchError] = useState('');
   const [importingSources, setImportingSources] = useState(false);
+  const [fileUploading, setFileUploading] = useState(false);
   // Deep Research 报告生成
   const [deepResearchTopic, setDeepResearchTopic] = useState('');
   const [deepResearchLoading, setDeepResearchLoading] = useState(false);
@@ -167,6 +167,16 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [sourceDetailContent, setSourceDetailContent] = useState('');
   const [sourceDetailFormat, setSourceDetailFormat] = useState<'text' | 'markdown'>('text');
   const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
+
+  // Flashcard state
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
+  const [flashcardSetId, setFlashcardSetId] = useState<string>('');
+
+  // Quiz state
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
+  const [showQuizContainer, setShowQuizContainer] = useState(false);
+  const [quizId, setQuizId] = useState<string>('');
 
   // 三栏可拖拽宽度（左 / 右，中间 flex 自适应）
   const [leftPanelWidth, setLeftPanelWidth] = useState(256);
@@ -209,6 +219,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     { icon: <ImageIcon className="text-orange-500" />, label: 'PPT', id: 'ppt' },
     { icon: <BrainCircuit className="text-purple-500" />, label: 'Mind Map', id: 'mindmap' },
     { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO', id: 'drawio' },
+    { icon: <BookOpen className="text-indigo-500" />, label: 'Flashcards', id: 'flashcard' },
+    { icon: <Brain className="text-blue-500" />, label: 'Quiz', id: 'quiz' },
     { icon: <Mic2 className="text-red-500" />, label: 'Knowledge Podcast', id: 'podcast' },
     { icon: <BookOpen className="text-indigo-500" />, label: 'Flashcards', id: 'flashcard' },
     { icon: <Brain className="text-blue-500" />, label: 'Quiz', id: 'quiz' },
@@ -446,12 +458,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return originalPath;
   };
 
-  const getEmbeddingApiUrl = (rawUrl: string) => {
-    if (!rawUrl) return '';
-    if (rawUrl.includes('/embeddings')) return rawUrl;
-    return `${rawUrl.replace(/\/$/, '')}/embeddings`;
-  };
-
   const markEmbedded = async (file?: KnowledgeFile, storagePath?: string) => {
     if (isSupabaseConfigured()) {
       if (file?.id) {
@@ -473,93 +479,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         return f;
       });
       localStorage.setItem(storageKey, JSON.stringify(updated));
-    }
-  };
-
-  const handleEmbedFiles = async (filesToEmbed: KnowledgeFile[], storagePaths?: string[]) => {
-    const settings = getApiSettings(effectiveUser?.id || null);
-    const apiUrl = getEmbeddingApiUrl(settings?.apiUrl?.trim() || '');
-    const apiKey = settings?.apiKey?.trim() || '';
-    if (!apiUrl || !apiKey) {
-      const msg = 'Please configure API URL and API Key in Settings first';
-      setRetrievalError(msg);
-      alert(msg);
-      return false;
-    }
-
-    const payloadFiles = filesToEmbed
-      .filter(f => f.url)
-      .map(f => ({ path: f.url as string, description: f.desc || '' }));
-
-    if (storagePaths && storagePaths.length > 0) {
-      storagePaths.forEach(path => {
-        if (!payloadFiles.find(p => p.path === path)) {
-          payloadFiles.push({ path, description: '' });
-        }
-      });
-    }
-
-    if (payloadFiles.length === 0) {
-      const msg = 'Could not get file path. Please ensure the file is uploaded';
-      setRetrievalError(msg);
-      alert(msg);
-      return false;
-    }
-
-    setEmbeddingLoading(true);
-    setRetrievalError('');
-    try {
-      const body: Record<string, unknown> = {
-        files: payloadFiles,
-        api_url: apiUrl,
-        api_key: apiKey,
-        model_name: retrievalModel
-      };
-      if (effectiveUser?.email || effectiveUser?.id) body.email = effectiveUser.email || effectiveUser.id;
-      if (notebook?.id) body.notebook_id = notebook.id;
-      const res = await apiFetch('/api/v1/kb/embedding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) {
-        let msg = 'Failed to generate embeddings';
-        try {
-          const body = await res.json();
-          msg = body?.detail || body?.message || msg;
-        } catch {
-          msg = await res.text() || msg;
-        }
-        if (res.status === 401 || (typeof msg === 'string' && msg.includes('401'))) {
-          msg = 'API auth failed (401). Please check API Key in Settings (valid/expired).';
-        }
-        throw new Error(msg);
-      }
-      const data = await res.json();
-      const failed = (data?.manifest?.files || []).filter((f: any) => f?.status === 'failed');
-      if (failed.length > 0) {
-        const firstErr = failed[0]?.error || 'Unknown error';
-        throw new Error(firstErr.includes('401') ? 'API auth failed (401). Check API Key in Settings.' : firstErr);
-      }
-      for (const f of filesToEmbed) {
-        await markEmbedded(f);
-      }
-      if (storagePaths) {
-        for (const p of storagePaths) {
-          await markEmbedded(undefined, p);
-        }
-      }
-      // 入库成功后刷新向量列表和来源列表，使按钮显示「已入库」、来源管理同步
-      await fetchVectorList();
-      await fetchFiles();
-      return true;
-    } catch (err: any) {
-      const msg = err?.message || 'Failed to generate embeddings';
-      setRetrievalError(msg);
-      alert(msg);
-      return false;
-    } finally {
-      setEmbeddingLoading(false);
     }
   };
 
@@ -593,6 +512,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       };
       if (effectiveUser?.email || effectiveUser?.id) body.email = effectiveUser.email || effectiveUser.id;
       if (notebook?.id) body.notebook_id = notebook.id;
+      if (notebook?.title || notebook?.name) body.notebook_title = notebook?.title || notebook?.name || '';
       const res = await apiFetch('/api/v1/kb/embedding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -961,6 +881,21 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     } else if (isPreviewableDoc(file) && file.url && (file.url.startsWith('/outputs/') || file.url.startsWith('/'))) {
       setSourceDetailLoading(true);
       try {
+        // Prefer MinerU output MD for display; fallback to parse-local-file
+        const displayRes = await apiFetch('/api/v1/kb/get-source-display-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: file.url })
+        });
+        if (displayRes.ok) {
+          const displayData = await displayRes.json();
+          if (displayData?.from_mineru && displayData?.content != null) {
+            setSourceDetailContent(displayData.content);
+            setSourceDetailFormat('markdown');
+            setSourceDetailLoading(false);
+            return;
+          }
+        }
         const res = await apiFetch('/api/v1/kb/parse-local-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1046,6 +981,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           notebook_id: notebook.id,
           email: effectiveUser.email || effectiveUser.id,
           user_id: effectiveUser.id,
+          notebook_title: notebook?.title || notebook?.name || '',
           items
         })
       });
@@ -1055,9 +991,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
       const data = await res.json();
       await fetchFiles();
+      await fetchVectorList();
       setFastResearchSources([]);
       setFastResearchSelected(new Set());
-      alert(`Imported ${data?.imported ?? items.length} source(s)`);
+      const embeddedMsg = data?.embedded ? `, ${data.embedded} embedded` : '';
+      alert(`Imported ${data?.imported ?? items.length} source(s)${embeddedMsg}`);
     } catch (err: any) {
       alert(err?.message || 'Import failed');
     } finally {
@@ -1085,6 +1023,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           notebook_id: notebook.id,
           email: effectiveUser.email || effectiveUser.id,
           user_id: effectiveUser.id,
+          notebook_title: notebook?.title || notebook?.name || '',
           url,
         }),
       });
@@ -1136,6 +1075,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           notebook_id: notebook.id,
           email: effectiveUser.email || effectiveUser.id,
           user_id: effectiveUser.id,
+          notebook_title: notebook?.title || notebook?.name || '',
           title: 'Direct input',
           content,
         }),
@@ -1199,6 +1139,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           user_id: effectiveUser.id,
           email: effectiveUser.email || effectiveUser.id,
           notebook_id: notebook.id,
+          notebook_title: notebook?.title || notebook?.name || '',
           api_url: apiUrl,
           api_key: apiKey,
           language: 'zh',
@@ -1270,7 +1211,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     formData.append('email', effectiveUser.email || effectiveUser.id || 'default');
     formData.append('user_id', effectiveUser.id || 'default');
     formData.append('notebook_id', notebook.id);
+    formData.append('notebook_title', notebook?.title || notebook?.name || '');
 
+    setFileUploading(true);
     try {
       const res = await apiFetch('/api/v1/kb/upload', {
         method: 'POST',
@@ -1280,26 +1223,22 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       if (!res.ok) throw new Error('Upload failed');
 
       const data = await res.json();
-      if (embedOnUpload) {
-        const ok = await handleEmbedFiles([], [data.static_url]);
-        if (ok) {
-          alert('Uploaded and embedded successfully!');
-        } else {
-          setRetrievalError('Upload succeeded but embedding failed. Configure API in Settings, then click "Generate embeddings".');
-          alert('Upload succeeded but embedding failed. Configure API in Settings, then click "Generate embeddings" on the source.');
-        }
-      } else {
-        await fetchFiles();
-        if (options?.onSuccess) options.onSuccess();
-        else alert('Upload succeeded!');
-      }
       await fetchFiles();
       await fetchVectorList();
+      if (data.embedded) {
+        if (options?.onSuccess) options.onSuccess();
+        else alert('Uploaded and embedded successfully!');
+      } else {
+        if (options?.onSuccess) options.onSuccess();
+        else alert('Upload succeeded but auto-embedding failed. You can re-embed from Sources.');
+      }
     } catch (err: any) {
       console.error('Upload error:', err);
       const msg = err?.message || 'Upload failed, please retry';
       setRetrievalError(msg);
       alert(msg);
+    } finally {
+      setFileUploading(false);
     }
   };
 
@@ -1353,6 +1292,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           files: selectedFiles,
           query: userMsg.content,
           history: history,
+          email: effectiveUser?.email || effectiveUser?.id || undefined,
+          notebook_id: notebook?.id || undefined,
           api_url: settings?.apiUrl?.trim() || undefined,
           api_key: settings?.apiKey?.trim() || undefined
         })
@@ -1367,7 +1308,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         role: 'assistant',
         content: data.answer || "Sorry, I couldn't answer that.",
         time: new Date().toLocaleTimeString(),
-        details: data.file_analyses
+        details: data.file_analyses,
+        sourceMapping: data.source_mapping || undefined
       };
       setChatMessages(prev => [...prev, botMsg]);
       persistCurrentConversation([...chatMessages, userMsg, botMsg]);
@@ -1428,6 +1370,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const baseBody: any = {
         user_id: effectiveUser?.id || 'default',
         email: effectiveUser?.email || effectiveUser?.id || 'default',
+        notebook_id: notebook?.id || undefined,
+        notebook_title: notebook?.title || notebook?.name || '',
         api_url: apiUrl,
         api_key: apiKey
       };
@@ -1626,17 +1570,46 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-  const renderInline = (text: string) => {
-    let html = escapeHtml(text);
+  const renderKatex = (tex: string, displayMode: boolean) => {
+    try {
+      return katex.renderToString(tex, { displayMode, throwOnError: false });
+    } catch {
+      return `<code>${escapeHtml(tex)}</code>`;
+    }
+  };
+
+  const renderInline = (text: string, sourceMapping?: Record<string, string>) => {
+    // 1) 先提取行内公式 $...$ 保护起来，避免 escapeHtml 破坏
+    const mathSlots: string[] = [];
+    let protected_ = text.replace(/\$([^$\n]+?)\$/g, (_m, tex) => {
+      mathSlots.push(renderKatex(tex, false));
+      return `\x00MATH${mathSlots.length - 1}\x00`;
+    });
+    // 2) 正常 escapeHtml + markdown 处理
+    let html = escapeHtml(protected_);
     html = html.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-gray-100 text-gray-800 font-mono text-xs">$1</code>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-blue-600 hover:text-blue-500 underline">$1</a>');
+    // Highlight numbered citation markers [1], [2], etc. with hover tooltip showing source name
+    html = html.replace(/\[(\d{1,2})\]/g, (_match, num) => {
+      const sourceName = sourceMapping?.[num] || '';
+      const dataAttr = sourceName ? ` data-source="${escapeHtml(sourceName)}"` : '';
+      return `<sup class="cite-ref"${dataAttr} style="background-color:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-size:0.75em;font-weight:600;margin:0 1px;cursor:pointer;position:relative;">[${num}]</sup>`;
+    });
+    // 3) 还原公式占位符
+    html = html.replace(/\x00MATH(\d+)\x00/g, (_m, idx) => mathSlots[Number(idx)]);
     return html;
   };
 
-  const renderMarkdownToHtml = (content: string) => {
+  const renderMarkdownToHtml = (content: string, sourceMapping?: Record<string, string>) => {
     if (!content) return '';
+    // 先提取 $$...$$ 块级公式，替换为占位符
+    const blockMathSlots: string[] = [];
+    let processed = content.replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
+      blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
+      return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
+    });
     const codeBlockRegex = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
     let lastIndex = 0;
     let html = '';
@@ -1666,7 +1639,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         if (headingMatch) {
           closeLists();
           const level = headingMatch[1].length;
-          const headingText = renderInline(headingMatch[2]);
+          const headingText = renderInline(headingMatch[2], sourceMapping);
           blockHtml += `<h${level} class="font-semibold text-gray-900 mt-3 mb-2">${headingText}</h${level}>`;
           continue;
         }
@@ -1677,7 +1650,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             blockHtml += '<ul class="list-disc pl-5 space-y-1">';
             inUl = true;
           }
-          blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''))}</li>`;
+          blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''), sourceMapping)}</li>`;
           continue;
         }
 
@@ -1687,7 +1660,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             blockHtml += '<ol class="list-decimal pl-5 space-y-1">';
             inOl = true;
           }
-          blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''))}</li>`;
+          blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''), sourceMapping)}</li>`;
           continue;
         }
 
@@ -1698,29 +1671,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         }
 
         closeLists();
-        blockHtml += `<p class="my-1">${renderInline(line)}</p>`;
+        blockHtml += `<p class="my-1">${renderInline(line, sourceMapping)}</p>`;
       }
 
       closeLists();
       return blockHtml;
     };
 
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      const before = content.slice(lastIndex, match.index);
+    while ((match = codeBlockRegex.exec(processed)) !== null) {
+      const before = processed.slice(lastIndex, match.index);
       html += processTextBlock(before);
       const code = escapeHtml(match[2].replace(/\s+$/, ''));
       html += `<pre class="bg-gray-100 border border-gray-200 rounded-lg p-3 my-2 overflow-x-auto text-xs"><code class="text-gray-800 font-mono whitespace-pre">${code}</code></pre>`;
       lastIndex = match.index + match[0].length;
     }
 
-    html += processTextBlock(content.slice(lastIndex));
+    html += processTextBlock(processed.slice(lastIndex));
+    // 还原块级公式占位符
+    html = html.replace(/%%BLOCKMATH(\d+)%%/g, (_m, idx) => blockMathSlots[Number(idx)]);
     return html;
   };
 
-  const MarkdownContent = ({ content }: { content: string }) => (
+  const MarkdownContent = ({ content, sourceMapping }: { content: string; sourceMapping?: Record<string, string> }) => (
     <div
       className="text-sm leading-relaxed text-gray-700"
-      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content) }}
+      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content, sourceMapping) }}
     />
   );
 
@@ -1742,6 +1717,51 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   return (
     <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
+      {/* Citation tooltip styles */}
+      <style>{`
+        .cite-ref[data-source] {
+          transition: background-color 0.15s ease;
+        }
+        .cite-ref[data-source]:hover {
+          background-color: #bfdbfe !important;
+        }
+        .cite-ref[data-source]:hover::after {
+          content: "📄 " attr(data-source);
+          position: absolute;
+          bottom: calc(100% + 8px);
+          left: 50%;
+          transform: translateX(-50%);
+          background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+          color: #f1f5f9;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-size: 12px;
+          line-height: 1.4;
+          font-weight: 500;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          z-index: 50;
+          pointer-events: none;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.1);
+          animation: citeTooltipIn 0.15s ease-out;
+        }
+        .cite-ref[data-source]:hover::before {
+          content: "";
+          position: absolute;
+          bottom: calc(100% + 2px);
+          left: 50%;
+          transform: translateX(-50%);
+          border: 5px solid transparent;
+          border-top-color: #1e293b;
+          z-index: 50;
+          pointer-events: none;
+          animation: citeTooltipIn 0.15s ease-out;
+        }
+        @keyframes citeTooltipIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
       {/* Header */}
       <header className="h-14 bg-white border-b flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-4">
@@ -1806,13 +1826,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               id="file-upload"
               className="hidden"
               onChange={handleFileUpload}
+              disabled={fileUploading}
             />
             <label
               htmlFor="file-upload"
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 hover:shadow-sm transition-all cursor-pointer"
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-medium transition-all ${fileUploading ? 'text-gray-400 cursor-not-allowed opacity-60' : 'text-gray-700 hover:shadow-sm cursor-pointer'}`}
             >
-              <Upload size={16} />
-              Upload files
+              {fileUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+              {fileUploading ? 'Importing...' : 'Upload files'}
             </label>
             <button
               type="button"
@@ -1823,30 +1844,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               Add sources
             </button>
           </div>
-          <label className="flex items-center gap-2 text-xs text-gray-500 mb-4">
-            <input
-              type="checkbox"
-              checked={embedOnUpload}
-              onChange={(e) => setEmbedOnUpload(e.target.checked)}
-              className="rounded text-blue-500"
-            />
-            Auto-embed after upload
-          </label>
-
-          {!apiConfigured && (
-            <div className="mb-3 flex flex-col gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-xs text-amber-800">
-                Configure API (Settings) before "Generate embeddings"
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowSettingsModal(true)}
-                className="text-xs font-medium text-amber-700 hover:text-amber-900 underline"
-              >
-                Settings →
-              </button>
-            </div>
-          )}
 
           {retrievalError && (
             <div className="mb-3 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg space-y-1.5">
@@ -1892,71 +1889,30 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 />
               </div>
 
-              {embeddingLoading && (
-                <div className="mb-3 flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg">
-                  <Loader2 size={18} className="text-blue-500 shrink-0 animate-spin" />
-                  <span className="text-sm text-blue-700">Importing...</span>
-                </div>
-              )}
-
               <div className="flex-1 overflow-y-auto min-h-0">
                 {files.length === 0 ? (
                   <div className="text-center py-8 text-gray-400 text-sm">
                     No files. Please upload.
                   </div>
                 ) : (
-                  files.map(file => (
+                  files.map((file, fileIdx) => (
                     <div
                       key={file.id}
                       className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl mb-2 hover:shadow-sm transition-all cursor-pointer"
                       onClick={() => openSourceDetail(file)}
                     >
-                      <div className="w-8 h-8 bg-red-50 rounded flex items-center justify-center shrink-0">
-                        <FileText size={16} className="text-red-500" />
+                      <div className="w-8 h-8 bg-blue-50 rounded flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-blue-600">{fileIdx + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs text-gray-700 line-clamp-2 leading-tight">
                           {file.name}
                         </div>
                         <div className="mt-1 flex items-center gap-2">
-                          {file.isEmbedded || file.kbFileId || vectorStatusByPath[getOutputsPath(file.url)] === 'embedded' || vectorFiles.some((v: any) => getOutputsPath(v?.original_path) === getOutputsPath(file.url)) ? (
+                          {(file.isEmbedded || file.kbFileId || vectorStatusByPath[getOutputsPath(file.url)] === 'embedded' || vectorFiles.some((v: any) => getOutputsPath(v?.original_path) === getOutputsPath(file.url))) && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600">
                               Indexed
                             </span>
-                          ) : !apiConfigured ? (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setShowSettingsModal(true); }}
-                              className="text-[10px] px-2 py-0.5 rounded-full border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100"
-                            >
-                              Configure
-                            </button>
-                          ) : (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const key = file.id;
-                                setFileEmbedLoading(prev => ({ ...prev, [key]: true }));
-                                setRetrievalError('');
-                                try {
-                                  const ok = await handleEmbedFiles([file]);
-                                  if (ok) {
-                                    await fetchFiles();
-                                    await fetchVectorList();
-                                  }
-                                } catch (err: any) {
-                                  const msg = err?.message || 'Failed to generate embeddings';
-                                  setRetrievalError(msg);
-                                  alert(msg);
-                                } finally {
-                                  setFileEmbedLoading(prev => ({ ...prev, [key]: false }));
-                                }
-                              }}
-                              disabled={fileEmbedLoading[file.id]}
-                              className="text-[10px] px-2 py-0.5 rounded-full border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50"
-                            >
-                              {fileEmbedLoading[file.id] ? 'Embedding...' : 'Generate embeddings'}
-                            </button>
                           )}
                         </div>
                       </div>
@@ -2127,7 +2083,7 @@ rel="noopener noreferrer"
                       msg.role === 'assistant' ? 'bg-gray-50 text-gray-700' : 'bg-blue-500 text-white'
                     }`}>
                       {msg.role === 'assistant' ? (
-                        <MarkdownContent content={msg.content} />
+                        <MarkdownContent content={msg.content} sourceMapping={msg.sourceMapping} />
                       ) : (
                         <span>{msg.content}</span>
                       )}
@@ -2268,12 +2224,6 @@ rel="noopener noreferrer"
 
             {activeTab === 'sources' && (
               <div className="max-w-[900px] mx-auto w-full space-y-6">
-                {!apiConfigured && (
-                  <div className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-                    <p className="text-sm text-amber-800">Configure API in Settings to use "Generate embeddings" on the left.</p>
-                    <button type="button" onClick={() => setShowSettingsModal(true)} className="shrink-0 text-sm font-medium text-amber-700 hover:text-amber-900 underline">Settings</button>
-                  </div>
-                )}
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
                   <h3 className="text-lg font-semibold text-gray-900">Vector store files</h3>
                   <p className="text-sm text-gray-500 mt-1">
@@ -2706,13 +2656,13 @@ rel="noopener noreferrer"
             {/* Flashcard Generator */}
             {activeTool === 'flashcard' && !showFlashcardViewer && (
               <FlashcardGenerator
-                selectedFiles={files.filter((f: KnowledgeFile) => selectedIds.has(f.id)).map((f: KnowledgeFile) => f.url).filter(Boolean) as string[]}
+                selectedFiles={files.filter(f => selectedIds.has(f.id)).map(f => f.url || f.name)}
                 notebookId={notebook?.id || ''}
-                email={effectiveUser?.email || effectiveUser?.id || 'default'}
-                userId={effectiveUser?.id || 'default'}
-                onGenerated={(flashcardSetId: string, flashcards: any[]) => {
-                  setFlashcardSetId(flashcardSetId);
-                  setFlashcards(flashcards);
+                email={effectiveUser.email || ''}
+                userId={effectiveUser.id || ''}
+                onGenerated={(id: string, cards: any[]) => {
+                  setFlashcardSetId(id);
+                  setFlashcards(cards);
                   setShowFlashcardViewer(true);
                 }}
               />
@@ -2721,12 +2671,12 @@ rel="noopener noreferrer"
             {/* Quiz Generator */}
             {activeTool === 'quiz' && !showQuizContainer && (
               <QuizGenerator
-                selectedFiles={files.filter((f: KnowledgeFile) => selectedIds.has(f.id)).map((f: KnowledgeFile) => f.url).filter(Boolean) as string[]}
+                selectedFiles={files.filter(f => selectedIds.has(f.id)).map(f => f.url || f.name)}
                 notebookId={notebook?.id || ''}
-                email={effectiveUser?.email || effectiveUser?.id || 'default'}
-                userId={effectiveUser?.id || 'default'}
-                onGenerated={(quizId: string, questions: any[]) => {
-                  setQuizId(quizId);
+                email={effectiveUser.email || ''}
+                userId={effectiveUser.id || ''}
+                onGenerated={(id: string, questions: any[]) => {
+                  setQuizId(id);
                   setQuizQuestions(questions);
                   setShowQuizContainer(true);
                 }}
@@ -3283,14 +3233,8 @@ rel="noopener noreferrer"
 
       {/* Flashcard Viewer Modal */}
       {showFlashcardViewer && flashcards.length > 0 && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowFlashcardViewer(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-[90vw] max-w-4xl max-h-[90vh] overflow-auto"
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowFlashcardViewer(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <FlashcardViewer
               flashcards={flashcards}
               onClose={() => setShowFlashcardViewer(false)}
@@ -3301,14 +3245,8 @@ rel="noopener noreferrer"
 
       {/* Quiz Container Modal */}
       {showQuizContainer && quizQuestions.length > 0 && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowQuizContainer(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-[90vw] max-w-4xl max-h-[90vh] overflow-auto"
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowQuizContainer(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <QuizContainer
               questions={quizQuestions}
               onClose={() => setShowQuizContainer(false)}
