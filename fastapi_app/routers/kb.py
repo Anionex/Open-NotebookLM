@@ -800,8 +800,9 @@ async def list_outputs(
     email: Optional[str] = None,
     user_id: Optional[str] = None,
     notebook_id: Optional[str] = None,
+    notebook_title: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List generated outputs (ppt/mindmap/podcast) for user. Prefer DB, fallback to disk scan."""
+    """List generated outputs (ppt/mindmap/podcast/drawio) for user. Prefer DB, fallback to disk scan."""
     sb = get_supabase_admin_client()
     project_root = get_project_root()
     files: List[Dict[str, Any]] = []
@@ -829,34 +830,38 @@ async def list_outputs(
                 })
         except Exception as e:
             log.warning("list_outputs from db failed: %s", e)
-    if not files and email:
-        for email_part in (email.replace("@", "%40"), email):
-            base = project_root / OUTPUTS_BASE / email_part
-            if not base.exists():
-                continue
-            # If notebook_id given, only scan that notebook's subdir
-            if notebook_id:
-                base = base / notebook_id.replace("/", "_").replace("\\", "_")[:128]
-            if not base.exists():
-                break
-            it = [base] if base.is_dir() and notebook_id else sorted(base.iterdir(), key=lambda x: x.stat().st_mtime if x.is_dir() else 0, reverse=True)[:50]
-            for d in it:
-                if not d.is_dir():
-                    continue
-                ts = d.name
-                for f in d.rglob("*"):
-                    if f.suffix.lower() in (".pdf", ".pptx", ".mmd", ".mermaid", ".wav", ".mp3", ".m4a"):
-                        rel = str(f.relative_to(project_root))
-                        out_type = "podcast" if f.suffix.lower() in (".wav", ".mp3", ".m4a") else ("mindmap" if f.suffix.lower() in (".mmd", ".mermaid") else "ppt")
-                        files.append({
-                            "id": f"disk_{ts}_{f.name}",
-                            "output_type": out_type,
-                            "file_name": f.name,
-                            "download_url": _to_outputs_url(rel),
-                            "created_at": d.stat().st_mtime,
-                        })
-                        break
-            break
+    # Disk fallback: scan notebook-centric directory layout
+    if not files and notebook_id:
+        _FEATURE_EXT_MAP = {
+            "ppt":     {".pdf", ".pptx"},
+            "mindmap": {".mmd", ".mermaid"},
+            "podcast": {".wav", ".mp3", ".m4a"},
+            "drawio":  {".drawio"},
+        }
+        try:
+            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            nb_root = paths.root
+            if nb_root.exists():
+                for feature, exts in _FEATURE_EXT_MAP.items():
+                    feature_dir = nb_root / feature
+                    if not feature_dir.exists():
+                        continue
+                    for ts_dir in feature_dir.iterdir():
+                        if not ts_dir.is_dir():
+                            continue
+                        for f in ts_dir.iterdir():
+                            if f.suffix.lower() in exts:
+                                rel = str(f.relative_to(project_root))
+                                files.append({
+                                    "id": f"disk_{ts_dir.name}_{f.name}",
+                                    "output_type": feature,
+                                    "file_name": f.name,
+                                    "download_url": _to_outputs_url(rel),
+                                    "created_at": ts_dir.stat().st_mtime,
+                                })
+                                break
+        except Exception as e:
+            log.warning("list_outputs disk scan failed: %s", e)
     return {"success": True, "files": files}
 
 

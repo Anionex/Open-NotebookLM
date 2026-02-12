@@ -100,43 +100,30 @@ def _build_quiz_prompt(text_content: str, language: str, question_count: int) ->
 {text_content}
 
 出题要求：
-1. 题目类型：单选题，每题必须有且仅有 4 个选项（A、B、C、D）
-2. 题目质量：
-   - 考察对文档内容的理解和应用，而非简单记忆
-   - 题目表述清晰、准确、无歧义
-   - 选项设计合理，干扰项要有一定迷惑性
-   - 正确答案必须明确且有据可依
-3. 难度分布：
-   - 简单题（理解）：30%
-   - 中等题（应用）：50%
-   - 困难题（分析）：20%
-4. 答案解释：
-   - 必须给出详细的答案解释
-   - 解释要引用文档中的具体内容
-   - 说明为什么其他选项是错误的
+1. 题目类型：单选题，每题 4 个选项（A、B、C、D）
+2. 考察理解和应用，题目清晰无歧义，干扰项有迷惑性
+3. 难度分布：简单 30%、中等 50%、困难 20%
+4. explanation 字段：1-2 句话简要说明正确答案的理由，不要逐个分析错误选项
 
-请以 JSON 格式返回，格式如下：
+请严格按以下 JSON 格式返回（不要添加额外字段）：
 ```json
 [
   {{
     "id": "q1",
     "question": "题目内容",
     "options": [
-      {{"label": "A", "text": "选项A内容"}},
-      {{"label": "B", "text": "选项B内容"}},
-      {{"label": "C", "text": "选项C内容"}},
-      {{"label": "D", "text": "选项D内容"}}
+      {{"label": "A", "text": "选项A"}},
+      {{"label": "B", "text": "选项B"}},
+      {{"label": "C", "text": "选项C"}},
+      {{"label": "D", "text": "选项D"}}
     ],
     "correct_answer": "A",
-    "explanation": "详细的答案解释，说明为什么A是正确的，以及为什么其他选项是错误的。",
-    "source_excerpt": "文档中相关的原文摘录",
-    "difficulty": "medium",
-    "category": "application"
+    "explanation": "简短解释（1-2句话）"
   }}
 ]
 ```
 
-请确保返回的是有效的 JSON 格式。"""
+请确保返回完整、有效的 JSON。"""
     else:
         prompt = f"""Based on the following document content, generate {question_count} high-quality multiple-choice quiz questions.
 
@@ -145,44 +132,80 @@ Document Content:
 
 Requirements:
 1. Question Type: Multiple choice, each question must have exactly 4 options (A, B, C, D)
-2. Quality Standards:
-   - Test understanding and application, not just memorization
-   - Questions should be clear, precise, and unambiguous
-   - Options should be well-designed with plausible distractors
-   - Correct answer must be definitive and evidence-based
-3. Difficulty Distribution:
-   - Easy (comprehension): 30%
-   - Medium (application): 50%
-   - Hard (analysis): 20%
-4. Answer Explanation:
-   - Provide detailed explanation for the correct answer
-   - Reference specific content from the document
-   - Explain why other options are incorrect
+2. Test understanding and application, not just memorization. Clear and unambiguous.
+3. Difficulty Distribution: Easy 30%, Medium 50%, Hard 20%
+4. explanation field: 1-2 sentences briefly explaining why the answer is correct. Do NOT analyze each wrong option.
 
-Return in JSON format:
+Return strictly in this JSON format (no extra fields):
 ```json
 [
   {{
     "id": "q1",
     "question": "Question text",
     "options": [
-      {{"label": "A", "text": "Option A text"}},
-      {{"label": "B", "text": "Option B text"}},
-      {{"label": "C", "text": "Option C text"}},
-      {{"label": "D", "text": "Option D text"}}
+      {{"label": "A", "text": "Option A"}},
+      {{"label": "B", "text": "Option B"}},
+      {{"label": "C", "text": "Option C"}},
+      {{"label": "D", "text": "Option D"}}
     ],
     "correct_answer": "A",
-    "explanation": "Detailed explanation of why A is correct and why other options are incorrect.",
-    "source_excerpt": "Relevant excerpt from the document",
-    "difficulty": "medium",
-    "category": "application"
+    "explanation": "Brief explanation (1-2 sentences)"
   }}
 ]
 ```
 
-Ensure the response is valid JSON format."""
+Ensure the response is complete, valid JSON."""
 
     return prompt
+
+
+def _try_parse_json_array(json_str: str):
+    """尝试解析 JSON 数组，失败时逐步回退到最后一个完整对象"""
+    # 先直接尝试
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+
+    # 找所有顶层 '}' 的位置（每个代表一个 question 对象的结尾）
+    # 从后往前逐个尝试截断 + 闭合
+    brace_depth = 0
+    bracket_depth = 0
+    in_string = False
+    escape = False
+    candidates = []
+    for i, ch in enumerate(json_str):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_string:
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            brace_depth += 1
+        elif ch == '}':
+            brace_depth -= 1
+            if brace_depth == 0:
+                candidates.append(i)
+        elif ch == '[':
+            bracket_depth += 1
+        elif ch == ']':
+            bracket_depth -= 1
+
+    # 从最后一个完整对象往前尝试
+    for pos in reversed(candidates):
+        attempt = json_str[:pos + 1] + ']'
+        try:
+            return json.loads(attempt)
+        except json.JSONDecodeError:
+            continue
+
+    raise json.JSONDecodeError("No valid JSON array found", json_str, 0)
 
 
 def _parse_quiz_from_llm_response(content: str, question_count: int) -> List[QuizQuestion]:
@@ -191,38 +214,28 @@ def _parse_quiz_from_llm_response(content: str, question_count: int) -> List[Qui
     """
     try:
         # 尝试提取 JSON（可能包含在 markdown 代码块中）
-        json_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', content)
+        # 用贪婪匹配，因为内容可能被截断没有闭合的 ```
+        json_match = re.search(r'```(?:json)?\s*(\[[\s\S]*)', content)
         if json_match:
             json_str = json_match.group(1)
+            # 去掉尾部可能的 ```
+            json_str = re.sub(r'\s*```\s*$', '', json_str)
         else:
-            # 尝试直接解析整个内容
             json_str = content.strip()
 
-        # 尝试修复常见的 JSON 格式问题
-        # 1. 移除可能的尾部不完整内容
-        if not json_str.endswith(']'):
-            # 找到最后一个完整的对象
-            last_complete = json_str.rfind('}')
-            if last_complete > 0:
-                json_str = json_str[:last_complete + 1] + ']'
-
-        # 解析 JSON
-        questions_data = json.loads(json_str)
+        questions_data = _try_parse_json_array(json_str)
 
         # 转换为 QuizQuestion 对象
         questions = []
         for i, q_data in enumerate(questions_data[:question_count]):
-            # 确保有 4 个选项
             options = []
             for opt in q_data.get("options", [])[:4]:
                 options.append(QuizOption(
                     label=opt.get("label", ""),
                     text=opt.get("text", "")
                 ))
-
-            # 如果选项不足 4 个，补充空选项
             while len(options) < 4:
-                label = chr(65 + len(options))  # A, B, C, D
+                label = chr(65 + len(options))
                 options.append(QuizOption(label=label, text=""))
 
             question = QuizQuestion(
@@ -231,12 +244,13 @@ def _parse_quiz_from_llm_response(content: str, question_count: int) -> List[Qui
                 options=options,
                 correct_answer=q_data.get("correct_answer", "A"),
                 explanation=q_data.get("explanation", ""),
-                source_excerpt=q_data.get("source_excerpt"),
-                difficulty=q_data.get("difficulty", "medium"),
-                category=q_data.get("category", "application")
             )
             questions.append(question)
 
+        if not questions:
+            raise Exception("解析后题目列表为空")
+
+        log.info(f"[quiz_service] 成功解析 {len(questions)} 道题目（请求 {question_count} 道）")
         return questions
 
     except Exception as e:

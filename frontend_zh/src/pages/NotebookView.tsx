@@ -387,7 +387,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
       map.set(key, {
         ...item,
-        mermaidCode: prev.mermaidCode || item.mermaidCode
+        mermaidCode: prev.mermaidCode || item.mermaidCode,
+        setId: prev.setId || item.setId,
       });
     };
     remote.forEach(add);
@@ -401,30 +402,79 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   const fetchOutputHistory = async () => {
     if (!effectiveUser?.email && !effectiveUser?.id) return [];
+    const results: typeof outputFeed = [];
     try {
       const params = new URLSearchParams({ email: effectiveUser.email || effectiveUser.id });
       if (notebook?.id) params.set('notebook_id', notebook.id);
+      const nbTitle = notebook?.title || notebook?.name || '';
+      if (nbTitle) params.set('notebook_title', nbTitle);
       const res = await apiFetch(`/api/v1/kb/outputs?${params.toString()}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      if (!data?.success || !Array.isArray(data.files)) return [];
-      return data.files.map((item: any) => {
-        const url = item.download_url || item.url || '';
-        const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio') || inferOutputType(item.file_name || url);
-        return {
-          id: item.id || url || `output_${Date.now()}`,
-          type,
-          title: getOutputTitle(type),
-          sources: '历史产出',
-          url,
-          createdAt: item.created_at ? new Date(item.created_at).toLocaleString() : new Date().toLocaleString(),
-          mermaidCode: undefined
-        };
-      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success && Array.isArray(data.files)) {
+          for (const item of data.files) {
+            const url = item.download_url || item.url || '';
+            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio') || inferOutputType(item.file_name || url);
+            results.push({
+              id: item.id || url || `output_${Date.now()}`,
+              type,
+              title: getOutputTitle(type),
+              sources: '历史产出',
+              url,
+              createdAt: item.created_at ? new Date(item.created_at).toLocaleString() : new Date().toLocaleString(),
+              mermaidCode: undefined
+            });
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to load output history:', err);
-      return [];
     }
+
+    // 从专用端点获取闪卡和测验历史
+    if (notebook?.id) {
+      const nbTitle = notebook?.title || notebook?.name || '';
+      const fcParams = new URLSearchParams({ notebook_id: notebook.id, notebook_title: nbTitle });
+      const qzParams = new URLSearchParams({ notebook_id: notebook.id, notebook_title: nbTitle });
+      const [fcRes, qzRes] = await Promise.all([
+        apiFetch(`/api/v1/kb/list-flashcard-sets?${fcParams.toString()}`).catch(() => null),
+        apiFetch(`/api/v1/kb/list-quiz-sets?${qzParams.toString()}`).catch(() => null),
+      ]);
+      if (fcRes?.ok) {
+        const fcData = await fcRes.json().catch(() => null);
+        if (fcData?.success && Array.isArray(fcData.sets)) {
+          for (const s of fcData.sets) {
+            results.push({
+              id: s.id || `flashcard_${s.set_id}`,
+              type: 'flashcard',
+              title: getOutputTitle('flashcard'),
+              sources: Array.isArray(s.source_files) ? s.source_files.map((f: string) => f.split('/').pop() || f).join(', ') : '历史产出',
+              url: '',
+              createdAt: s.created_at ? new Date(s.created_at).toLocaleString() : new Date().toLocaleString(),
+              setId: s.set_id,
+            });
+          }
+        }
+      }
+      if (qzRes?.ok) {
+        const qzData = await qzRes.json().catch(() => null);
+        if (qzData?.success && Array.isArray(qzData.sets)) {
+          for (const s of qzData.sets) {
+            results.push({
+              id: s.id || `quiz_${s.set_id}`,
+              type: 'quiz',
+              title: getOutputTitle('quiz'),
+              sources: Array.isArray(s.source_files) ? s.source_files.map((f: string) => f.split('/').pop() || f).join(', ') : '历史产出',
+              url: '',
+              createdAt: s.created_at ? new Date(s.created_at).toLocaleString() : new Date().toLocaleString(),
+              setId: s.set_id,
+            });
+          }
+        }
+      }
+    }
+
+    return results;
   };
 
   const getChatStorageKey = () => {
