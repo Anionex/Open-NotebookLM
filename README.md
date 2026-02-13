@@ -29,11 +29,6 @@
 </div>
 
 <div align="center">
-<img src="static/readme/source_import.png" alt="来源引入" width="90%"/>
-<p><em>来源引入 — 上传文件 / 粘贴网址 / 文本 / 联网搜索</em></p>
-</div>
-
-<div align="center">
 <img src="static/readme/notebook_view_2.png" alt="生成面板" width="90%"/>
 <p><em>生成面板 — 多种输出格式</em></p>
 </div>

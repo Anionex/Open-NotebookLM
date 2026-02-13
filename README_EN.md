@@ -29,11 +29,6 @@
 </div>
 
 <div align="center">
-<img src="static/readme/source_import.png" alt="Source import" width="90%"/>
-<p><em>Source import — Upload files / paste URLs / text / web search</em></p>
-</div>
-
-<div align="center">
 <img src="static/readme/notebook_view_2.png" alt="Generation panel" width="90%"/>
 <p><em>Generation panel — Multiple output formats</em></p>
 </div>
