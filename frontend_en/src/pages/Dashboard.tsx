@@ -145,7 +145,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n:
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img src="/logo_small.png" alt="Logo" className="h-8 w-auto object-contain" />
-            <h1 className="text-2xl font-semibold text-ios-gray-900">open NoteBookLM</h1>
+            <h1 className="text-2xl font-semibold text-ios-gray-900">OpenNotebookLM</h1>
           </div>
           <div className="flex items-center gap-4">
             <motion.button
