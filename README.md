@@ -28,9 +28,6 @@
 <p><em>笔记本工作区 — 知识库 + 智能问答 + 一键生成</em></p>
 </div>
 
-<details>
-<summary>更多截图</summary>
-
 <div align="center">
 <img src="static/readme/source_import.png" alt="来源引入" width="90%"/>
 <p><em>来源引入 — 上传文件 / 粘贴网址 / 文本 / 联网搜索</em></p>
@@ -85,8 +82,6 @@
 <img src="static/readme/deep_research.png" alt="深度研究报告" width="90%"/>
 <p><em>深度研究报告生成</em></p>
 </div>
-
-</details>
 
 ---
 
@@ -238,6 +233,24 @@ opennotebookLM/
 3. **角色层** — 精细控制工作流中每个角色使用的模型（`PAPER2PPT_OUTLINE_MODEL` 等）
 
 详见 `fastapi_app/.env.example` 中的完整配置说明。
+
+---
+
+## 🗺️ Roadmap
+
+- [x] 知识库管理（上传文件 / 粘贴网址 / 文本）
+- [x] RAG 智能问答
+- [x] PPT 生成
+- [x] 思维导图生成
+- [x] DrawIO 图表生成
+- [x] 知识播客生成
+- [x] 闪卡 & 测试题
+- [x] 联网搜索引入来源
+- [x] 深度研究报告
+- [x] 本地 Embedding 向量检索
+- [ ] 🔨 视频生成（开发中）
+- [ ] 🔨 视频来源引入（开发中）
+- [ ] 🔨 音频来源引入（开发中）
 
 ---
 

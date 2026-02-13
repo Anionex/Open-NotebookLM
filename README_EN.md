@@ -28,9 +28,6 @@
 <p><em>Notebook workspace — Knowledge base + Smart QA + One-click generation</em></p>
 </div>
 
-<details>
-<summary>More screenshots</summary>
-
 <div align="center">
 <img src="static/readme/source_import.png" alt="Source import" width="90%"/>
 <p><em>Source import — Upload files / paste URLs / text / web search</em></p>
@@ -85,8 +82,6 @@
 <img src="static/readme/deep_research.png" alt="Deep research report" width="90%"/>
 <p><em>Deep research report generation</em></p>
 </div>
-
-</details>
 
 ---
 
@@ -238,6 +233,24 @@ The project uses a three-layer model configuration system, from coarse to fine-g
 3. **Role layer** — Fine-grained control over each role within a workflow (`PAPER2PPT_OUTLINE_MODEL`, etc.)
 
 See `fastapi_app/.env.example` for the full configuration reference.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Knowledge base management (upload files / paste URLs / text)
+- [x] RAG smart Q&A
+- [x] PPT generation
+- [x] Mind map generation
+- [x] DrawIO diagram generation
+- [x] Knowledge podcast generation
+- [x] Flashcards & quizzes
+- [x] Web search source import
+- [x] Deep research reports
+- [x] Local embedding vector retrieval
+- [ ] 🔨 Video generation (in progress)
+- [ ] 🔨 Video source import (in progress)
+- [ ] 🔨 Audio source import (in progress)
 
 ---
 
