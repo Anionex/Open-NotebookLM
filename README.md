@@ -1,221 +1,257 @@
 <div align="center">
 
-<img src="static/readme/logo.jpg" alt="OpenNotebook Logo" width="200"/>
+<img src="static/readme/logo_small.png" alt="OpenNotebookLM" width="200"/>
 
 # OpenNotebookLM
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
 
 中文 | [English](README_EN.md)
 
-✨ **NotebookLM 风格的知识库工作流平台：上传文档、智能问答、一键生成 PPT / 思维导图 / 播客 / DrawIO 图表** ✨
-
-| 📚 **知识库管理** &nbsp;|&nbsp; 💬 **智能问答** &nbsp;|&nbsp; 🎨 **多模态生成** &nbsp;|&nbsp; 🔍 **语义检索** |
-
-<br>
-
-<a href="#-quick-start" target="_self">
-  <img alt="Quickstart" src="https://img.shields.io/badge/🚀-Quick_Start-2F80ED?style=for-the-badge" />
-</a>
-<a href="docs/" target="_blank">
-  <img alt="Docs" src="https://img.shields.io/badge/📚-Docs-2D9CDB?style=for-the-badge" />
-</a>
-<a href="docs/contributing.md" target="_blank">
-  <img alt="Contributing" src="https://img.shields.io/badge/🤝-Contributing-27AE60?style=for-the-badge" />
-</a>
-
-<br>
-<br>
+**开源的 NotebookLM 替代方案** — 上传文档，智能问答，一键生成 PPT / 思维导图 / 播客 / DrawIO 图表 / 闪卡 / 测试题 / 深度研究报告
 
 </div>
 
 ---
 
-## 📑 目录
+## 📸 界面预览
 
-- [✨ 核心功能](#-核心功能)
-- [📸 展示](#-展示)
-- [🚀 快速开始](#-快速开始)
-- [📂 项目结构](#-项目结构)
-- [🤝 参与贡献](#-参与贡献)
+<div align="center">
+<img src="static/readme/dashboard.png" alt="首页仪表盘" width="90%"/>
+<p><em>首页仪表盘 — 笔记本管理</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/notebook_view.png" alt="笔记本工作区" width="90%"/>
+<p><em>笔记本工作区 — 知识库 + 智能问答 + 一键生成</em></p>
+</div>
+
+<details>
+<summary>更多截图</summary>
+
+<div align="center">
+<img src="static/readme/source_import.png" alt="来源引入" width="90%"/>
+<p><em>来源引入 — 上传文件 / 粘贴网址 / 文本 / 联网搜索</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/notebook_view_2.png" alt="生成面板" width="90%"/>
+<p><em>生成面板 — 多种输出格式</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/notebook_view_3.png" alt="对话与知识库" width="90%"/>
+<p><em>对话与知识库详情</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/ppt.png" alt="PPT 生成" width="90%"/>
+<p><em>PPT 生成</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/mindmap.png" alt="思维导图" width="90%"/>
+<p><em>思维导图</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/drawio.png" alt="DrawIO 图表" width="90%"/>
+<p><em>DrawIO 图表 — 内嵌编辑器</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/podcast.png" alt="知识播客" width="90%"/>
+<p><em>知识播客</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/flashcard.png" alt="闪卡" width="90%"/>
+<p><em>闪卡学习</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/quiz.png" alt="测试题" width="90%"/>
+<p><em>测试题</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/search.png" alt="联网搜索" width="90%"/>
+<p><em>联网搜索引入来源</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/deep_research.png" alt="深度研究报告" width="90%"/>
+<p><em>深度研究报告生成</em></p>
+</div>
+
+</details>
 
 ---
 
 ## ✨ 核心功能
 
-> 以「笔记本 + 知识库」为核心，基于 DataFlow-Agent 工作流引擎，从上传的文档/论文出发，支持智能问答与多种一键生成能力。
-
-- **📚 知识库管理**：文件上传、列表查看、多选源文档，支持 PDF 等格式。
-- **💬 智能问答**：基于选中文档的上下文进行问答，对话历史本地持久化。
-- **🎨 PPT 生成**：从知识库内容或论文生成可编辑演示文稿（对接 Paper2PPT 工作流）。
-- **🧠 思维导图**：基于选中文档生成 Mermaid 思维导图，支持预览与导出。
-- **🎙️ 知识播客**：将知识库内容转为播客脚本与讲解素材。
-- **🎬 视频讲解**：生成视频脚本与讲解内容。
-- **🧩 Paper2Drawio**：从论文/文本或图片生成可编辑 DrawIO 图表，支持内嵌编辑与导出。
-- **🔍 语义检索**：基于嵌入的语义检索，支持 Top-K 与多模型选择。
-
----
-
-## 📸 展示
-
-### 首页
-
-<div align="center">
-
-<img src="static/readme/首页预览.png" alt="首页预览" width="90%"/>
-
-</div>
-
-### 二级界面（知识库与问答）
-
-<div align="center">
-
-<img src="static/readme/二级界面预览.png" alt="二级界面预览" width="90%"/>
-
-</div>
-
-### PPT 生成
-
-<div align="center">
-
-<img src="static/readme/ppt.png" alt="PPT 生成" width="90%"/>
-
-</div>
-
-### 思维导图
-
-<div align="center">
-
-<img src="static/readme/思维导图.png" alt="思维导图" width="90%"/>
-
-</div>
-
-### DrawIO 图表
-
-<div align="center">
-
-<img src="static/readme/drawio.png" alt="DrawIO 图表" width="90%"/>
-
-</div>
+| 功能 | 说明 |
+|------|------|
+| 📚 **知识库管理** | 上传 PDF 等文档、粘贴网址/文本、联网搜索引入，多源聚合到笔记本 |
+| 💬 **智能问答** | 基于选中文档的 RAG 问答，对话历史持久化 |
+| 🎨 **PPT 生成** | 从知识库内容一键生成可编辑演示文稿 |
+| 🧠 **思维导图** | 生成 Mermaid 思维导图，支持预览与导出 |
+| 🎙️ **知识播客** | 将知识库内容转为播客脚本与讲解素材 |
+| 🧩 **DrawIO 图表** | 从文本或图片生成可编辑 DrawIO 图表，内嵌编辑器 |
+| 🃏 **闪卡** | 基于知识库内容自动生成学习闪卡 |
+| 📝 **测试题** | 自动生成选择题，支持作答与评分 |
+| 🔍 **联网搜索** | 支持 Serper / SerpAPI / Google CSE / Brave / 博查等多种搜索引擎 |
+| 📊 **深度研究报告** | 联网搜索 + LLM 综合分析，生成结构化研究报告 |
+| 🔗 **语义检索** | 本地 Embedding 向量检索，支持 Top-K 与多模型 |
 
 ---
 
 ## 🚀 快速开始
 
-### 环境要求
-
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
-![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=node.js&logoColor=white)
-
-- **Python**: 3.10+
-- **Node.js**: 18+（前端构建）
-- **操作系统**: Linux（推荐）/ Windows / macOS
-
-### 后端安装与启动
+### 1. 克隆与安装
 
 ```bash
-# 1. 克隆仓库
-git clone <your-repo-url>
-cd opennoteboolLM
+git clone https://github.com/your-org/opennotebookLM.git
+cd opennotebookLM
 
-# 2. 创建并激活虚拟环境（推荐 Conda）
+# 创建虚拟环境（推荐 Conda）
 conda create -n opennotebook python=3.11 -y
 conda activate opennotebook
 
-# 3. 安装依赖
+# 安装 Python 依赖
 pip install -r requirements-base.txt
 pip install -e .
+```
 
-# 4. 配置环境变量（可选）
+### 2. 配置 API 密钥
+
+```bash
 cp fastapi_app/.env.example fastapi_app/.env
-# 编辑 fastapi_app/.env，配置 DF_API_KEY、DF_API_URL、Supabase 等
-
-# 5. 启动后端
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-后端健康检查：<http://localhost:8000/health>，API 文档：<http://localhost:8000/docs>。
+编辑 `fastapi_app/.env`，至少配置以下内容：
 
-### 前端安装与启动
+#### LLM API（必需）
 
-提供中英双前端，任选其一即可。
+项目通过 OpenAI 兼容接口调用大模型，默认使用 [APIyi](https://www.apiyi.com) 作为中转服务（支持 GPT / Claude / Gemini 等多种模型）。
 
-**英文前端（frontend_en，NotebookLM 风格）**
+```env
+# LLM API 地址（OpenAI 兼容格式）
+DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
+
+# 你的 API Key（在 APIyi 或其他 LLM 提供商处获取）
+# 前端设置面板中也可以动态配置
+```
+
+> 也可以使用任何 OpenAI 兼容的 API 服务（如 OpenAI 官方、Azure OpenAI、本地 Ollama 等），只需修改 `DEFAULT_LLM_API_URL` 即可。
+
+#### 搜索 API（联网搜索功能需要）
+
+联网搜索和深度研究报告功能需要配置搜索引擎 API。支持以下任一提供商：
+
+| 提供商 | 配置方式 | 获取地址 |
+|--------|----------|----------|
+| **Serper**（推荐） | 环境变量 `SERPER_API_KEY` | [serper.dev](https://serper.dev) |
+| **SerpAPI** | 前端传入 `search_api_key` | [serpapi.com](https://serpapi.com) |
+| **Google CSE** | 前端传入 `search_api_key` + `google_cse_id` | [programmablesearchengine.google.com](https://programmablesearchengine.google.com) |
+| **Brave Search** | 前端传入 `search_api_key` | [brave.com/search/api](https://brave.com/search/api) |
+| **博查** | 前端传入 `search_api_key` | [open.bochaai.com](https://open.bochaai.com) |
+
+Serper 通过后端环境变量配置，其他提供商在前端设置面板中填入对应 API Key 即可。
+
+```env
+# Serper（Google 搜索），推荐
+SERPER_API_KEY=your_serper_api_key
+```
+
+#### Supabase（可选）
+
+用于用户认证与云存储。不配置时使用本地模拟用户，不影响核心功能。
+
+```env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### 3. 启动后端
 
 ```bash
-cd frontend_en
-npm install
-cp .env.example .env   # 可选，配置 VITE_API_KEY、VITE_DEFAULT_LLM_API_URL、Supabase 等
-npm run dev
+uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**中文前端（frontend_zh）**
+后端启动时会自动拉起本地 Embedding 服务（Octen-Embedding-0.6B，端口 17997），首次启动会下载模型。如需关闭本地 Embedding，设置 `USE_LOCAL_EMBEDDING=0`。
+
+- 健康检查：http://localhost:8000/health
+- API 文档：http://localhost:8000/docs
+
+### 4. 启动前端
+
+提供中英双前端，任选其一：
 
 ```bash
-cd frontend_zh
-npm install
-npm run dev
+# 中文前端
+cd frontend_zh && npm install && npm run dev
+
+# 英文前端
+cd frontend_en && npm install && npm run dev
 ```
 
-访问 **http://localhost:3000**（或终端提示的端口，如 3001）。
+访问 http://localhost:3000（或终端提示的端口）。
 
-### 环境变量说明
-
-- **后端 `fastapi_app/.env`**  
-  - `DF_API_KEY`、`DF_API_URL`：LLM 调用。  
-  - `SUPABASE_URL`、`SUPABASE_ANON_KEY` 等：可选，用于用户认证与云存储。
-- **前端 `frontend_en/.env`**  
-  - `VITE_API_KEY`：请求后端 API 的密钥（需与后端一致）。  
-  - `VITE_DEFAULT_LLM_API_URL`：默认 LLM 提供商地址。  
-  - `VITE_SUPABASE_*`：可选，与后端 Supabase 配置对应。
-
-不配置 Supabase 时，前端可使用本地模拟用户进行开发与体验。
+> 前端的 LLM API 地址和 API Key 可在页面右上角设置面板中动态修改，无需重启。
 
 ---
 
 ## 📂 项目结构
 
 ```
-opennoteboolLM/
-├── dataflow_agent/          # 工作流引擎
-│   ├── agentroles/          # Agent 角色定义
-│   ├── workflow/            # 工作流（Paper2PPT、PDF2PPT、Image2Drawio、KB 等）
-│   ├── promptstemplates/    # 提示模板
-│   └── toolkits/            # 工具集
-├── fastapi_app/             # 后端 API
-│   ├── routers/             # 知识库、文件、Paper2Drawio、Paper2PPT 等
-│   └── workflow_adapters/   # 工作流适配
-├── frontend_en/             # 英文前端（NotebookLM 风格）
+opennotebookLM/
+├── fastapi_app/             # 后端 API（FastAPI）
+│   ├── routers/             #   路由：知识库、Paper2PPT、Paper2Drawio 等
+│   ├── services/            #   业务逻辑：搜索、闪卡、测试题等
+│   ├── config/              #   配置与环境变量
+│   └── workflow_adapters/   #   工作流适配层
+├── dataflow_agent/          # 工作流引擎（DataFlow-Agent）
+│   ├── agentroles/          #   Agent 角色定义
+│   ├── workflow/            #   工作流（Paper2PPT、PDF2PPT、Image2Drawio 等）
+│   ├── promptstemplates/    #   提示模板
+│   └── toolkits/            #   工具集（搜索、解析等）
+├── frontend_en/             # 英文前端（React + Vite + Tailwind）
 ├── frontend_zh/             # 中文前端
 ├── database/                # 数据库脚本
 ├── docs/                    # 文档
-├── script/                  # CLI 与脚本
-├── static/                  # 静态资源与 README 配图
+├── script/                  # 辅助脚本
+├── static/                  # 静态资源
 └── outputs/                 # 生成文件输出目录
 ```
 
 ---
 
+## ⚙️ 模型配置
+
+项目采用三层模型配置体系，灵活度从粗到细：
+
+1. **基础模型层** — 定义可用模型名称（`MODEL_GPT_4O`、`MODEL_CLAUDE_HAIKU` 等）
+2. **工作流层** — 为每个工作流设置默认模型（`PAPER2PPT_DEFAULT_MODEL` 等）
+3. **角色层** — 精细控制工作流中每个角色使用的模型（`PAPER2PPT_OUTLINE_MODEL` 等）
+
+详见 `fastapi_app/.env.example` 中的完整配置说明。
+
+---
+
 ## 🤝 参与贡献
 
-欢迎提交 Issue、Pull Request 以及文档改进。
-
-[![Issues](https://img.shields.io/badge/Issues-Submit_Bug-red?style=for-the-badge&logo=github)](https://github.com/your-org/opennoteboolLM/issues)
-[![PR](https://img.shields.io/badge/PR-Submit_Code-green?style=for-the-badge&logo=github)](https://github.com/your-org/opennoteboolLM/pulls)
-
-详见 [贡献指南](docs/contributing.md)。
+欢迎提交 Issue 和 Pull Request。详见 [贡献指南](docs/contributing.md)。
 
 ---
 
 ## 📄 许可证
 
-本项目采用 [Apache License 2.0](LICENSE)。
+[Apache License 2.0](LICENSE)
 
----
-
-**功能卡片功能基于：[OpenDCAI/Paper2Any](https://github.com/OpenDCAI/Paper2Any)**
+生成功能基于 [OpenDCAI/Paper2Any](https://github.com/OpenDCAI/Paper2Any)。
 
 ---
 
