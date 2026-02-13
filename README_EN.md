@@ -268,3 +268,12 @@ Generation features are built on [OpenDCAI/Paper2Any](https://github.com/OpenDCA
 **If this project helps you, please give it a ⭐ Star**
 
 </div>
+
+---
+
+## 💬 Community
+
+<div align="center">
+<img src="static/readme/WX_group.jpg" alt="WeChat Group" width="300"/>
+<p><em>Scan to join our WeChat group</em></p>
+</div>

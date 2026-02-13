@@ -268,3 +268,12 @@ opennotebookLM/
 **若本项目对你有帮助，欢迎 ⭐ Star**
 
 </div>
+
+---
+
+## 💬 交流群
+
+<div align="center">
+<img src="static/readme/WX_group.jpg" alt="微信交流群" width="300"/>
+<p><em>扫码加入微信交流群</em></p>
+</div>
