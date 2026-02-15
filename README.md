@@ -103,7 +103,7 @@
 ### 1. 克隆与安装
 
 ```bash
-git clone https://github.com/your-org/opennotebookLM.git
+git clone https://github.com/OpenDCAI/opennotebookLM.git
 cd opennotebookLM
 
 # 创建虚拟环境（推荐 Conda）
@@ -168,13 +168,13 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 ### 3. 启动后端
 
 ```bash
-uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8211 --reload
 ```
 
 后端启动时会自动拉起本地 Embedding 服务（Octen-Embedding-0.6B，端口 17997），首次启动会下载模型。如需关闭本地 Embedding，设置 `USE_LOCAL_EMBEDDING=0`。
 
-- 健康检查：http://localhost:8000/health
-- API 文档：http://localhost:8000/docs
+- 健康检查：http://localhost:8211/health
+- API 文档：http://localhost:8211/docs
 
 ### 4. 启动前端
 

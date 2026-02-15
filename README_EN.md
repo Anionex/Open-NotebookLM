@@ -103,7 +103,7 @@
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-org/opennotebookLM.git
+git clone https://github.com/OpenDCAI/opennotebookLM.git
 cd opennotebookLM
 
 # Create virtual environment (Conda recommended)
@@ -168,13 +168,13 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 ### 3. Start Backend
 
 ```bash
-uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8211 --reload
 ```
 
 On startup, the backend automatically launches a local embedding service (Octen-Embedding-0.6B on port 17997). The model is downloaded on first run. To disable local embedding, set `USE_LOCAL_EMBEDDING=0`.
 
-- Health check: http://localhost:8000/health
-- API docs: http://localhost:8000/docs
+- Health check: http://localhost:8211/health
+- API docs: http://localhost:8211/docs
 
 ### 4. Start Frontend
 

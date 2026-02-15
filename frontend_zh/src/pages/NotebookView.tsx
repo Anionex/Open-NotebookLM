@@ -221,13 +221,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [studioSettingsTool, setStudioSettingsTool] = useState<StudioToolId | null>(null);
   const STORAGE_STUDIO_CONFIG = `kb_studio_config_${effectiveUser?.id || 'default'}`;
   const defaultByTool: Record<StudioToolId, Record<string, string>> = {
-    ppt: { llmModel: 'deepseek-v3.2', genFigModel: 'gemini-2.5-flash-image', stylePreset: 'modern', stylePrompt: '', language: 'zh', page_count: '10' },
-    mindmap: { llmModel: 'deepseek-v3.2', mindmapStyle: 'default' },
-    drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
-    flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
-    quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore', voiceNameB: 'Puck' },
-    video: { llmModel: 'deepseek-v3.2' },
+    ppt: { llmModel: 'gpt-4o', genFigModel: 'gemini-2.5-flash-image', stylePreset: 'modern', stylePrompt: '', language: 'zh', page_count: '10' },
+    mindmap: { llmModel: 'gpt-4o', mindmapStyle: 'default' },
+    drawio: { llmModel: 'gpt-4o', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
+    flashcard: { llmModel: 'gpt-4o', language: 'zh', cardCount: '20' },
+    quiz: { llmModel: 'gpt-4o', language: 'zh', questionCount: '10' },
+    podcast: { llmModel: 'gpt-4o', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore', voiceNameB: 'Puck' },
+    video: { llmModel: 'gpt-4o' },
   };
   const [studioConfigByTool, setStudioConfigByTool] = useState<Record<StudioToolId, Record<string, string>>>(() => {
     try {

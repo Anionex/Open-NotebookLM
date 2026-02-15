@@ -228,6 +228,14 @@ frontend-workflow/node_modules/
 frontend-workflow/dist/
 frontend-workflow/build/
 frontend-workflow/.vite/
+frontend_en/node_modules/
+frontend_en/dist/
+frontend_en/build/
+frontend_en/.vite/
+frontend_zh/node_modules/
+frontend_zh/dist/
+frontend_zh/build/
+frontend_zh/.vite/
 *.local
 
 # Logs
