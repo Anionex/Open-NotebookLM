@@ -20,7 +20,7 @@
 
 - **`vite.config.ts`** - Vite 配置，包含后端代理
   - 端口: 3001
-  - 后端代理: `http://localhost:8210`
+  - 后端代理: `http://localhost:8211`
 
 - **`src/config/api.ts`** - API 配置文件
   - API Key 管理
