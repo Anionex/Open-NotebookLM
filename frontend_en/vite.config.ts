@@ -10,11 +10,11 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:26201',  // 后端端口
+        target: 'http://localhost:8000',  // 后端端口
         changeOrigin: true,
       },
       '/outputs': {
-        target: 'http://localhost:26201',  // 后端端口
+        target: 'http://localhost:8000',  // 后端端口
         changeOrigin: true,
       },
     },

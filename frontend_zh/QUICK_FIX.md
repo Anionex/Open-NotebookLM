@@ -189,7 +189,7 @@ console.log(import.meta.env.VITE_SUPABASE_URL)
    ```
 
 3. **检查后端**
-   - 确保后端运行在 http://localhost:8210
+   - 确保后端运行在 http://localhost:8000
    - 查看后端日志
 
 4. **查看控制台**

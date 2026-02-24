@@ -93,7 +93,7 @@ src/
 
 ## 后端 API
 
-本项目依赖后端 API 服务（默认运行在 `http://localhost:8210`）。
+本项目依赖后端 API 服务（默认运行在 `http://localhost:8000`）。
 
 主要 API 端点：
 - `POST /api/v1/kb/upload` - 文件上传

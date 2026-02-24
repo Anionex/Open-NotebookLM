@@ -20,7 +20,7 @@
 
 - **`vite.config.ts`** - Vite 配置，包含后端代理
   - 端口: 3001
-  - 后端代理: `http://localhost:8210`
+  - 后端代理: `http://localhost:8000`
 
 - **`src/config/api.ts`** - API 配置文件
   - API Key 管理
@@ -143,7 +143,7 @@ VITE_API_KEY=df-internal-2024-workflow-key
 
 ### 后端服务
 
-确保后端服务运行在 `http://localhost:8210`
+确保后端服务运行在 `http://localhost:8000`
 
 主要 API 端点：
 - `POST /api/v1/kb/upload` - 文件上传
@@ -282,7 +282,7 @@ frontend-v2/
 
 1. **后端依赖**
    - 必须运行 Paper2Any 后端服务
-   - 默认端口: 8210
+   - 默认端口: 8000
    - 确保后端 API 可访问
 
 2. **数据库**
