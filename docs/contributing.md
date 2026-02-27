@@ -9,7 +9,6 @@ cd DataFlow-Agent
 
 # 2. 安装开发依赖
 pip install -r requirements-dev.txt
-pip install -e .
 
 # 3. 创建分支
 git checkout -b feature/your-feature

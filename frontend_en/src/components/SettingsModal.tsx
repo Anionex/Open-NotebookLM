@@ -125,14 +125,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
               <option value="bocha">Bocha</option>
             </select>
           </div>
-          {(searchProvider === 'serpapi' || searchProvider === 'bocha') && (
+          {(searchProvider === 'serper' || searchProvider === 'serpapi' || searchProvider === 'bocha') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Search API Key</label>
               <input
                 type="password"
                 value={searchApiKey}
                 onChange={(e) => setSearchApiKey(e.target.value)}
-                placeholder={searchProvider === 'bocha' ? 'Bocha API Key' : 'SerpAPI Key'}
+                placeholder={searchProvider === 'bocha' ? 'Bocha API Key' : searchProvider === 'serper' ? 'Serper API Key' : 'SerpAPI Key'}
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>

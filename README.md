@@ -16,6 +16,13 @@
 
 ---
 
+## 📅 更新日志
+
+- **2026.02.27** — 迁移集成 [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) 深度研究模块；PPT 生成支持 Nano Banana 2 生图模型
+- **2026.02.13** — 项目发布
+
+---
+
 ## 📸 界面预览
 
 <div align="center">
@@ -112,7 +119,6 @@ conda activate opennotebook
 
 # 安装 Python 依赖
 pip install -r requirements-base.txt
-pip install -e .
 ```
 
 ### 2. 配置 API 密钥

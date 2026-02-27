@@ -84,8 +84,6 @@ pip install -r requirements-base.txt
 # 安装开发依赖（可选）
 pip install -r requirements-dev.txt
 
-# 安装Paper2Any包
-pip install -e .
 ```
 
 #### 4. 配置模型服务

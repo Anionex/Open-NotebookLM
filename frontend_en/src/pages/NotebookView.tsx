@@ -964,7 +964,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         search_provider: searchProvider,
         search_engine: searchEngine,
       };
-      if (searchProvider === 'serpapi' || searchProvider === 'bocha') body.search_api_key = searchApiKey;
+      body.search_api_key = searchApiKey;
       const res = await apiFetch('/api/v1/kb/fast-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1143,7 +1143,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       setDeepResearchError('Please configure API in Settings first');
       return;
     }
-    if ((searchProvider === 'serpapi' || searchProvider === 'bocha') && !searchApiKey) {
+    if (!searchApiKey) {
       setDeepResearchError('Please configure Search API Key in Settings first');
       return;
     }
@@ -1168,7 +1168,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           language: 'zh',
           add_as_source: true,
           search_provider: searchProvider,
-          search_api_key: searchProvider === 'serpapi' || searchProvider === 'bocha' ? searchApiKey : undefined,
+          search_api_key: searchApiKey,
           search_engine: searchEngine,
           search_top_k: 10
         })
