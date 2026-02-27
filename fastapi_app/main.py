@@ -37,36 +37,46 @@ async def _lifespan(app: FastAPI):
     use_local = os.getenv("USE_LOCAL_EMBEDDING", "1").strip().lower() in ("1", "true", "yes")
     proc = None
     if use_local:
+        # 检查 embedding 服务是否已在运行（--reload 场景下避免重复拉起）
+        _already_running = False
         try:
-            proc = subprocess.Popen(
-                [
-                    sys.executable, "-m", "uvicorn",
-                    "fastapi_app.embedding_server:app",
-                    "--host", "127.0.0.1",
-                    "--port", str(LOCAL_EMBEDDING_PORT),
-                ],
-                cwd=str(Path(__file__).resolve().parent.parent),
-                stdout=None,
-                stderr=None,
-            )
-            os.environ["EMBEDDING_API_URL"] = LOCAL_EMBEDDING_URL
-            os.environ["EMBEDDING_MODEL"] = "Octen-Embedding-0.6B"
-            for _ in range(60):
-                time.sleep(0.5)
-                if proc.poll() is not None:
-                    print("[WARN] 本地 Embedding 子进程已退出，请检查上方日志")
-                    break
-                try:
-                    import urllib.request
-                    urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=1)
-                    print(f"[INFO] 本地 Embedding 已就绪 (Octen-Embedding-0.6B) @ {LOCAL_EMBEDDING_URL}")
-                    break
-                except Exception:
-                    continue
-            else:
-                print("[WARN] 本地 Embedding 启动超时，请检查 sentence-transformers 是否已安装及上方日志")
-        except Exception as e:
-            print(f"[WARN] 启动本地 Embedding 失败: {e}")
+            import urllib.request
+            urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=2)
+            _already_running = True
+            print(f"[INFO] 本地 Embedding 已在运行，复用 @ {LOCAL_EMBEDDING_URL}")
+        except Exception:
+            pass
+        if not _already_running:
+            try:
+                proc = subprocess.Popen(
+                    [
+                        sys.executable, "-m", "uvicorn",
+                        "fastapi_app.embedding_server:app",
+                        "--host", "127.0.0.1",
+                        "--port", str(LOCAL_EMBEDDING_PORT),
+                    ],
+                    cwd=str(Path(__file__).resolve().parent.parent),
+                    stdout=None,
+                    stderr=None,
+                )
+                for _ in range(60):
+                    time.sleep(0.5)
+                    if proc.poll() is not None:
+                        print("[WARN] 本地 Embedding 子进程已退出，请检查上方日志")
+                        break
+                    try:
+                        import urllib.request
+                        urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=1)
+                        print(f"[INFO] 本地 Embedding 已就绪 (Octen-Embedding-0.6B) @ {LOCAL_EMBEDDING_URL}")
+                        break
+                    except Exception:
+                        continue
+                else:
+                    print("[WARN] 本地 Embedding 启动超时，请检查 sentence-transformers 是否已安装及上方日志")
+            except Exception as e:
+                print(f"[WARN] 启动本地 Embedding 失败: {e}")
+        os.environ["EMBEDDING_API_URL"] = LOCAL_EMBEDDING_URL
+        os.environ["EMBEDDING_MODEL"] = "Octen-Embedding-0.6B"
     yield
     if proc is not None and proc.poll() is None:
         proc.terminate()

@@ -16,8 +16,39 @@ EMBEDDING_MODEL_NAME = "Octen-Embedding-0.6B"
 HF_MODEL_ID = "Octen/Octen-Embedding-0.6B"
 
 
+def _pick_device() -> str:
+    """通过 nvidia-smi 查询空闲显存最多的 GPU，避免触碰已损坏的 CUDA context。"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,memory.free,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            print(f"[embedding_server] nvidia-smi 失败，回退到 CPU")
+            return "cpu"
+        best_idx, best_free = -1, 0
+        for line in result.stdout.strip().splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            idx, free, total = int(parts[0]), int(parts[1]), int(parts[2])
+            print(f"[embedding_server] GPU {idx}: 空闲 {free} MB / 总共 {total} MB")
+            if free > best_free:
+                best_free = free
+                best_idx = idx
+        if best_idx >= 0 and best_free > 512:  # 至少 512 MB 空闲
+            device = f"cuda:{best_idx}"
+            print(f"[embedding_server] 选择 {device}（空闲 {best_free} MB）")
+            return device
+        print("[embedding_server] 所有 GPU 显存不足，回退到 CPU")
+        return "cpu"
+    except Exception as e:
+        print(f"[embedding_server] 查询 GPU 失败: {e}，回退到 CPU")
+        return "cpu"
+
+
 def _get_embedder():
-    """懒加载，首次请求时下载并加载模型。"""
+    """懒加载，首次请求时下载并加载模型，自动选择空闲 GPU。"""
     if _get_embedder._model is None:
         try:
             from sentence_transformers import SentenceTransformer
@@ -25,7 +56,8 @@ def _get_embedder():
             raise RuntimeError(
                 "请安装 sentence-transformers: pip install sentence-transformers"
             )
-        _get_embedder._model = SentenceTransformer(HF_MODEL_ID)
+        device = _pick_device()
+        _get_embedder._model = SentenceTransformer(HF_MODEL_ID, device=device)
     return _get_embedder._model
 
 

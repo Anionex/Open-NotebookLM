@@ -962,7 +962,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         search_provider: searchProvider,
         search_engine: searchEngine,
       };
-      if (searchProvider === 'serpapi' || searchProvider === 'bocha') body.search_api_key = searchApiKey;
+      body.search_api_key = searchApiKey;
       const res = await apiFetch('/api/v1/kb/fast-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1141,7 +1141,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       setDeepResearchError('请先在设置中配置 API');
       return;
     }
-    if ((searchProvider === 'serpapi' || searchProvider === 'bocha') && !searchApiKey) {
+    if (!searchApiKey) {
       setDeepResearchError('请先在设置中配置搜索 API Key');
       return;
     }
@@ -1166,7 +1166,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           language: 'zh',
           add_as_source: true,
           search_provider: searchProvider,
-          search_api_key: searchProvider === 'serpapi' || searchProvider === 'bocha' ? searchApiKey : undefined,
+          search_api_key: searchApiKey,
           search_engine: searchEngine,
           search_top_k: 10
         })
@@ -2299,6 +2299,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                         <select value={c.genFigModel || 'gemini-2.5-flash-image'} onChange={(e) => setStudioConfigForTool('ppt', { genFigModel: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                           <option value="gemini-2.5-flash-image">2.5 Pro</option>
                           <option value="gemini-3-pro-image-preview">3.0 Pro</option>
+                          <option value="nano-banana-2">Nano Banana 2</option>
                         </select>
                       </div>
                       <div>

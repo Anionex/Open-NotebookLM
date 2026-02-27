@@ -56,8 +56,6 @@ pip install -r requirements-base.txt
 # 安装开发依赖（推荐，包含测试和工具）
 pip install -r requirements-dev.txt
 
-# 安装 Paper2Any 包（开发模式）
-pip install -e .
 ```
 
 #### Windows 用户注意事项

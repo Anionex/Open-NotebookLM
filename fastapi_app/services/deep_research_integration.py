@@ -92,6 +92,11 @@ class DeepResearchIntegration:
             if self.dashscope_key:
                 os.environ["DASHSCOPE_API_KEY"] = self.dashscope_key
 
+            # ⚠️ Visit 工具的 call_server 需要这三个环境变量来调用 LLM 总结网页内容
+            os.environ["API_KEY"] = self.api_key
+            os.environ["API_BASE"] = self.api_base
+            os.environ["SUMMARY_MODEL_NAME"] = self.model_name
+
             # 配置 LLM
             llm_config = {
                 "model": self.model_name,

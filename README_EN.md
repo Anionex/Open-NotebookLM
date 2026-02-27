@@ -16,6 +16,13 @@
 
 ---
 
+## 📅 Changelog
+
+- **2026.02.27** — Integrated [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) deep research module; PPT generation now supports Nano Banana 2 image model
+- **2026.02.13** — Initial release
+
+---
+
 ## 📸 Screenshots
 
 <div align="center">
@@ -112,7 +119,6 @@ conda activate opennotebook
 
 # Install Python dependencies
 pip install -r requirements-base.txt
-pip install -e .
 ```
 
 ### 2. Configure API Keys
