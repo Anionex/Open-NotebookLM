@@ -1101,6 +1101,7 @@ def ocr_images_to_ppt(
             # 不再依赖 font.spacing 模拟分散，统一设为 0
             p.font.size = font_size
             p.font.spacing = Pt(0)
+            p.font.name = "Microsoft YaHei" if is_cjk(text) else "Arial"
 
             # 提取并设置文字颜色
             if use_text_color:
@@ -1397,6 +1398,7 @@ async def convert_images_dir_to_pdf_and_ppt_api(
 
                 p.font.size = font_size
                 p.font.spacing = Pt(0)
+                p.font.name = "Microsoft YaHei" if is_cjk(text) else "Arial"
 
                 if use_text_color:
                     text_color = extract_text_color(bgr, bbox, bg_color)
