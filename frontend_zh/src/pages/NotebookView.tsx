@@ -18,6 +18,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
 import { QuizContainer } from '../components/quiz/QuizContainer';
+import { NotionEditor } from '../components/notes/NotionEditor';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -211,12 +212,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     { icon: <BookOpen className="text-indigo-500" />, label: '闪卡', id: 'flashcard' },
     { icon: <Brain className="text-blue-500" />, label: '测验', id: 'quiz' },
     { icon: <Mic2 className="text-red-500" />, label: '知识播客', id: 'podcast' },
+    { icon: <FileText className="text-green-500" />, label: '笔记', id: 'note' },
     // 视频讲解暂未开放
     // { icon: <VideoIcon className="text-blue-600" />, label: '视频讲解', id: 'video' },
   ];
 
   // Studio：每个功能卡片各自配置，点卡片上的「…」翻转进该卡片的设置
-  type StudioToolId = 'ppt' | 'mindmap' | 'drawio' | 'flashcard' | 'quiz' | 'podcast' | 'video';
+  type StudioToolId = 'ppt' | 'mindmap' | 'drawio' | 'flashcard' | 'quiz' | 'podcast' | 'video' | 'note';
   const [studioPanelView, setStudioPanelView] = useState<'tools' | 'settings'>('tools');
   const [studioSettingsTool, setStudioSettingsTool] = useState<StudioToolId | null>(null);
   const STORAGE_STUDIO_CONFIG = `kb_studio_config_${effectiveUser?.id || 'default'}`;
@@ -228,6 +230,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
     podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore', voiceNameB: 'Puck' },
     video: { llmModel: 'deepseek-v3.2' },
+    note: {},
   };
   const [studioConfigByTool, setStudioConfigByTool] = useState<Record<StudioToolId, Record<string, string>>>(() => {
     try {
@@ -1795,7 +1798,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
 
   return (
-    <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
+    <>
+      <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
       {/* Citation tooltip styles */}
       <style>{`
         .cite-ref[data-source] {
@@ -2077,6 +2081,16 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
 
         {/* Center: Chat/Content Area */}
+        {activeTool === 'note' ? (
+          <div className="flex-1 flex overflow-hidden">
+            <NotionEditor
+              onClose={() => setActiveTool('chat')}
+              notebook={notebook}
+              user={effectiveUser}
+              onSaved={fetchFiles}
+            />
+          </div>
+        ) : (
         <main className="flex-1 flex flex-col relative bg-white min-w-[300px] overflow-hidden">
           <div className="flex items-center justify-between px-6 py-3 border-b border-ios-gray-100 shrink-0">
             <span className="text-sm font-medium text-ios-gray-900">对话</span>
@@ -2209,8 +2223,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             </div>
           )}
         </main>
+        )}
 
         {/* 中-右 拖拽条 */}
+        {activeTool !== 'note' && (
+        <>
         <div
           role="separator"
           aria-orientation="vertical"
@@ -2522,7 +2539,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 </motion.div>
               ))}
             </div>
-            {activeTool !== 'chat' && activeTool !== 'search' && (
+            {activeTool !== 'chat' && activeTool !== 'search' && activeTool !== 'note' && (
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="button"
@@ -2701,6 +2718,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           </div>
           */}
         </aside>
+        </>
+        )}
       </div>
 
       {/* API 设置弹窗 */}
@@ -3259,6 +3278,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
       )}
     </div>
+    </>
   );
 };
 
