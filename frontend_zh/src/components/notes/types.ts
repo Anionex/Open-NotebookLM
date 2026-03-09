@@ -9,6 +9,7 @@ export type BlockType =
   | 'quote'
   | 'code'
   | 'divider'
+  | 'table'
   | 'image'
   | 'excel'
   | 'video';
