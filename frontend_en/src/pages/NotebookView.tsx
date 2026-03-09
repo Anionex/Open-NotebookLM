@@ -2071,6 +2071,7 @@ rel="noopener noreferrer"
               onClose={() => setActiveTool('chat')}
               notebook={notebook}
               user={effectiveUser}
+              files={files}
               onSaved={fetchFiles}
             />
           </div>
@@ -2522,7 +2523,7 @@ rel="noopener noreferrer"
                 </motion.div>
               ))}
             </div>
-            {activeTool !== 'chat' && activeTool !== 'search' && activeTool !== 'note' && (
+            {activeTool !== 'chat' && activeTool !== 'search' && (
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="button"

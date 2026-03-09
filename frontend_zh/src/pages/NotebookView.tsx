@@ -2087,6 +2087,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               onClose={() => setActiveTool('chat')}
               notebook={notebook}
               user={effectiveUser}
+              files={files}
               onSaved={fetchFiles}
             />
           </div>
@@ -2539,7 +2540,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 </motion.div>
               ))}
             </div>
-            {activeTool !== 'chat' && activeTool !== 'search' && activeTool !== 'note' && (
+            {activeTool !== 'chat' && activeTool !== 'search' && (
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="button"
