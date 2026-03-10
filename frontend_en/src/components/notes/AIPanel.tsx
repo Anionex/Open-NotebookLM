@@ -8,6 +8,7 @@ interface AIPanelProps {
   blockId: string;
   files: KnowledgeFile[];
   user: any;
+  notebook?: any;
   noteContext: string;
   noteMemory: string;
   onInsertText: (text: string, blockId: string) => void;
@@ -28,18 +29,35 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   blockId,
   files,
   user,
+  notebook,
   noteContext,
   noteMemory,
   onInsertText,
   onClose,
   onUpdateMemory,
 }) => {
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  // Default: select all files
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
+    new Set(files.map(f => f.id))
+  );
   const [inputText, setInputText] = useState('');
   const [showPresets, setShowPresets] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-select newly added files
+  useEffect(() => {
+    setSelectedFileIds(prev => {
+      const newIds = new Set(prev);
+      files.forEach(f => {
+        if (!prev.has(f.id)) {
+          newIds.add(f.id);
+        }
+      });
+      return newIds;
+    });
+  }, [files]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -83,6 +101,8 @@ export const AIPanel: React.FC<AIPanelProps> = ({
           files: selectedFilePaths,
           query: fullPrompt,
           history: [],
+          email: user?.email || user?.id || undefined,
+          notebook_id: notebook?.id || undefined,
           api_key: apiSettings?.apiKey?.trim() || undefined,
           api_url: apiSettings?.apiUrl?.trim() || undefined,
         }),

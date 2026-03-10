@@ -523,6 +523,7 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
                   blockId={block.id}
                   files={files}
                   user={user}
+                  notebook={notebook}
                   noteContext={getNoteContext()}
                   noteMemory={noteMemory}
                   onInsertText={handleInsertText}

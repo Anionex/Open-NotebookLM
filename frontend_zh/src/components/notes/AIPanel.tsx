@@ -8,6 +8,7 @@ interface AIPanelProps {
   blockId: string;
   files: KnowledgeFile[];
   user: any;
+  notebook?: any;
   noteContext: string;
   noteMemory: string;
   onInsertText: (text: string, blockId: string) => void;
@@ -28,28 +29,52 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   blockId,
   files,
   user,
+  notebook,
   noteContext,
   noteMemory,
   onInsertText,
   onClose,
   onUpdateMemory,
 }) => {
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  // 默认选中所有文件
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
+    new Set(files.map(f => f.id))
+  );
   const [inputText, setInputText] = useState('');
   const [showPresets, setShowPresets] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 当 files 变化时，更新选中状态（保持之前的选择，新增文件自动选中）
+  useEffect(() => {
+    setSelectedFileIds(prev => {
+      const newIds = new Set(prev);
+      files.forEach(f => {
+        if (!prev.has(f.id)) {
+          newIds.add(f.id);
+        }
+      });
+      return newIds;
+    });
+  }, [files]);
+
   useEffect(() => {
     textareaRef.current?.focus();
-  }, []);
+    console.log('[AIPanel] Component mounted/updated');
+    console.log('  files prop:', files);
+    console.log('  selectedFileIds:', Array.from(selectedFileIds));
+    console.log('  user prop:', user);
+    console.log('  notebook prop:', notebook);
+  }, [files, user, notebook, selectedFileIds]);
 
   const toggleFile = (fileId: string) => {
+    console.log('[AIPanel] toggleFile called, fileId:', fileId);
     setSelectedFileIds(prev => {
       const next = new Set(prev);
       if (next.has(fileId)) next.delete(fileId);
       else next.add(fileId);
+      console.log('[AIPanel] selectedFileIds updated:', Array.from(next));
       return next;
     });
   };
@@ -65,6 +90,13 @@ export const AIPanel: React.FC<AIPanelProps> = ({
         .map(f => f.url)
         .filter((url): url is string => Boolean(url));
 
+      console.log('[AIPanel] handleAsk debug:');
+      console.log('  files:', files);
+      console.log('  selectedFileIds:', Array.from(selectedFileIds));
+      console.log('  selectedFilePaths:', selectedFilePaths);
+      console.log('  user:', user);
+      console.log('  notebook:', notebook);
+
       const systemContext = noteMemory
         ? `你是一个智能笔记助手。\n\n笔记上下文与历史记录：\n${noteMemory}`
         : `你是一个智能笔记助手，帮助用户撰写和整理笔记。`;
@@ -75,16 +107,22 @@ export const AIPanel: React.FC<AIPanelProps> = ({
 
       const fullPrompt = `${systemContext}${noteContextPart}\n\n用户需求：${inputText}\n\n请提供结构清晰、可以直接插入笔记的回复。`;
 
+      const requestBody = {
+        files: selectedFilePaths,
+        query: fullPrompt,
+        history: [],
+        email: user?.email || user?.id || undefined,
+        notebook_id: notebook?.id || undefined,
+        api_key: apiSettings?.apiKey?.trim() || undefined,
+        api_url: apiSettings?.apiUrl?.trim() || undefined,
+      };
+
+      console.log('[AIPanel] request body:', requestBody);
+
       const res = await apiFetch('/api/v1/kb/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          files: selectedFilePaths,
-          query: fullPrompt,
-          history: [],
-          api_key: apiSettings?.apiKey?.trim() || undefined,
-          api_url: apiSettings?.apiUrl?.trim() || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
       const response = data.answer || data.response || '无回复';

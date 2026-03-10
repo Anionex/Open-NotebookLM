@@ -34,7 +34,7 @@ class PromptsTemplateGenerator:
         output_language: str,
         *,
         python_modules: Sequence[str] | None = ["prompts_repo"],
-        template_dirs: Sequence[str] | None = [f'{get_project_root()}/dataflow_agent/promptstemplates/resources'],
+        template_dirs: Sequence[str] | None = [f'{get_project_root()}/workflow_engine/promptstemplates/resources'],
     ) -> None:
         """
         Parameters

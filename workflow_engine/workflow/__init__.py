@@ -1,4 +1,4 @@
-# dataflow_agent/workflow/__init__.py
+# workflow_engine/workflow/__init__.py
 
 import importlib
 from pathlib import Path
@@ -11,24 +11,12 @@ from .registry import RuntimeRegistry
 # 能够在导入时将相应工作流注册到 RuntimeRegistry。
 _pkg_path = Path(__file__).resolve().parent
 for py in _pkg_path.glob("wf_*.py"):
-    # importlib 需要模块的点分路径（dotted-path），例如 dataflow_agent.workflow.wf_xxx
+    # 暂时跳过 DrawIO 相关工作流（前端已隐藏，后续修复）
+    if py.stem in ("wf_paper2drawio", "wf_paper2drawio_sam3"):
+        continue
+    # importlib 需要模块的点分路径（dotted-path），例如 workflow_engine.workflow.wf_xxx
     mod_name = f"{__name__}.{py.stem}"
     importlib.import_module(mod_name)
-
-# ---- 2. 导入 features/ 目录下的工作流 ---------------------------------
-# 扫描 workflow_engine/features/ 下的所有功能模块
-_features_path = _pkg_path.parent / "features"
-if _features_path.exists():
-    for feature_dir in _features_path.iterdir():
-        if feature_dir.is_dir() and not feature_dir.name.startswith("_"):
-            workflow_file = feature_dir / "workflow.py"
-            if workflow_file.exists():
-                # 导入 workflow_engine.features.{feature_name}.workflow
-                mod_name = f"workflow_engine.features.{feature_dir.name}.workflow"
-                try:
-                    importlib.import_module(mod_name)
-                except Exception as e:
-                    print(f"[Warning] Failed to import {mod_name}: {e}")
 
 # 模块导入后，各 wf_*.py 文件内的 @register 装饰器会自动注册工作流到 RuntimeRegistry
 
@@ -50,7 +38,7 @@ async def run_workflow(name: str, state):
     graph_builder = factory()
 
     # graph = graph_builder.compile()
-    graph = graph_builder.build()       
+    graph = graph_builder.build()
 
     return await graph.ainvoke(state)
 

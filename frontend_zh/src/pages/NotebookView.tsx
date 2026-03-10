@@ -208,7 +208,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const studioTools: Array<{icon: React.ReactNode, label: string, id: ToolType}> = [
     { icon: <ImageIcon className="text-orange-500" />, label: 'PPT生成', id: 'ppt' },
     { icon: <BrainCircuit className="text-purple-500" />, label: '思维导图', id: 'mindmap' },
-    { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO 图表', id: 'drawio' },
+    // DrawIO 图表功能暂时隐藏，后续修复
+    // { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO 图表', id: 'drawio' },
     { icon: <BookOpen className="text-indigo-500" />, label: '闪卡', id: 'flashcard' },
     { icon: <Brain className="text-blue-500" />, label: '测验', id: 'quiz' },
     { icon: <Mic2 className="text-red-500" />, label: '知识播客', id: 'podcast' },
@@ -228,7 +229,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
     flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
     quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'local-fireredtts', voiceName: 'vivian' },
+    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'qwen-tts', voiceName: 'vivian' },
     video: { llmModel: 'deepseek-v3.2' },
     note: {},
   };
@@ -1477,13 +1478,16 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         };
       } else if (tool === 'podcast') {
         const cfg = getStudioConfig('podcast');
+        // Qwen TTS 只支持单人叙述，自动切换模式
+        const ttsModel = (cfg.ttsModel || 'local-fireredtts').toLowerCase();
+        const isQwenTTS = ttsModel.includes('qwen');
         bodyData = {
           ...baseBody,
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
           tts_model: cfg.ttsModel || 'local-fireredtts',
           voice_name: cfg.voiceName || 'vivian',
-          podcast_mode: 'dialog',
+          podcast_mode: isQwenTTS ? 'monologue' : 'dialog',
           podcast_length: 'standard',
           language: cfg.podcastLanguage || 'zh'
         };
@@ -2411,7 +2415,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">TTS 模型</label>
-                        <input type="text" value={c.ttsModel || 'local-fireredtts'} readOnly placeholder="local-fireredtts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 cursor-not-allowed" />
+                        <input type="text" value={c.ttsModel || 'qwen-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="qwen-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <p className="text-xs text-gray-400 mt-0.5">例如: qwen-tts, local-fireredtts, cosyvoice-tts</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">播客语言</label>

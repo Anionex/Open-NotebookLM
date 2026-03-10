@@ -13,9 +13,6 @@ from typing import Optional, List, Dict, Any
 import fitz  # PyMuPDF
 
 from workflow_engine.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState, KBMindMapRequest, KBMindMapState
-from workflow_engine.workflow.wf_intelligent_qa import create_intelligent_qa_graph
-from workflow_engine.workflow.wf_kb_podcast import create_kb_podcast_graph
-from workflow_engine.workflow.wf_kb_mindmap import create_kb_mindmap_graph
 from workflow_engine.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
 from workflow_engine.utils import get_project_root
 from workflow_engine.logger import get_logger
@@ -616,10 +613,17 @@ async def chat_with_kb(
     """
     Intelligent QA Chat. 若传 email/notebook_id 且该 notebook 已建索引，会优先用 RAG 检索片段作为上下文。
     """
+    log.info(f"[chat_with_kb] === Request received ===")
+    log.info(f"[chat_with_kb] files (raw): {files}")
+    log.info(f"[chat_with_kb] email (raw): {email}")
+    log.info(f"[chat_with_kb] notebook_id (raw): {notebook_id}")
+    log.info(f"[chat_with_kb] query length: {len(query)}")
+
     try:
         # Normalize file paths (web path -> local absolute path)
         project_root = get_project_root()
         local_files = []
+
         for f in files:
             # remove leading /outputs/ if present, or just join
             # Web path: /outputs/kb_data/...
@@ -627,21 +631,57 @@ async def chat_with_kb(
             p = project_root / clean_path
             if p.exists():
                 local_files.append(str(p))
+                log.info(f"[chat_with_kb] ✓ Found file: {f} -> {p}")
             else:
                 # Try raw path
                 p_raw = Path(f)
                 if p_raw.exists():
                     local_files.append(str(p_raw))
-        
+                    log.info(f"[chat_with_kb] ✓ Found file (raw): {f} -> {p_raw}")
+                else:
+                    log.warning(f"[chat_with_kb] ✗ File not found: {f}")
+
+        log.info(f"[chat_with_kb] Resolved local_files: {local_files}")
+
         if not local_files:
              # Just return empty answer or handle logic
-             pass
+             log.warning("[chat_with_kb] No valid local files found, will rely on RAG only")
 
-        vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
+        # Use new notebook paths system instead of legacy _vector_store_base_dir
+        vector_store_base_dir = None
+        if email and notebook_id:
+            try:
+                # Find notebook directory by scanning outputs/{email}/
+                from pathlib import Path
+                project_root = get_project_root()
+                email_dir = project_root / "outputs" / email.replace("@", "_at_")
+
+                if email_dir.exists():
+                    # Look for directories matching pattern *_{notebook_id}
+                    for nb_dir in email_dir.iterdir():
+                        if nb_dir.is_dir() and nb_dir.name.endswith(f"_{notebook_id}"):
+                            vector_store_path = nb_dir / "vector_store"
+                            if vector_store_path.exists():
+                                vector_store_base_dir = str(vector_store_path)
+                                log.info(f"[chat_with_kb] Found vector store: {vector_store_base_dir}")
+                                break
+
+                if not vector_store_base_dir:
+                    log.warning(f"[chat_with_kb] No vector_store found for email={email}, notebook_id={notebook_id}")
+            except Exception as e:
+                log.warning(f"[chat_with_kb] Failed to search for vector store: {e}")
+
+        # Fallback to legacy system if needed
+        if not vector_store_base_dir:
+            vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
+            if vector_store_base_dir:
+                log.info(f"[chat_with_kb] Using legacy paths system, vector_store_base_dir: {vector_store_base_dir}")
+            else:
+                log.warning(f"[chat_with_kb] vector_store_base_dir not found in either new or legacy system")
 
         # Construct Request
         req = IntelligentQARequest(
-            files=local_files,
+            file_ids=local_files,
             query=query,
             history=history,
             vector_store_base_dir=vector_store_base_dir,
@@ -2128,9 +2168,13 @@ async def generate_podcast_from_kb(
         else:
             local_file_paths = [str(filtered_paths[0])]
 
+        # Get vector store base directory
+        vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
+
         # Prepare request
         podcast_req = KBPodcastRequest(
-            files=local_file_paths,
+            file_ids=local_file_paths,
+            vector_store_base_dir=vector_store_base_dir,
             chat_api_url=api_url,
             api_key=api_key,
             model=model,
@@ -2266,9 +2310,13 @@ async def generate_mindmap_from_kb(
         if not local_file_paths:
             raise HTTPException(status_code=400, detail="No valid files provided")
 
+        # Get vector store base directory
+        vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
+
         # Prepare request
         mindmap_req = KBMindMapRequest(
-            files=local_file_paths,
+            file_ids=local_file_paths,
+            vector_store_base_dir=vector_store_base_dir,
             chat_api_url=api_url,
             api_key=api_key,
             model=model,
@@ -2386,182 +2434,16 @@ async def generate_drawio_from_kb(
 ):
     """
     从知识库选中文件生成 DrawIO 图表。
-    优先从 MinerU 提取的 figure 图片走 SAM3 分割生成 drawio（缓存到 sources/{stem}/sam3/），
-    没有 figure 图片时 fallback 到文本模式 LLM 生成。
+
+    注意：此功能正在重构中，暂时不可用。
+    优先：思维导图生成（/generate-mindmap）、播客生成（/generate-podcast）
     """
-    try:
-        log.info("[generate-drawio] 收到 file_paths: %s", file_paths)
-        project_root = get_project_root()
+    raise HTTPException(
+        status_code=501,
+        detail="DrawIO 生成功能正在重构中，暂时不可用。请使用思维导图生成功能（/api/v1/kb/generate-mindmap）作为替代。"
+    )
 
-        # --- SAM3 图片模式：有 notebook 且能找到 figure 图片时自动走 SAM3 ---
-        if notebook_id:
-            from fastapi_app.services.paper2drawio_service import Paper2DrawioService
 
-            paths = get_notebook_paths(notebook_id, notebook_title or "", email)
-            mgr = SourceManager(paths)
-            ts = int(time.time())
-            output_dir = paths.feature_output_dir("drawio", ts)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            # 收集所有 source 中的 figure 图片
-            figure_images = _collect_figure_images(mgr, file_paths, project_root)
-            if not figure_images:
-                log.warning("[generate-drawio] SAM3 模式但未找到 figure 图片，回退到文本模式")
-            else:
-                service = Paper2DrawioService()
-                all_xmls = []
-                for stem, img_path in figure_images:
-                    sam3_cache = str(mgr.ensure_sam3_dir(stem))
-                    result = await service.generate_diagram_from_image(
-                        image_path=str(img_path),
-                        chat_api_url=api_url,
-                        api_key=api_key,
-                        model=model,
-                        language=language,
-                        email=email,
-                        sam3_cache_dir=sam3_cache,
-                        output_dir=str(output_dir),
-                    )
-                    if result.get("success") and result.get("xml_content"):
-                        all_xmls.append(result["xml_content"])
-                        log.info("[generate-drawio] SAM3 成功: stem=%s", stem)
-                    else:
-                        log.warning("[generate-drawio] SAM3 失败: stem=%s err=%s", stem, result.get("error"))
-
-                if all_xmls:
-                    xml_content = all_xmls[0]  # 目前取第一个成功的
-                    drawio_path = output_dir / f"diagram_{ts}.drawio"
-                    drawio_path.write_text(xml_content, encoding="utf-8")
-                    download_url = _to_outputs_url(str(drawio_path))
-                    _save_output_record(
-                        email=email, user_id=user_id, notebook_id=notebook_id,
-                        output_type="drawio", file_name=drawio_path.name,
-                        file_path=str(drawio_path), result_path=str(output_dir),
-                        download_url=download_url,
-                    )
-                    return {
-                        "success": True,
-                        "xml_content": xml_content,
-                        "file_path": download_url,
-                        "error": None,
-                        "output_file_id": f"kb_drawio_{ts}",
-                    }
-                # SAM3 全部失败，fall through 到文本模式
-                log.warning("[generate-drawio] SAM3 全部失败，回退到文本模式")
-
-        # --- 文本模式（原有逻辑） ---
-        url_sources = []
-        local_file_paths = []
-        for f in (file_paths or []):
-            ps = (f or "").strip()
-            if ps.startswith("http://") or ps.startswith("https://"):
-                url_sources.append(ps)
-            else:
-                local_path = _resolve_local_path(ps)
-                if not local_path.exists() or not local_path.is_file():
-                    log.warning("[generate-drawio] 文件不存在: 原始=%s 解析后=%s", ps, local_path)
-                    raise HTTPException(status_code=404, detail=f"File not found: {ps}")
-                local_file_paths.append(str(local_path))
-
-        parts = []
-        for i, url in enumerate(url_sources):
-            # 优先用引入时已存的 .md，不重新爬
-            local_md = _resolve_link_to_local_md(email, notebook_id, url)
-            if local_md is not None:
-                try:
-                    content = local_md.read_text(encoding="utf-8", errors="replace")
-                    if content.strip():
-                        parts.append(f"来源{i + 1}:\n{content}")
-                        log.info("[generate-drawio] 使用已存 .md: %s", local_md.name)
-                        continue
-                except Exception as e:
-                    log.warning("[generate-drawio] 读取已存 .md 失败 %s: %s", local_md, e)
-            try:
-                content = fetch_page_text(url, max_chars=100000)
-                if content and not content.startswith("["):
-                    parts.append(f"来源{i + 1}:\n{content}")
-                else:
-                    parts.append(f"来源{i + 1}:\n[抓取失败或无正文]")
-            except Exception as e:
-                log.warning("[generate-drawio] 抓取 URL 失败 %s: %s", url[:60], e)
-                parts.append(f"来源{i + 1}:\n[抓取失败: {e}]")
-        if local_file_paths:
-            local_text = _extract_text_from_files(local_file_paths)
-            if local_text.strip():
-                parts.append(local_text)
-        text_content = "\n\n".join(parts) if parts else ""
-        if not text_content.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="No text from selected sources (URL fetch failed or files empty). Check link or choose local files.",
-            )
-
-        from fastapi_app.services.paper2drawio_service import Paper2DrawioService
-
-        service = Paper2DrawioService()
-        result = await service.generate_diagram(
-            request=None,
-            chat_api_url=api_url,
-            api_key=api_key,
-            model=model,
-            enable_vlm_validation=False,
-            vlm_model=getattr(settings, "PAPER2DRAWIO_VLM_MODEL", "deepseek-v3.2"),
-            vlm_validation_max_retries=3,
-            input_type="TEXT",
-            diagram_type=diagram_type,
-            diagram_style=diagram_style,
-            language=language,
-            email=email,
-            file=None,
-            text_content=text_content,
-        )
-
-        if not result.get("success") or not result.get("xml_content"):
-            return {
-                "success": False,
-                "xml_content": "",
-                "file_path": "",
-                "error": result.get("error") or "Failed to generate diagram",
-                "output_file_id": None,
-            }
-
-        xml_content = result["xml_content"]
-        ts = int(time.time())
-        # New layout: outputs/{title}_{id}/drawio/{ts}/
-        if notebook_id:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
-            output_dir = paths.feature_output_dir("drawio", ts)
-        else:
-            output_dir = project_root / OUTPUTS_BASE / (email or "default") / "_shared" / "drawio"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        drawio_path = output_dir / f"diagram_{ts}.drawio"
-        drawio_path.write_text(xml_content, encoding="utf-8")
-        download_url = _to_outputs_url(str(drawio_path))
-
-        _save_output_record(
-            email=email,
-            user_id=user_id,
-            notebook_id=notebook_id,
-            output_type="drawio",
-            file_name=drawio_path.name,
-            file_path=str(drawio_path),
-            result_path=str(output_dir),
-            download_url=download_url,
-        )
-
-        return {
-            "success": True,
-            "xml_content": xml_content,
-            "file_path": download_url,
-            "error": None,
-            "output_file_id": f"kb_drawio_{ts}",
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/save-mindmap")

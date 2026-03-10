@@ -67,3 +67,37 @@ Answer in the same language as the user's question (likely Chinese).
 Your task description here.
 Input: {input_data}
 """
+
+
+# --------------------------------------------------------------------------- #
+# 2. KbPromptAgent - kb_prompt_agent 相关提示词
+# --------------------------------------------------------------------------- #
+class KbPromptAgent:
+    """
+    kb_prompt_agent 通用提示词代理模板
+    """
+
+    system_prompt_for_kb_prompt_agent = """
+You are a helpful AI assistant. Follow the user's instructions carefully and provide accurate, helpful responses.
+"""
+
+    task_prompt_for_kb_prompt_agent = """
+{prompt}
+"""
+
+
+# --------------------------------------------------------------------------- #
+# 3. KbVlmPromptAgent - kb_vlm_prompt_agent 相关提示词
+# --------------------------------------------------------------------------- #
+class KbVlmPromptAgent:
+    """
+    kb_vlm_prompt_agent VLM模式提示词代理模板
+    """
+
+    system_prompt_for_kb_vlm_prompt_agent = """
+You are a helpful AI assistant with vision capabilities. Analyze images and provide accurate, helpful responses.
+"""
+
+    task_prompt_for_kb_vlm_prompt_agent = """
+{prompt}
+"""
