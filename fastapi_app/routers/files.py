@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 
 from fastapi_app.dependencies import get_current_user, get_optional_user, AuthUser
 from fastapi_app.utils import _from_outputs_url
-from dataflow_agent.utils import get_project_root
+from workflow_engine.utils import get_project_root
 
 
 router = APIRouter(prefix="/files", tags=["files"])

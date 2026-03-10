@@ -12,14 +12,14 @@ from typing import Optional, List, Dict, Any
 
 import fitz  # PyMuPDF
 
-from dataflow_agent.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState, KBMindMapRequest, KBMindMapState
-from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
-from dataflow_agent.workflow.wf_kb_podcast import create_kb_podcast_graph
-from dataflow_agent.workflow.wf_kb_mindmap import create_kb_mindmap_graph
-from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
-from dataflow_agent.utils import get_project_root
-from dataflow_agent.logger import get_logger
-from dataflow_agent.workflow import run_workflow
+from workflow_engine.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState, KBMindMapRequest, KBMindMapState
+from workflow_engine.workflow.wf_intelligent_qa import create_intelligent_qa_graph
+from workflow_engine.workflow.wf_kb_podcast import create_kb_podcast_graph
+from workflow_engine.workflow.wf_kb_mindmap import create_kb_mindmap_graph
+from workflow_engine.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
+from workflow_engine.utils import get_project_root
+from workflow_engine.logger import get_logger
+from workflow_engine.workflow import run_workflow
 
 log = get_logger(__name__)
 from fastapi_app.config import settings
@@ -31,7 +31,7 @@ from fastapi_app.notebook_paths import NotebookPaths, get_notebook_paths, _sanit
 from fastapi_app.source_manager import SourceManager
 from fastapi_app.services.fast_research_service import fast_research_search
 from fastapi_app.services.deep_research_report_service import generate_report_from_search
-from dataflow_agent.toolkits.research_tools import fetch_page_text
+from workflow_engine.toolkits.research_tools import fetch_page_text
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 

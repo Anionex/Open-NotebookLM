@@ -16,15 +16,15 @@
 # import json
 # import time
 
-# from dataflow_agent.state import Paper2FigureState, DFRequest, DFState, Paper2FigureRequest as DF_Paper2FigureRequest
-# from dataflow_agent.workflow import run_workflow
-# from dataflow_agent.logger import get_logger
-# from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
-# from dataflow_agent.utils import get_project_root
-# from dataflow_agent.workflow.wf_pipeline_recommend_extract_json import (
+# from workflow_engine.state import Paper2FigureState, DFRequest, DFState, Paper2FigureRequest as DF_Paper2FigureRequest
+# from workflow_engine.workflow import run_workflow
+# from workflow_engine.logger import get_logger
+# from workflow_engine.state import Paper2VideoRequest, Paper2VideoState
+# from workflow_engine.utils import get_project_root
+# from workflow_engine.workflow.wf_pipeline_recommend_extract_json import (
 #     create_pipeline_graph,
 # )
-# from dataflow_agent.workflow.wf_pipeline_write import create_operator_write_graph
+# from workflow_engine.workflow.wf_pipeline_write import create_operator_write_graph
 
 # from .schemas import (
 #     OperatorWriteRequest,
@@ -330,7 +330,7 @@
 #     )
 #     state = Paper2VideoState(request=req, messages=[])
 
-#     from dataflow_agent.workflow.wf_paper2video import create_paper2video_graph
+#     from workflow_engine.workflow.wf_paper2video import create_paper2video_graph
     
 #     graph = create_paper2video_graph().build()
 #     final_state: Paper2VideoState = await graph.ainvoke(state)

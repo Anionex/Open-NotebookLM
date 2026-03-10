@@ -15,11 +15,11 @@ import time
 from pathlib import Path
 from typing import Any, List
 
-from dataflow_agent.logger import get_logger
-from dataflow_agent.state import Paper2FigureState
-from dataflow_agent.toolkits.multimodaltool.mineru_tool import _shrink_markdown
-from dataflow_agent.utils import get_project_root
-from dataflow_agent.workflow import run_workflow
+from workflow_engine.logger import get_logger
+from workflow_engine.state import Paper2FigureState
+from workflow_engine.toolkits.multimodaltool.mineru_tool import _shrink_markdown
+from workflow_engine.utils import get_project_root
+from workflow_engine.workflow import run_workflow
 
 from fastapi_app.notebook_paths import get_notebook_paths
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse

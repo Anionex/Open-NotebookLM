@@ -12,9 +12,9 @@ from typing import Any, List, Dict, Optional
 
 import httpx
 
-from dataflow_agent.logger import get_logger
+from workflow_engine.logger import get_logger
 
-from dataflow_agent.toolkits.research_tools import (
+from workflow_engine.toolkits.research_tools import (
     serpapi_search,
     google_cse_search,
     brave_search,

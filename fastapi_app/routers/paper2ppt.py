@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 
 from fastapi_app.schemas import ErrorResponse, FullPipelineRequest, OutlineRefineRequest, PageContentRequest, PPTGenerationRequest
 from fastapi_app.services.paper2ppt_service import Paper2PPTService
-from dataflow_agent.utils.version_manager import ImageVersionManager
+from workflow_engine.utils.version_manager import ImageVersionManager
 from fastapi_app.utils import _to_outputs_url
 
 router = APIRouter(tags=["paper2ppt"])

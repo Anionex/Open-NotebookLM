@@ -15,10 +15,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Request, UploadFile
 
-from dataflow_agent.state import Paper2DrawioState, Paper2DrawioRequest
-from dataflow_agent.toolkits.drawio_tools import wrap_xml, extract_cells
-from dataflow_agent.logger import get_logger
-from dataflow_agent.utils import get_project_root
+from workflow_engine.state import Paper2DrawioState, Paper2DrawioRequest
+from workflow_engine.toolkits.drawio_tools import wrap_xml, extract_cells
+from workflow_engine.logger import get_logger
+from workflow_engine.utils import get_project_root
 
 log = get_logger(__name__)
 
@@ -92,7 +92,7 @@ class Paper2DrawioService:
             result_path=str(run_dir),
         )
 
-        from dataflow_agent.workflow.registry import RuntimeRegistry
+        from workflow_engine.workflow.registry import RuntimeRegistry
 
         try:
             async with task_semaphore:
@@ -162,7 +162,7 @@ class Paper2DrawioService:
             state.temp_data = state.temp_data or {}
             state.temp_data["sam3_cache_dir"] = sam3_cache_dir
 
-        from dataflow_agent.workflow.registry import RuntimeRegistry
+        from workflow_engine.workflow.registry import RuntimeRegistry
 
         try:
             async with task_semaphore:
@@ -256,7 +256,7 @@ class Paper2DrawioService:
             text_content=message,
         )
 
-        from dataflow_agent.workflow.registry import RuntimeRegistry
+        from workflow_engine.workflow.registry import RuntimeRegistry
 
         try:
             async with task_semaphore:

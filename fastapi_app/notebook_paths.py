@@ -22,7 +22,7 @@ import unicodedata
 from pathlib import Path
 from typing import Optional
 
-from dataflow_agent.utils import get_project_root
+from workflow_engine.utils import get_project_root
 
 
 # ---------------------------------------------------------------------------

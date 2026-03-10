@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from dataflow_agent.logger import get_logger
-from dataflow_agent.utils import get_project_root
+from workflow_engine.logger import get_logger
+from workflow_engine.utils import get_project_root
 
 from fastapi_app.notebook_paths import NotebookPaths
 
@@ -298,7 +298,7 @@ class SourceManager:
 
     async def _run_mineru(self, pdf_path: Path, output_dir: Path) -> None:
         """Run MinerU on a PDF file."""
-        from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
+        from workflow_engine.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
         await asyncio.to_thread(
             run_mineru_pdf_extract,
             str(pdf_path),

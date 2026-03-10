@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Literal
-from dataflow_agent.utils import get_project_root
+from workflow_engine.utils import get_project_root
 from pydantic import BaseModel, Field
 from fastapi_app.config import settings
 

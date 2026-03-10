@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from pydantic import BaseModel
 
-from dataflow_agent.logger import get_logger
+from workflow_engine.logger import get_logger
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/paper2drawio", tags=["paper2drawio"])

@@ -9,7 +9,7 @@ from typing import Tuple
 
 import httpx
 
-from dataflow_agent.logger import get_logger
+from workflow_engine.logger import get_logger
 
 log = get_logger(__name__)
 

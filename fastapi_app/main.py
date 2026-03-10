@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse
 
 from fastapi_app.routers import kb, kb_embedding, files, paper2drawio, paper2ppt, auth
 from fastapi_app.middleware.api_key import APIKeyMiddleware
-from dataflow_agent.utils import get_project_root
+from workflow_engine.utils import get_project_root
 
 # 本地 Embedding 服务端口（Octen-Embedding-0.6B）
 LOCAL_EMBEDDING_PORT = 26210

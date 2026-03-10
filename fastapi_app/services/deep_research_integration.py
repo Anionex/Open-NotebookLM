@@ -8,7 +8,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from dataflow_agent.logger import get_logger
+from workflow_engine.logger import get_logger
 from fastapi_app.deep_research.react_agent import MultiTurnReactAgent
 from qwen_agent.llm.schema import Message
 

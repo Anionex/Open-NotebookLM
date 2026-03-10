@@ -9,7 +9,7 @@ import httpx
 from typing import List, Dict, Any
 from pathlib import Path
 
-from dataflow_agent.logger import get_logger
+from workflow_engine.logger import get_logger
 from fastapi_app.schemas import QuizQuestion, QuizOption
 
 log = get_logger(__name__)
