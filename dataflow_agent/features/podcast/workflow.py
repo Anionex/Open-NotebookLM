@@ -1,18 +1,21 @@
+"""
+Knowledge Base Podcast Workflow - 重构版
+使用引入层处理后的数据，不直接解析文件
+"""
 from __future__ import annotations
 import os
 import asyncio
+import re
+import wave
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 
-import fitz  # PyMuPDF
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
-from dataflow_agent.state import KBPodcastState, MainState
+from dataflow_agent.state import KBPodcastState
 from dataflow_agent.agentroles import create_agent
-from dataflow_agent.utils import get_project_root
-import re
-import wave
+from dataflow_agent.features.shared import ProcessedDataLoader, extract_text_result
 from dataflow_agent.toolkits.multimodaltool.req_tts import (
     generate_speech_bytes_async,
     split_tts_text
@@ -20,168 +23,90 @@ from dataflow_agent.toolkits.multimodaltool.req_tts import (
 
 log = get_logger(__name__)
 
-# Try importing office libraries
-try:
-    from docx import Document
-except ImportError:
-    Document = None
-
-try:
-    from pptx import Presentation
-except ImportError:
-    Presentation = None
 
 @register("kb_podcast")
 def create_kb_podcast_graph() -> GenericGraphBuilder:
-    """
-    Workflow for Knowledge Base Podcast Generation
-    Steps:
-    1. Parse uploaded files (PDF/Office)
-    2. Generate podcast script using LLM
-    3. Generate audio using TTS
-    """
+    """知识库播客生成工作流"""
     builder = GenericGraphBuilder(state_model=KBPodcastState, entry_point="_start_")
 
-    def _extract_text_result(state: MainState, role_name: str) -> str:
-        try:
-            result = state.agent_results.get(role_name, {}).get("results", {})
-            if isinstance(result, dict):
-                return result.get("text") or result.get("raw") or ""
-            if isinstance(result, str):
-                return result
-        except Exception:
-            return ""
-        return ""
-
     def _start_(state: KBPodcastState) -> KBPodcastState:
-        # Ensure request fields
-        if not state.request.files:
-            state.request.files = []
+        if not state.request.file_ids:
+            state.request.file_ids = []
 
         # Initialize output directory
         if not state.result_path:
-            project_root = get_project_root()
+            from dataflow_agent.utils import get_project_root
             import time
             ts = int(time.time())
             email = getattr(state.request, 'email', 'default')
-            # Sanitize email for filesystem safety
             safe_email = re.sub(r'[^\w\-.]', '_', (email or 'default').replace('@', '_at_'))
-            output_dir = project_root / "outputs" / "kb_outputs" / safe_email / f"{ts}_podcast"
+            output_dir = get_project_root() / "outputs" / "kb_outputs" / safe_email / f"{ts}_podcast"
             output_dir.mkdir(parents=True, exist_ok=True)
             state.result_path = str(output_dir)
-        else:
-            Path(state.result_path).mkdir(parents=True, exist_ok=True)
 
         state.file_contents = []
         state.podcast_script = ""
         state.audio_path = ""
         return state
 
-    async def parse_files_node(state: KBPodcastState) -> KBPodcastState:
-        """
-        Parse all files and extract content
-        """
-        files = state.request.files
-        if not files:
+    def load_processed_files_node(state: KBPodcastState) -> KBPodcastState:
+        """从引入层加载已处理的文件"""
+        file_ids = state.request.file_ids
+        if not file_ids:
             state.file_contents = []
             return state
 
-        async def process_file(file_path: str) -> Dict[str, Any]:
-            file_path_obj = Path(file_path)
-            filename = file_path_obj.name
+        vector_store_base_dir = state.request.vector_store_base_dir
+        if not vector_store_base_dir:
+            log.error("vector_store_base_dir not provided")
+            state.file_contents = []
+            return state
 
-            if not file_path_obj.exists():
-                return {
-                    "filename": filename,
-                    "content": f"[Error: File not found {file_path}]"
-                }
+        manifest_path = Path(vector_store_base_dir) / "knowledge_manifest.json"
+        if not manifest_path.exists():
+            log.error(f"Manifest not found: {manifest_path}")
+            state.file_contents = []
+            return state
 
-            suffix = file_path_obj.suffix.lower()
-            raw_content = ""
+        loader = ProcessedDataLoader(str(manifest_path))
+        file_contents = []
 
-            try:
-                # PDF
-                if suffix == ".pdf":
-                    try:
-                        doc = fitz.open(file_path)
-                        text = ""
-                        for page in doc:
-                            text += page.get_text() + "\n"
-                        raw_content = text
-                    except Exception as e:
-                        raw_content = f"[Error parsing PDF: {e}]"
+        for file_id in file_ids:
+            record = loader.get_file_record(file_id)
+            if not record:
+                log.warning(f"File record not found: {file_id}")
+                continue
 
-                # Word
-                elif suffix in [".docx", ".doc"]:
-                    if Document is None:
-                         raw_content = "[Error: python-docx not installed]"
-                    else:
-                        try:
-                            doc = Document(file_path)
-                            raw_content = "\n".join([p.text for p in doc.paragraphs])
-                        except Exception as e:
-                             raw_content = f"[Error parsing Docx: {e}]"
+            markdown = loader.get_mineru_markdown(file_id)
+            if not markdown:
+                log.warning(f"Markdown not found for file: {file_id}")
+                continue
 
-                # PPT
-                elif suffix in [".pptx", ".ppt"]:
-                    if Presentation is None:
-                        raw_content = "[Error: python-pptx not installed]"
-                    else:
-                        try:
-                            prs = Presentation(file_path)
-                            text = ""
-                            for i, slide in enumerate(prs.slides):
-                                text += f"--- Slide {i+1} ---\n"
-                                for shape in slide.shapes:
-                                    if hasattr(shape, "text"):
-                                        text += shape.text + "\n"
-                            raw_content = text
-                        except Exception as e:
-                            raw_content = f"[Error parsing PPT: {e}]"
+            filename = Path(record.get("original_path", "unknown")).name
+            truncated_content = markdown[:50000] if len(markdown) > 50000 else markdown
 
-                else:
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            raw_content = f.read()
-                    except:
-                        raw_content = "[Unsupported file type]"
-
-            except Exception as e:
-                 raw_content = f"[Parse Error: {e}]"
-
-            # Truncate content
-            truncated_content = raw_content[:50000] if len(raw_content) > 50000 else raw_content
-
-            return {
+            file_contents.append({
                 "filename": filename,
                 "content": truncated_content
-            }
+            })
 
-        # Run in parallel
-        tasks = [process_file(f) for f in files]
-        results = await asyncio.gather(*tasks)
-
-        state.file_contents = results
+        state.file_contents = file_contents
         return state
 
     async def generate_script_node(state: KBPodcastState) -> KBPodcastState:
-        """
-        Generate podcast script using LLM
-        """
+        """生成播客脚本"""
         if not state.file_contents:
             state.podcast_script = "No content available for podcast generation."
             return state
 
-        # Format file contents
         contents_str = ""
         for item in state.file_contents:
             contents_str += f"=== {item['filename']} ===\n{item['content']}\n\n"
 
-        # Podcast script prompt
         language = state.request.language
         mode = getattr(state.request, "podcast_mode", "monologue")
 
-        # Qwen TTS 只支持单人叙述，强制使用 monologue 模式
+        # Qwen TTS 只支持单人叙述
         use_local_tts = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
         tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
         if use_local_tts and tts_engine == "qwen" and mode == "dialog":
@@ -290,28 +215,22 @@ Generate the podcast narration script (plain text, no formatting):"""
                 parser_type="text"
             )
 
-            temp_state = MainState(request=state.request)
-            res_state = await agent.execute(temp_state, prompt=prompt)
+            result = await agent.ainvoke(state, prompt=prompt)
+            state.podcast_script = extract_text_result(state, agent.role_name)
 
-            state.podcast_script = _extract_text_result(res_state, "kb_prompt_agent") or "[Script generation failed]"
-        except Exception as e:
-            log.error(f"Script generation failed: {e}")
-            state.podcast_script = f"[Script generation error: {e}]"
-
-        # Save script to file
-        try:
+            # Save script
             script_path = Path(state.result_path) / "script.txt"
             script_path.write_text(state.podcast_script, encoding="utf-8")
+
         except Exception as e:
-            log.error(f"Failed to save script: {e}")
+            log.exception("Script generation failed")
+            state.podcast_script = f"[Script generation error: {e}]"
 
         return state
 
     async def generate_audio_node(state: KBPodcastState) -> KBPodcastState:
-        """
-        Generate audio using TTS
-        """
-        if not state.podcast_script or (state.podcast_script.startswith("[") and not state.podcast_script.startswith("[S1]") and not state.podcast_script.startswith("[S2]")):
+        """生成音频"""
+        if not state.podcast_script or state.podcast_script.startswith("["):
             state.audio_path = ""
             return state
 
@@ -319,22 +238,19 @@ Generate the podcast narration script (plain text, no formatting):"""
             audio_path = str(Path(state.result_path) / "podcast.wav")
             mode = getattr(state.request, "podcast_mode", "monologue")
 
-            # Debug logging
             use_local_tts = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
             tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
-            log.info(f"[TTS DEBUG] mode={mode}, use_local_tts={use_local_tts}, tts_engine={tts_engine}")
 
-            # Qwen TTS 只支持单人叙述，强制使用 monologue 模式
+            # Qwen TTS 只支持单人叙述
             if use_local_tts and tts_engine == "qwen":
                 if mode == "dialog":
                     log.info("[TTS] Qwen TTS 不支持对话模式，转换为单人叙述")
                     mode = "monologue"
 
-            # 本地 FireRedTTS2：分块生成对话
+            # FireRedTTS2 对话模式
             if use_local_tts and mode == "dialog" and tts_engine == "firered":
                 log.info("[TTS] 使用本地 FireRedTTS2 分块生成对话")
 
-                # 检查脚本是否已经是 [S1]/[S2] 格式
                 if "[S1]" in state.podcast_script or "[S2]" in state.podcast_script:
                     converted_text = state.podcast_script
                 else:
@@ -354,7 +270,6 @@ Generate the podcast narration script (plain text, no formatting):"""
                             converted_script.append(line)
                     converted_text = "\n".join(converted_script)
 
-                # 分块处理（每块最多6行对话，避免超过模型限制）
                 lines = [l for l in converted_text.split("\n") if l.strip()]
                 chunks = []
                 for i in range(0, len(lines), 6):
@@ -378,6 +293,7 @@ Generate the podcast narration script (plain text, no formatting):"""
                 state.audio_path = audio_path
                 log.info(f"[TTS] 音频已保存: {audio_path}")
                 return state
+
             max_chars = 1500
             concurrency = 4
 
@@ -387,16 +303,9 @@ Generate the podcast narration script (plain text, no formatting):"""
                 speaker_a = "主持人" if language == "zh" else "Host"
                 speaker_b = "嘉宾" if language == "zh" else "Guest"
                 speaker_map = {
-                    speaker_a.lower(): "A",
-                    speaker_b.lower(): "B",
-                    "a": "A",
-                    "b": "B",
-                    "speaker a": "A",
-                    "speaker b": "B",
-                    "角色a": "A",
-                    "角色b": "B",
-                    "主播": "A",
-                    "嘉宾": "B",
+                    speaker_a.lower(): "A", speaker_b.lower(): "B",
+                    "a": "A", "b": "B", "speaker a": "A", "speaker b": "B",
+                    "角色a": "A", "角色b": "B", "主播": "A", "嘉宾": "B",
                 }
                 pattern = re.compile(r"^\s*([^:：]{1,20})\s*[:：]\s*(.+)$")
                 current_speaker = "A"
@@ -414,7 +323,6 @@ Generate the podcast narration script (plain text, no formatting):"""
                         if content:
                             segments.append({"speaker": current_speaker, "text": content})
                         continue
-                    # No label, append to current speaker
                     if segments and segments[-1]["speaker"] == current_speaker:
                         segments[-1]["text"] = f"{segments[-1]['text']} {line}"
                     else:
@@ -423,10 +331,7 @@ Generate the podcast narration script (plain text, no formatting):"""
                 expanded = []
                 for seg in segments:
                     for chunk in split_tts_text(seg["text"], max_chars):
-                        expanded.append({
-                            "speaker": seg["speaker"],
-                            "text": chunk
-                        })
+                        expanded.append({"speaker": seg["speaker"], "text": chunk})
                 segments = expanded
             else:
                 for chunk in split_tts_text(state.podcast_script, max_chars):
@@ -485,42 +390,33 @@ Generate the podcast narration script (plain text, no formatting):"""
 
             os.makedirs(os.path.dirname(os.path.abspath(audio_path)), exist_ok=True)
             with wave.open(audio_path, "wb") as wav_file:
-                wav_file.setnchannels(1)        # 1 Channel
-                wav_file.setsampwidth(2)        # 16 bit = 2 bytes
-                wav_file.setframerate(24000)    # 24kHz
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(24000)
                 wav_file.writeframes(b"".join(audio_chunks))
 
             state.audio_path = audio_path
             log.info(f"Audio generated successfully: {audio_path}")
         except Exception as e:
-            import traceback
-            log.error(f"Audio generation failed: {e}")
-            log.error(f"Traceback: {traceback.format_exc()}")
+            log.exception("Audio generation failed")
             err_str = str(e)
             if "503" in err_str or "model_not_found" in err_str or "model not found" in err_str.lower():
-                state.audio_path = (
-                    "[TTS 模型不可用：当前 API 不支持所选 TTS 模型（如 gemini-2.5-pro-preview-tts）。"
-                    "请到「播客」设置中更换 TTS 模型，或使用支持该模型的 API 服务商。]"
-                )
+                state.audio_path = "[TTS 模型不可用：当前 API 不支持所选 TTS 模型。请到「播客」设置中更换 TTS 模型，或使用支持该模型的 API 服务商。]"
             else:
                 state.audio_path = f"[Audio generation error: {e}]"
 
         return state
 
-    nodes = {
-        "_start_": _start_,
-        "parse_files": parse_files_node,
-        "generate_script": generate_script_node,
-        "generate_audio": generate_audio_node,
-        "_end_": lambda s: s
-    }
+    # Build graph
+    builder.add_node("_start_", _start_)
+    builder.add_node("load_processed_files", load_processed_files_node)
+    builder.add_node("generate_script", generate_script_node)
+    builder.add_node("generate_audio", generate_audio_node)
 
-    edges = [
-        ("_start_", "parse_files"),
-        ("parse_files", "generate_script"),
-        ("generate_script", "generate_audio"),
-        ("generate_audio", "_end_")
-    ]
+    builder.add_edge("_start_", "load_processed_files")
+    builder.add_edge("load_processed_files", "generate_script")
+    builder.add_edge("generate_script", "generate_audio")
+    builder.set_finish_point("generate_audio")
 
-    builder.add_nodes(nodes).add_edges(edges)
     return builder
+

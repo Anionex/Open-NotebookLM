@@ -501,12 +501,22 @@ class VectorStoreManager:
             except Exception as e:
                 log.warning(f"MinerU failed ({file_path.name}), using PyMuPDF fallback: {e}")
 
+        # Initialize parsers dict
+        if "parsers" not in record:
+            record["parsers"] = {}
+
         if md_file:
+            content_list_file = next(mineru_output_folder.rglob("*_content_list.json"), None)
+            record["parsers"]["mineru"] = {
+                "md_path": str(md_file),
+                "images_dir": str(md_file.parent / "images"),
+                "content_list_path": str(content_list_file) if content_list_file else None,
+                "output_dir": str(output_subdir),
+                "cached": cached
+            }
+            # Keep legacy fields for backward compatibility
             record["processed_md_path"] = str(md_file)
             record["images_dir"] = str(md_file.parent / "images")
-            content_list_file = next(mineru_output_folder.rglob("*_content_list.json"), None)
-            if content_list_file:
-                record["mineru_content_list_path"] = str(content_list_file)
 
         if not md_file:
             md_file = await asyncio.to_thread(
@@ -514,6 +524,13 @@ class VectorStoreManager:
                 file_path,
                 output_subdir,
             )
+            record["parsers"]["mineru"] = {
+                "md_path": str(md_file),
+                "images_dir": str(md_file.parent / "images"),
+                "output_dir": str(output_subdir),
+                "fallback": True
+            }
+            # Keep legacy fields for backward compatibility
             record["processed_md_path"] = str(md_file)
             record["images_dir"] = str(md_file.parent / "images")
 

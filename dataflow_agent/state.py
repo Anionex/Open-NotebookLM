@@ -407,7 +407,7 @@ class IntelligentQARequest(MainRequest):
     """
     智能问答请求
     """
-    files: List[str] = field(default_factory=list)  # 文件路径列表（本地绝对路径）
+    file_ids: List[str] = field(default_factory=list)  # 引入层处理后的文件ID列表
     query: str = ""  # 用户问题
     history: List[Dict[str, str]] = field(default_factory=list)  # 历史记录 [{"role": "user", "content": "..."}]
     vector_store_base_dir: Optional[str] = None  # 可选，用于 RAG：向量库根目录（与 kb_embedding 约定一致）
@@ -439,12 +439,13 @@ class KBPodcastRequest(MainRequest):
     """
     知识播客请求
     """
-    files: List[str] = field(default_factory=list)  # 文件路径列表
+    file_ids: List[str] = field(default_factory=list)  # 引入层处理后的文件ID列表
     podcast_mode: str = "monologue"  # monologue | dialog
     tts_model: str = "gemini-2.5-pro-preview-tts"
     voice_name: str = "Kore"
     voice_name_b: str = "Puck"
     language: str = "zh"
+    vector_store_base_dir: Optional[str] = None  # 向量库根目录（manifest所在目录）
 
 @dataclass
 class KBPodcastState(MainState):
@@ -465,9 +466,10 @@ class KBMindMapRequest(MainRequest):
     """
     知识库思维导图请求
     """
-    files: List[str] = field(default_factory=list)  # 文件路径列表
+    file_ids: List[str] = field(default_factory=list)  # 引入层处理后的文件ID列表
     mindmap_style: str = "default"  # default | flowchart | tree
     max_depth: int = 3  # 思维导图最大深度
+    vector_store_base_dir: Optional[str] = None  # 向量库根目录（manifest所在目录）
 
 @dataclass
 class KBMindMapState(MainState):
