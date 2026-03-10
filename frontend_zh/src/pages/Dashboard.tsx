@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Plus, User, Loader2, BookOpen, Key, CheckCircle2 } from 'lucide-react';
+import { Settings, Plus, User, Loader2, BookOpen, Key, CheckCircle2, LogOut, Info } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { apiFetch } from '../config/api';
 import { API_URL_OPTIONS, DEFAULT_LLM_API_URL } from '../config/api';
@@ -20,8 +20,8 @@ export interface Notebook {
   updated_at?: string;
 }
 
-const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n: Notebook) => void; refreshTrigger?: number }) => {
-  const { user } = useAuthStore();
+const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: { onOpenNotebook: (n: Notebook) => void; refreshTrigger?: number; supabaseConfigured: boolean | null }) => {
+  const { user, signOut } = useAuthStore();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -37,8 +37,9 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n:
   const [configSaving, setConfigSaving] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
 
-  // 不做用户管理时用默认用户，数据从 outputs 取
-  const effectiveUserId = user?.id || 'default';
+  // 不做用户管理时用默认用户，数据从 outputs/local 取
+  const effectiveUserId = user?.id || 'local';
+  const effectiveEmail = user?.email || '';
 
   useEffect(() => {
     const s = getApiSettings(effectiveUserId);
@@ -72,7 +73,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n:
   const fetchNotebooks = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/v1/kb/notebooks?user_id=${encodeURIComponent(effectiveUserId)}`);
+      const res = await apiFetch(`/api/v1/kb/notebooks?user_id=${encodeURIComponent(effectiveUserId)}&email=${encodeURIComponent(effectiveEmail)}`);
       const data = await res.json();
       if (data?.success && Array.isArray(data.notebooks)) {
         const list: Notebook[] = data.notebooks.map((row: any) => ({
@@ -110,7 +111,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n:
       const res = await apiFetch('/api/v1/kb/notebooks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description: '', user_id: effectiveUserId }),
+        body: JSON.stringify({ name, description: '', user_id: effectiveUserId, email: effectiveEmail }),
       });
       const data = await res.json();
       if (data?.success && data?.notebook) {
@@ -149,6 +150,9 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n:
             <h1 className="text-2xl font-semibold text-ios-gray-900">OpenNotebookLM</h1>
           </div>
           <div className="flex items-center gap-4">
+            <div className="hidden rounded-full border border-white/70 bg-white/60 px-3 py-1.5 text-sm text-ios-gray-700 shadow-ios-sm md:block">
+              {user?.email || user?.id}
+            </div>
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
@@ -158,12 +162,48 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0 }: { onOpenNotebook: (n:
               <Settings size={20} />
               <span className="text-sm font-medium">API 配置</span>
             </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => void signOut()}
+              className="text-ios-gray-600 hover:text-ios-gray-900 flex items-center gap-2 px-3 py-2 rounded-ios hover:bg-white/50 transition-colors"
+            >
+              <LogOut size={18} />
+              <span className="text-sm font-medium">退出</span>
+            </motion.button>
             <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center text-white shadow-ios-sm">
               <User size={18} />
             </div>
           </div>
         </div>
       </header>
+
+      {/* Supabase 配置提示 - 仅在未配置时显示 */}
+      {!supabaseConfigured && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 rounded-ios-xl border border-blue-200 bg-blue-50 p-4 shadow-ios-sm"
+        >
+          <div className="flex items-start gap-3">
+            <Info size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-blue-900 mb-1">试用模式</h3>
+              <p className="text-sm text-blue-700 mb-2">
+                您正在使用 OpenNotebookLM 的试用模式。配置 Supabase 以启用用户认证和多用户支持。
+              </p>
+              <a
+                href="https://supabase.com/docs/guides/auth"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+              >
+                了解如何配置 Supabase →
+              </a>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {configOpen && (
         <section className="mb-8 p-6 bg-white rounded-ios-xl border border-ios-gray-100 shadow-ios">

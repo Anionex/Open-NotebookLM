@@ -8,278 +8,286 @@
 [![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
 
-中文 | [English](README_EN.md)
+English | [中文](README_ZH.md)
 
-**开源的 NotebookLM 替代方案** — 上传文档，智能问答，一键生成 PPT / 思维导图 / 播客 / DrawIO 图表 / 闪卡 / 测试题 / 深度研究报告
+**Open-source NotebookLM alternative** — Upload documents, chat with sources, generate PPTs / mind maps / podcasts / DrawIO diagrams / flashcards / quizzes / deep research reports in one click
 
 </div>
 
 ---
 
-## 📅 更新日志
+## 📅 Changelog
 
-- **2026.02.27** — 迁移集成 [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) 深度研究模块；PPT 生成支持 Nano Banana 2 生图模型
-- **2026.02.13** — 项目发布
-
----
-
-## 📸 界面预览
-
-<div align="center">
-<img src="static/readme/dashboard.png" alt="首页仪表盘" width="90%"/>
-<p><em>首页仪表盘 — 笔记本管理</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/notebook_view.png" alt="笔记本工作区" width="90%"/>
-<p><em>笔记本工作区 — 知识库 + 智能问答 + 一键生成</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/notebook_view_2.png" alt="生成面板" width="90%"/>
-<p><em>生成面板 — 多种输出格式</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/notebook_view_3.png" alt="对话与知识库" width="90%"/>
-<p><em>对话与知识库详情</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/ppt.png" alt="PPT 生成" width="90%"/>
-<p><em>PPT 生成</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/mindmap.png" alt="思维导图" width="90%"/>
-<p><em>思维导图</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/drawio.png" alt="DrawIO 图表" width="90%"/>
-<p><em>DrawIO 图表 — 内嵌编辑器</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/podcast.png" alt="知识播客" width="90%"/>
-<p><em>知识播客</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/flashcard.png" alt="闪卡" width="90%"/>
-<p><em>闪卡学习</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/quiz.png" alt="测试题" width="90%"/>
-<p><em>测试题</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/search.png" alt="联网搜索" width="90%"/>
-<p><em>联网搜索引入来源</em></p>
-</div>
-
-<div align="center">
-<img src="static/readme/deep_research.png" alt="深度研究报告" width="90%"/>
-<p><em>深度研究报告生成</em></p>
-</div>
+- **2026.03.08** — Added user management: Supabase email + OTP authentication, multi-user data isolation, email-based user directories; cleaned up deprecated scripts
+- **2026.02.27** — Integrated [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) deep research module; PPT generation now supports Nano Banana 2 image model
+- **2026.02.13** — Initial release
 
 ---
 
-## ✨ 核心功能
+## 📸 Screenshots
 
-| 功能 | 说明 |
-|------|------|
-| 📚 **知识库管理** | 上传 PDF 等文档、粘贴网址/文本、联网搜索引入，多源聚合到笔记本 |
-| 💬 **智能问答** | 基于选中文档的 RAG 问答，对话历史持久化 |
-| 🎨 **PPT 生成** | 从知识库内容一键生成可编辑演示文稿 |
-| 🧠 **思维导图** | 生成 Mermaid 思维导图，支持预览与导出 |
-| 🎙️ **知识播客** | 将知识库内容转为播客脚本与讲解素材 |
-| 🧩 **DrawIO 图表** | 从文本或图片生成可编辑 DrawIO 图表，内嵌编辑器 |
-| 🃏 **闪卡** | 基于知识库内容自动生成学习闪卡 |
-| 📝 **测试题** | 自动生成选择题，支持作答与评分 |
-| 🔍 **联网搜索** | 支持 Serper / SerpAPI / Google CSE / Brave / 博查等多种搜索引擎 |
-| 📊 **深度研究报告** | 联网搜索 + LLM 综合分析，生成结构化研究报告 |
-| 🔗 **语义检索** | 本地 Embedding 向量检索，支持 Top-K 与多模型 |
+<div align="center">
+<img src="static/readme/dashboard.png" alt="Dashboard" width="90%"/>
+<p><em>Dashboard — Notebook management</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/notebook_view.png" alt="Notebook workspace" width="90%"/>
+<p><em>Notebook workspace — Knowledge base + Smart QA + One-click generation</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/notebook_view_2.png" alt="Generation panel" width="90%"/>
+<p><em>Generation panel — Multiple output formats</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/notebook_view_3.png" alt="Chat and knowledge base" width="90%"/>
+<p><em>Chat and knowledge base details</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/ppt.png" alt="PPT generation" width="90%"/>
+<p><em>PPT generation</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/mindmap.png" alt="Mind map" width="90%"/>
+<p><em>Mind map</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/drawio.png" alt="DrawIO diagram" width="90%"/>
+<p><em>DrawIO diagram — Inline editor</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/podcast.png" alt="Knowledge podcast" width="90%"/>
+<p><em>Knowledge podcast</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/flashcard.png" alt="Flashcards" width="90%"/>
+<p><em>Flashcard study</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/quiz.png" alt="Quiz" width="90%"/>
+<p><em>Quiz</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/search.png" alt="Web search" width="90%"/>
+<p><em>Web search to import sources</em></p>
+</div>
+
+<div align="center">
+<img src="static/readme/deep_research.png" alt="Deep research report" width="90%"/>
+<p><em>Deep research report generation</em></p>
+</div>
 
 ---
 
-## 🚀 快速开始
+## ✨ Core Features
 
-### 1. 克隆与安装
+| Feature | Description |
+|---------|-------------|
+| 📚 **Knowledge Base** | Upload PDFs, paste URLs/text, import from web search — aggregate multiple sources into a notebook |
+| 🔐 **User Management** | Supabase email + OTP authentication, multi-user data isolation; works without login when unconfigured |
+| 💬 **Smart QA** | RAG-based Q&A grounded in selected documents, with persistent chat history |
+| 🎨 **PPT Generation** | One-click editable slide decks from knowledge base content |
+| 🧠 **Mind Maps** | Generate Mermaid mind maps with preview and export |
+| 🎙️ **Knowledge Podcast** | Turn knowledge base content into podcast scripts and narration assets |
+| 🧩 **DrawIO Diagrams** | Generate editable DrawIO diagrams from text or images, with inline editor |
+| 🃏 **Flashcards** | Auto-generate study flashcards from knowledge base content |
+| 📝 **Quizzes** | Auto-generate multiple-choice questions with scoring |
+| 🔍 **Web Search** | Supports Serper / SerpAPI / Google CSE / Brave / Bocha search providers |
+| 📊 **Deep Research Reports** | Web search + LLM synthesis to produce structured research reports |
+| 🔗 **Semantic Search** | Local embedding-based vector retrieval with configurable Top-K and models |
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/OpenDCAI/opennotebookLM.git
 cd opennotebookLM
 
-# 创建虚拟环境（推荐 Conda）
+# Create virtual environment (Conda recommended)
 conda create -n opennotebook python=3.11 -y
 conda activate opennotebook
 
-# 安装 Python 依赖
+# Install Python dependencies
 pip install -r requirements-base.txt
 ```
 
-### 2. 配置 API 密钥
+### 2. Configure API Keys
 
 ```bash
 cp fastapi_app/.env.example fastapi_app/.env
 ```
 
-编辑 `fastapi_app/.env`，至少配置以下内容：
+Edit `fastapi_app/.env` with at least the following:
 
-#### LLM API（必需）
+#### LLM API (Required)
 
-项目通过 OpenAI 兼容接口调用大模型，默认使用 [APIyi](https://www.apiyi.com) 作为中转服务（支持 GPT / Claude / Gemini 等多种模型）。
+The project calls LLMs via an OpenAI-compatible API. By default it uses [APIyi](https://www.apiyi.com) as a relay service (supports GPT / Claude / Gemini and more).
 
 ```env
-# LLM API 地址（OpenAI 兼容格式）
+# LLM API endpoint (OpenAI-compatible format)
 DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
 
-# 你的 API Key（在 APIyi 或其他 LLM 提供商处获取）
-# 前端设置面板中也可以动态配置
+# Your API key (obtain from APIyi or another LLM provider)
+# Can also be configured dynamically in the frontend settings panel
 ```
 
-> 也可以使用任何 OpenAI 兼容的 API 服务（如 OpenAI 官方、Azure OpenAI、本地 Ollama 等），只需修改 `DEFAULT_LLM_API_URL` 即可。
+> You can use any OpenAI-compatible API service (OpenAI official, Azure OpenAI, local Ollama, etc.) — just change `DEFAULT_LLM_API_URL`.
 
-#### 搜索 API（联网搜索功能需要）
+#### Search API (Required for web search features)
 
-联网搜索和深度研究报告功能需要配置搜索引擎 API。支持以下任一提供商：
+Web search and deep research report features require a search engine API. Any one of the following providers will work:
 
-| 提供商 | 配置方式 | 获取地址 |
-|--------|----------|----------|
-| **Serper**（推荐） | 环境变量 `SERPER_API_KEY` | [serper.dev](https://serper.dev) |
-| **SerpAPI** | 前端传入 `search_api_key` | [serpapi.com](https://serpapi.com) |
-| **Google CSE** | 前端传入 `search_api_key` + `google_cse_id` | [programmablesearchengine.google.com](https://programmablesearchengine.google.com) |
-| **Brave Search** | 前端传入 `search_api_key` | [brave.com/search/api](https://brave.com/search/api) |
-| **博查** | 前端传入 `search_api_key` | [open.bochaai.com](https://open.bochaai.com) |
+| Provider | Configuration | Sign up |
+|----------|--------------|---------|
+| **Serper** (recommended) | Env variable `SERPER_API_KEY` | [serper.dev](https://serper.dev) |
+| **SerpAPI** | Pass `search_api_key` from frontend | [serpapi.com](https://serpapi.com) |
+| **Google CSE** | Pass `search_api_key` + `google_cse_id` from frontend | [programmablesearchengine.google.com](https://programmablesearchengine.google.com) |
+| **Brave Search** | Pass `search_api_key` from frontend | [brave.com/search/api](https://brave.com/search/api) |
+| **Bocha** | Pass `search_api_key` from frontend | [open.bochaai.com](https://open.bochaai.com) |
 
-Serper 通过后端环境变量配置，其他提供商在前端设置面板中填入对应 API Key 即可。
+Serper is configured via a backend environment variable. Other providers can be set in the frontend settings panel.
 
 ```env
-# Serper（Google 搜索），推荐
+# Serper (Google search), recommended
 SERPER_API_KEY=your_serper_api_key
 ```
 
-#### Supabase（可选）
+#### Supabase (Optional — User Management)
 
-用于用户认证与云存储。不配置时使用本地模拟用户，不影响核心功能。
+For multi-user authentication and data isolation. Without it, the app runs in **trial mode** (no login required, single local user, all core features still work).
+
+When configured: email + password sign-up/login, OTP email verification, per-user data isolation (separate directories per user).
 
 ```env
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
-### 3. 启动后端
+### 3. Start Backend
 
 ```bash
 uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-后端启动时会自动拉起本地 Embedding 服务（Octen-Embedding-0.6B，端口 17997），首次启动会下载模型。如需关闭本地 Embedding，设置 `USE_LOCAL_EMBEDDING=0`。
+On startup, the backend automatically launches a local embedding service (Octen-Embedding-0.6B on port 17997). The model is downloaded on first run. To disable local embedding, set `USE_LOCAL_EMBEDDING=0`.
 
-- 健康检查：http://localhost:8000/health
-- API 文档：http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+- API docs: http://localhost:8000/docs
 
-### 4. 启动前端
+### 4. Start Frontend
 
-提供中英双前端，任选其一：
+Both English and Chinese frontends are provided — pick either:
 
 ```bash
-# 中文前端
-cd frontend_zh && npm install && npm run dev
-
-# 英文前端
+# English frontend
 cd frontend_en && npm install && npm run dev
+
+# Chinese frontend
+cd frontend_zh && npm install && npm run dev
 ```
 
-访问 http://localhost:3000（或终端提示的端口）。
+Open http://localhost:3000 (or the port shown in the terminal).
 
-> 前端的 LLM API 地址和 API Key 可在页面右上角设置面板中动态修改，无需重启。
+> The LLM API URL and API key can be changed dynamically in the settings panel (top-right corner) without restarting.
 
 ---
 
-## 📂 项目结构
+## 📂 Project Structure
 
 ```
 opennotebookLM/
-├── fastapi_app/             # 后端 API（FastAPI）
-│   ├── routers/             #   路由：知识库、Paper2PPT、Paper2Drawio 等
-│   ├── services/            #   业务逻辑：搜索、闪卡、测试题等
-│   ├── config/              #   配置与环境变量
-│   └── workflow_adapters/   #   工作流适配层
-├── dataflow_agent/          # 工作流引擎（DataFlow-Agent）
-│   ├── agentroles/          #   Agent 角色定义
-│   ├── workflow/            #   工作流（Paper2PPT、PDF2PPT、Image2Drawio 等）
-│   ├── promptstemplates/    #   提示模板
-│   └── toolkits/            #   工具集（搜索、解析等）
-├── frontend_en/             # 英文前端（React + Vite + Tailwind）
-├── frontend_zh/             # 中文前端
-├── database/                # 数据库脚本
-├── docs/                    # 文档
-├── script/                  # 辅助脚本
-├── static/                  # 静态资源
-└── outputs/                 # 生成文件输出目录
+├── fastapi_app/             # Backend API (FastAPI)
+│   ├── routers/             #   Routes: KB, auth, Paper2PPT, Paper2Drawio, etc.
+│   ├── services/            #   Business logic: search, flashcards, quizzes, etc.
+│   ├── config/              #   Configuration & environment variables
+│   ├── dependencies/        #   Dependency injection (auth, Supabase client)
+│   ├── middleware/           #   Middleware (API key validation)
+│   └── workflow_adapters/   #   Workflow adapter layer
+├── dataflow_agent/          # Workflow engine (DataFlow-Agent)
+│   ├── agentroles/          #   Agent role definitions
+│   ├── workflow/            #   Workflows (Paper2PPT, PDF2PPT, Image2Drawio, etc.)
+│   ├── promptstemplates/    #   Prompt templates
+│   └── toolkits/            #   Toolkits (search, parsing, etc.)
+├── frontend_en/             # English frontend (React + Vite + Tailwind)
+├── frontend_zh/             # Chinese frontend
+├── database/                # Database migration scripts
+├── docs/                    # Documentation
+├── script/                  # Utility scripts (DB init, etc.)
+├── static/                  # Static assets
+└── outputs/                 # Generated file output directory (isolated by user email)
 ```
 
 ---
 
-## ⚙️ 模型配置
+## ⚙️ Model Configuration
 
-项目采用三层模型配置体系，灵活度从粗到细：
+The project uses a three-layer model configuration system, from coarse to fine-grained:
 
-1. **基础模型层** — 定义可用模型名称（`MODEL_GPT_4O`、`MODEL_CLAUDE_HAIKU` 等）
-2. **工作流层** — 为每个工作流设置默认模型（`PAPER2PPT_DEFAULT_MODEL` 等）
-3. **角色层** — 精细控制工作流中每个角色使用的模型（`PAPER2PPT_OUTLINE_MODEL` 等）
+1. **Base model layer** — Define available model names (`MODEL_GPT_4O`, `MODEL_CLAUDE_HAIKU`, etc.)
+2. **Workflow layer** — Set default models per workflow (`PAPER2PPT_DEFAULT_MODEL`, etc.)
+3. **Role layer** — Fine-grained control over each role within a workflow (`PAPER2PPT_OUTLINE_MODEL`, etc.)
 
-详见 `fastapi_app/.env.example` 中的完整配置说明。
+See `fastapi_app/.env.example` for the full configuration reference.
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] 知识库管理（上传文件 / 粘贴网址 / 文本）
-- [x] RAG 智能问答
-- [x] PPT 生成
-- [x] 思维导图生成
-- [x] DrawIO 图表生成
-- [x] 知识播客生成
-- [x] 闪卡 & 测试题
-- [x] 联网搜索引入来源
-- [x] 深度研究报告
-- [x] 本地 Embedding 向量检索
-- [ ] 🔨 视频生成（开发中）
-- [ ] 🔨 视频来源引入（开发中）
-- [ ] 🔨 音频来源引入（开发中）
+- [x] Knowledge base management (upload files / paste URLs / text)
+- [x] RAG smart Q&A
+- [x] PPT generation
+- [x] Mind map generation
+- [x] DrawIO diagram generation
+- [x] Knowledge podcast generation
+- [x] Flashcards & quizzes
+- [x] Web search source import
+- [x] Deep research reports
+- [x] Local embedding vector retrieval
+- [x] User management (Supabase email auth + multi-user isolation)
+- [ ] Video generation (in progress)
+- [ ] Video source import (in progress)
+- [ ] Audio source import (in progress)
 
 ---
 
-## 🤝 参与贡献
+## 🤝 Contributing
 
-欢迎提交 Issue 和 Pull Request。详见 [贡献指南](docs/contributing.md)。
+Issues and pull requests are welcome. See [Contributing Guide](docs/contributing.md).
 
 ---
 
-## 📄 许可证
+## 📄 License
 
 [Apache License 2.0](LICENSE)
 
-生成功能基于 [OpenDCAI/Paper2Any](https://github.com/OpenDCAI/Paper2Any)。
+Generation features are built on [OpenDCAI/Paper2Any](https://github.com/OpenDCAI/Paper2Any).
 
 ---
 
 <div align="center">
 
-**若本项目对你有帮助，欢迎 ⭐ Star**
+**If this project helps you, please give it a ⭐ Star**
 
 </div>
 
 ---
 
-## 💬 交流群
+## 💬 Community
 
 <div align="center">
-<img src="static/readme/WX_group.jpg" alt="微信交流群" width="300"/>
-<p><em>扫码加入微信交流群</em></p>
+<img src="static/readme/WX_group.jpg" alt="WeChat Group" width="300"/>
+<p><em>Scan to join our WeChat group</em></p>
 </div>

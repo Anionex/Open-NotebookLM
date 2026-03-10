@@ -3,7 +3,7 @@ Notebook-centric path manager.
 
 All path construction for the new directory layout lives here:
 
-    outputs/{safe_title}_{notebook_id}/
+    outputs/{user_id}/{safe_title}_{notebook_id}/
     ├── sources/{source_stem}/original/
     │                         /mineru/
     │                         /markdown/
@@ -28,6 +28,53 @@ from dataflow_agent.utils import get_project_root
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _sanitize_user_id(user_id: Optional[str], max_len: int = 64) -> str:
+    """
+    Turn a user_id (often an email like 'user@example.com') into a
+    filesystem-safe directory name.
+
+    Handles special characters that may appear in emails:
+    - @ -> _at_
+    - Whitespace -> _
+    - Slashes, backslashes -> _
+    - Other unsafe characters -> removed
+
+    Examples:
+        '765973346@qq.com' -> '765973346_at_qq.com'
+        'user+tag@example.com' -> 'user_tag_at_example.com'
+    """
+    user_id = (user_id or "").strip()
+    if not user_id:
+        return "local"
+
+    # Normalize unicode
+    user_id = unicodedata.normalize("NFC", user_id)
+
+    # Replace @ with _at_ to preserve email structure readability
+    user_id = user_id.replace("@", "_at_")
+
+    # Replace slashes and backslashes
+    user_id = user_id.replace("/", "_").replace("\\", "_")
+
+    # Replace whitespace runs with underscore
+    user_id = re.sub(r"\s+", "_", user_id)
+
+    # Keep only safe chars: word chars (a-z, A-Z, 0-9, _), hyphen, dot
+    # Note: We keep dots for email domains like 'qq.com'
+    user_id = re.sub(r"[^\w\-.]", "_", user_id, flags=re.ASCII)
+
+    # Collapse multiple underscores
+    user_id = re.sub(r"_+", "_", user_id)
+
+    # Strip leading/trailing special chars
+    user_id = user_id.strip("_.- ")
+
+    if not user_id:
+        return "local"
+
+    return user_id[:max_len]
+
 
 def _sanitize_dir_name(title: str, max_len: int = 60) -> str:
     """
@@ -54,13 +101,12 @@ def resolve_notebook_title(
     user_id: Optional[str] = None,
 ) -> str:
     """
-    Look up the notebook title from local JSON or Supabase.
+    Look up the notebook title from local JSON.
     Returns the title string, or empty string if not found.
     """
-    # 1) Try local JSON
     root = get_project_root()
-    safe_uid = (user_id or "default").replace("/", "_").replace("\\", "_")[:64]
-    local_path = root / "outputs" / "kb_data" / "_notebooks" / f"{safe_uid}.json"
+    safe_uid = _sanitize_user_id(user_id)
+    local_path = root / "outputs" / safe_uid / "_notebooks.json"
     if local_path.exists():
         try:
             data = json.loads(local_path.read_text(encoding="utf-8"))
@@ -70,19 +116,6 @@ def resolve_notebook_title(
                         return nb.get("name") or nb.get("title") or ""
         except Exception:
             pass
-
-    # 2) Try Supabase
-    try:
-        from fastapi_app.dependencies.auth import get_supabase_admin_client
-        sb = get_supabase_admin_client()
-        if sb:
-            r = sb.table("knowledge_bases").select("name").eq("id", notebook_id).limit(1).execute()
-            rows = (r.data or []) if hasattr(r, "data") else []
-            if rows:
-                return rows[0].get("name") or ""
-    except Exception:
-        pass
-
     return ""
 
 
@@ -101,6 +134,7 @@ class NotebookPaths:
         project_root: Optional[Path] = None,
     ):
         self._notebook_id = notebook_id
+        self._user_id = user_id or "local"
         self._project_root = project_root or get_project_root()
 
         # Resolve title if not provided
@@ -123,30 +157,48 @@ class NotebookPaths:
 
     @property
     def root(self) -> Path:
-        """outputs/{title}_{id}/ — with fallback scan for existing dirs."""
+        """outputs/{user_id}/{title}_{id}/ — with fallback scan for existing dirs."""
         if self._resolved_root is not None:
             return self._resolved_root
 
-        candidate = self._project_root / "outputs" / self.notebook_dir_name
+        safe_uid = _sanitize_user_id(self._user_id)
+        candidate = self._project_root / "outputs" / safe_uid / self.notebook_dir_name
         if candidate.exists():
             self._resolved_root = candidate
             return candidate
 
-        # Fallback: scan outputs/ for any dir ending with _{notebook_id}
+        # Fallback: scan outputs/{user_id}/ or outputs/ for any dir ending with _{notebook_id}
         self._resolved_root = self._find_existing_root() or candidate
         return self._resolved_root
 
     def _find_existing_root(self) -> Optional[Path]:
-        """Scan outputs/ for a directory whose name ends with _{notebook_id}."""
+        """Scan outputs/{user_id}/ and outputs/ for a directory whose name ends with _{notebook_id}."""
         safe_id = self._notebook_id.replace("/", "_").replace("\\", "_")[:128]
         suffix = f"_{safe_id}"
         outputs_dir = self._project_root / "outputs"
         if not outputs_dir.exists():
             return None
+
+        # First try user-specific directory
+        safe_uid = _sanitize_user_id(self._user_id)
+        user_dir = outputs_dir / safe_uid
+        if user_dir.exists():
+            try:
+                for d in user_dir.iterdir():
+                    if d.is_dir() and d.name.endswith(suffix):
+                        return d
+            except Exception:
+                pass
+
+        # Fallback: scan ALL user directories under outputs/ for the notebook
+        # This handles cases where user_id changed (e.g., UUID -> email)
         try:
-            for d in outputs_dir.iterdir():
-                if d.is_dir() and d.name.endswith(suffix):
-                    return d
+            for user_candidate in outputs_dir.iterdir():
+                if not user_candidate.is_dir() or user_candidate == user_dir:
+                    continue
+                for d in user_candidate.iterdir():
+                    if d.is_dir() and d.name.endswith(suffix):
+                        return d
         except Exception:
             pass
         return None

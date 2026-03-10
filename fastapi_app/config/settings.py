@@ -68,6 +68,16 @@ class AppSettings(BaseSettings):
     # Fast Research (web search for 引入)
     SERPER_API_KEY: Optional[str] = None
 
+    # Supabase Configuration
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+
+    # TTS Configuration
+    USE_LOCAL_TTS: int = 0
+    TTS_ENGINE: str = "qwen"
+    TTS_IDLE_TIMEOUT: int = 300
+
     # ============================================
     # Layer 3: Role-level Model Configuration
     # ============================================
@@ -90,7 +100,7 @@ class AppSettings(BaseSettings):
     PAPER2FIGURE_TECHNICAL_MODEL: str = "deepseek-v3.2"
 
     class Config:
-        env_file = ".env"
+        env_file = [".env", ".env.models"]
         env_file_encoding = "utf-8"
         case_sensitive = True
 

@@ -8,7 +8,7 @@ import {
   Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabaseClient } from '../lib/supabase';
 import { apiFetch } from '../config/api';
 import { getApiSettings } from '../services/apiSettingsService';
 import type { KnowledgeFile, ChatMessage, ToolType } from '../types';
@@ -228,7 +228,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
     flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
     quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore', voiceNameB: 'Puck' },
+    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'local-fireredtts', voiceName: 'vivian' },
     video: { llmModel: 'deepseek-v3.2' },
     note: {},
   };
@@ -533,7 +533,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   };
 
   const markEmbedded = async (file?: KnowledgeFile, storagePath?: string) => {
-    if (isSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       if (file?.id) {
         await supabase.from('knowledge_base_files').update({ is_embedded: true }).eq('id', file.id);
       } else if (storagePath) {
@@ -1480,12 +1481,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           ...baseBody,
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
-          tts_model: cfg.ttsModel || 'gemini-2.5-pro-preview-tts',
-          voice_name: cfg.voiceName || 'Kore',
-          voice_name_b: cfg.voiceNameB || 'Puck',
-          podcast_mode: 'monologue',
+          tts_model: cfg.ttsModel || 'local-fireredtts',
+          voice_name: cfg.voiceName || 'vivian',
+          podcast_mode: 'dialog',
           podcast_length: 'standard',
-          language: 'zh'
+          language: cfg.podcastLanguage || 'zh'
         };
       } else if (tool === 'mindmap') {
         const cfg = getStudioConfig('mindmap');
@@ -2392,6 +2392,17 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 })()}
                 {studioSettingsTool === 'podcast' && (() => {
                   const c = getStudioConfig('podcast');
+                  const speakers = [
+                    { value: 'vivian', label: 'Vivian - 明亮、略带锐利的年轻女声（中文）' },
+                    { value: 'serena', label: 'Serena - 温暖、温柔的年轻女声（中文）' },
+                    { value: 'uncle_fu', label: 'Uncle Fu - 成熟男声，低沉圆润（中文）' },
+                    { value: 'dylan', label: 'Dylan - 年轻的北京男声，清晰自然（北京方言）' },
+                    { value: 'eric', label: 'Eric - 活泼的成都男声，略带沙哑（四川方言）' },
+                    { value: 'ryan', label: 'Ryan - 充满活力的男声，节奏感强（英文）' },
+                    { value: 'aiden', label: 'Aiden - 阳光的美国男声，中音清晰（英文）' },
+                    { value: 'ono_anna', label: 'Ono Anna - 俏皮的日本女声，轻盈灵动（日文）' },
+                    { value: 'sohee', label: 'Sohee - 温暖的韩国女声，情感丰富（韩文）' }
+                  ];
                   return (
                     <>
                       <div>
@@ -2400,17 +2411,22 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">TTS 模型</label>
-                        <input type="text" value={c.ttsModel || ''} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="gemini-2.5-pro-preview-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <input type="text" value={c.ttsModel || 'local-fireredtts'} readOnly placeholder="local-fireredtts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 cursor-not-allowed" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">主播音色 A</label>
-                        <input type="text" value={c.voiceName || ''} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} placeholder="Kore" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">播客语言</label>
+                        <select value={c.podcastLanguage || 'zh'} onChange={(e) => setStudioConfigForTool('podcast', { podcastLanguage: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="zh">中文</option>
+                          <option value="en">English</option>
+                        </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">主播音色 B</label>
-                        <input type="text" value={c.voiceNameB || ''} onChange={(e) => setStudioConfigForTool('podcast', { voiceNameB: e.target.value })} placeholder="Puck" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">说话人音色</label>
+                        <select value={c.voiceName || 'vivian'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          {speakers.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
                       </div>
-                    </>
+</>
                   );
                 })()}
                 {studioSettingsTool === 'flashcard' && (() => {

@@ -11,7 +11,9 @@ from fastapi import Header, HTTPException
 
 try:
     from supabase import create_client, Client
-except Exception:
+    print("[INFO] Supabase 库导入成功")
+except Exception as e:
+    print(f"[WARN] Supabase 库导入失败: {e}")
     create_client = None  # type: ignore[misc, assignment]
     Client = Any  # type: ignore[misc, assignment]
 

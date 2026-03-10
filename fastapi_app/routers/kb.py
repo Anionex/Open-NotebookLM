@@ -27,7 +27,7 @@ from fastapi_app.schemas import Paper2PPTRequest
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url
 from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
 from fastapi_app.dependencies.auth import get_supabase_admin_client
-from fastapi_app.notebook_paths import NotebookPaths, get_notebook_paths
+from fastapi_app.notebook_paths import NotebookPaths, get_notebook_paths, _sanitize_user_id
 from fastapi_app.source_manager import SourceManager
 from fastapi_app.services.fast_research_service import fast_research_search
 from fastapi_app.services.deep_research_report_service import generate_report_from_search
@@ -45,18 +45,20 @@ OUTPUTS_BASE = Path("outputs/kb_outputs")
 
 
 def _notebook_dir(email: str, notebook_id: Optional[str]) -> Path:
-    """User + notebook scoped dir under kb_data. Use raw email on disk so StaticFiles can resolve URL-decoded path."""
+    """User + notebook scoped dir under kb_data. Email is sanitized for filesystem safety."""
     root = get_project_root()
-    base = root / KB_BASE_DIR / (email or "default")
+    safe_email = _sanitize_user_id(email) if email else "default"
+    base = root / KB_BASE_DIR / safe_email
     if notebook_id:
         return base / notebook_id.replace("/", "_").replace("\\", "_")[:128]
     return base / "_shared"
 
 
 def _outputs_dir(email: str, notebook_id: Optional[str], subdir: str) -> Path:
-    """User + notebook scoped output dir. Use raw email on disk for StaticFiles resolution."""
+    """User + notebook scoped output dir. Email is sanitized for filesystem safety."""
     root = get_project_root()
-    base = root / OUTPUTS_BASE / (email or "default")
+    safe_email = _sanitize_user_id(email) if email else "default"
+    base = root / OUTPUTS_BASE / safe_email
     if notebook_id:
         base = base / notebook_id.replace("/", "_").replace("\\", "_")[:128]
     else:
@@ -161,7 +163,8 @@ def _find_mineru_stem_dir(
 
     # 2) Legacy: kb_mineru/{email}/{notebook_id}/
     safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
-    mineru_base = project_root / "outputs" / "kb_mineru" / (email or "default") / safe_nb
+    safe_email = _sanitize_user_id(email) if email else "default"
+    mineru_base = project_root / "outputs" / "kb_mineru" / safe_email / safe_nb
 
     if not mineru_base.exists():
         return None
@@ -357,7 +360,7 @@ async def upload_kb_file(
         filename = os.path.basename(filename)
 
         # --- New notebook-centric layout ---
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         mgr = SourceManager(paths)
 
         # Save uploaded bytes to a temp location first, then import
@@ -465,7 +468,7 @@ async def add_text_source(
         raise HTTPException(status_code=400, detail="content is required")
 
     # New layout
-    paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+    paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
     mgr = SourceManager(paths)
     source_info = await mgr.import_text(content, title)
 
@@ -528,7 +531,7 @@ async def import_url_as_source(
         title = "网页"
 
     # New layout
-    paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+    paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
     mgr = SourceManager(paths)
     source_info = await mgr.import_url(url, text, title)
 
@@ -589,7 +592,8 @@ def _vector_store_base_dir(email: Optional[str], notebook_id: Optional[str]) -> 
     if not email:
         base = root / "outputs" / "kb_data" / "vector_store_main"
     else:
-        base = root / "outputs" / "kb_data" / (email or "default")
+        safe_email = _sanitize_user_id(email)
+        base = root / "outputs" / "kb_data" / safe_email
         if notebook_id:
             safe_nb = notebook_id.replace("/", "_").replace("\\", "_")[:128]
             base = base / safe_nb / "vector_store"
@@ -839,7 +843,7 @@ async def list_outputs(
             "drawio":  {".drawio"},
         }
         try:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             nb_root = paths.root
             if nb_root.exists():
                 for feature, exts in _FEATURE_EXT_MAP.items():
@@ -945,10 +949,10 @@ def _save_output_record(
 # ---------- 1.3 笔记本（目录）与后端联动 ----------
 def _notebooks_local_path(user_id: str) -> Path:
     root = get_project_root()
-    base = root / "outputs" / "kb_data" / "_notebooks"
+    safe_id = _sanitize_user_id(user_id)
+    base = root / "outputs" / safe_id
     base.mkdir(parents=True, exist_ok=True)
-    safe_id = (user_id or "default").replace("/", "_").replace("\\", "_")[:64]
-    return base / f"{safe_id}.json"
+    return base / "_notebooks.json"
 
 
 def _list_notebooks_local(user_id: str) -> List[Dict[str, Any]]:
@@ -985,9 +989,9 @@ def _create_notebook_local(user_id: str, name: str, description: str = "") -> Di
     return new_nb
 
 
-# 不做用户管理时使用的默认用户，数据从 outputs 取
-DEFAULT_USER_ID = "default"
-DEFAULT_EMAIL = "default"
+# 不做用户管理时使用的默认用户，数据从 outputs/local 取
+DEFAULT_USER_ID = "local"
+DEFAULT_EMAIL = "local"
 
 
 @router.get("/notebooks")
@@ -995,31 +999,10 @@ async def list_notebooks(
     email: Optional[str] = None,
     user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List notebooks. No user_id => use default (data from outputs)."""
-    uid = (user_id or "").strip() or DEFAULT_USER_ID
-    sb = get_supabase_admin_client()
-    if sb:
-        try:
-            q = sb.table("knowledge_bases").select("id,name,description,created_at,updated_at").eq("user_id", uid)
-            r = q.order("updated_at", desc=True).execute()
-            rows = (r.data or []) if hasattr(r, "data") else []
-            if rows:
-                from collections import Counter
-                nb_ids = [row["id"] for row in rows]
-                try:
-                    fr = sb.table("knowledge_base_files").select("kb_id").in_("kb_id", nb_ids).execute()
-                    file_rows = (fr.data or []) if hasattr(fr, "data") else []
-                    counts = Counter(f.get("kb_id") for f in file_rows if f.get("kb_id"))
-                except Exception as e:
-                    log.warning("notebooks file count failed: %s", e)
-                    counts = {}
-                for row in rows:
-                    row["sources"] = counts.get(row["id"], 0)
-            return {"success": True, "notebooks": rows}
-        except Exception as e:
-            log.warning("list_notebooks failed: %s", e)
-            return {"success": True, "notebooks": []}
-    rows = _list_notebooks_local(uid)
+    """List notebooks from local filesystem."""
+    # Prefer email for directory naming (more readable than UUID)
+    dir_id = (email or "").strip() or (user_id or "").strip() or DEFAULT_USER_ID
+    rows = _list_notebooks_local(dir_id)
     email_for_path = (email or "").strip() or DEFAULT_EMAIL
     for row in rows:
         nb_id = row.get("id")
@@ -1027,7 +1010,7 @@ async def list_notebooks(
             count = 0
             # New layout count
             try:
-                paths = get_notebook_paths(nb_id, row.get("name", ""), uid)
+                paths = get_notebook_paths(nb_id, row.get("name", ""), dir_id)
                 if paths.sources_dir.exists():
                     count += sum(1 for d in paths.sources_dir.iterdir() if d.is_dir() and (d / "original").exists())
             except Exception:
@@ -1066,7 +1049,7 @@ async def list_notebook_files(
 
     # --- 1) Read from new layout: outputs/{title}_{id}/sources/ ---
     try:
-        paths = get_notebook_paths(notebook_id, notebook_title or "", uid)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", em or uid)
         sources_dir = paths.sources_dir
         if sources_dir.exists():
             for src_dir in sorted(sources_dir.iterdir()):
@@ -1382,7 +1365,7 @@ async def import_link_sources(
         raise HTTPException(status_code=400, detail="notebook_id and email are required")
 
     # New layout
-    paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+    paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
     mgr = SourceManager(paths)
 
     # Legacy compat
@@ -1462,32 +1445,24 @@ async def create_notebook(
     name: str = Body(..., embed=True),
     description: Optional[str] = Body(None, embed=True),
     user_id: str = Body(..., embed=True),
+    email: Optional[str] = Body(None, embed=True),
 ) -> Dict[str, Any]:
-    """Create a notebook. Uses Supabase if configured, else local JSON file.
-    Also creates the new outputs/{title}_{id}/sources/ directory."""
-    sb = get_supabase_admin_client()
-    nb_data = None
-    if sb:
-        try:
-            ins = sb.table("knowledge_bases").insert({"user_id": user_id, "name": name, "description": description or ""}).execute()
-            data = (ins.data or []) if hasattr(ins, "data") else []
-            nb_data = data[0] if data else None
-        except Exception as e:
-            log.warning("create_notebook failed: %s", e)
-            return {"success": False, "message": str(e)}
-    else:
-        try:
-            nb_data = _create_notebook_local(user_id, name, description or "")
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.warning("create_notebook local failed: %s", e)
-            return {"success": False, "message": str(e)}
+    """Create a notebook using local JSON file.
+    Also creates the new outputs/{user_id}/{title}_{id}/sources/ directory."""
+    # Prefer email for directory naming (more readable than UUID)
+    dir_id = (email or "").strip() or user_id
+    try:
+        nb_data = _create_notebook_local(dir_id, name, description or "")
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.warning("create_notebook local failed: %s", e)
+        return {"success": False, "message": str(e)}
 
     # Create new directory structure
     if nb_data and nb_data.get("id"):
         try:
-            paths = get_notebook_paths(nb_data["id"], name, user_id)
+            paths = get_notebook_paths(nb_data["id"], name, dir_id)
             paths.sources_dir.mkdir(parents=True, exist_ok=True)
             log.info("[create_notebook] created dir: %s", paths.root)
         except Exception as e:
@@ -1567,7 +1542,7 @@ async def generate_ppt_from_kb(
         project_root = get_project_root()
         # New layout: outputs/{title}_{id}/ppt/{ts}/
         if notebook_id:
-            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            nb_paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = nb_paths.feature_output_dir("ppt", ts)
         else:
             output_dir = _outputs_dir(email, notebook_id, f"{ts}_ppt")
@@ -1691,7 +1666,8 @@ async def generate_ppt_from_kb(
                 embed_api_url = embed_api_url.rstrip("/") + "/embeddings"
             project_root = get_project_root()
             safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
-            mineru_output_base = project_root / "outputs" / "kb_mineru" / (email or "default") / safe_nb
+            safe_email = _sanitize_user_id(email) if email else "default"
+            mineru_output_base = project_root / "outputs" / "kb_mineru" / safe_email / safe_nb
             mineru_output_base.mkdir(parents=True, exist_ok=True)
 
             files_for_embed = [{"path": str(p), "description": ""} for p in doc_paths]
@@ -1871,7 +1847,7 @@ async def generate_deep_research_report(
 
         # New layout: outputs/{title}_{id}/deep_research/{ts}/
         if notebook_id:
-            dr_paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            dr_paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = dr_paths.feature_output_dir("deep_research", ts)
         else:
             output_dir = _outputs_dir(email, notebook_id, f"{ts}_deep_research")
@@ -2064,7 +2040,7 @@ async def generate_podcast_from_kb(
         ts = int(time.time())
         # New layout: outputs/{title}_{id}/podcast/{ts}/
         if notebook_id:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = paths.feature_output_dir("podcast", ts)
         else:
             output_dir = _outputs_dir(email, notebook_id, f"{ts}_podcast")
@@ -2253,7 +2229,7 @@ async def generate_mindmap_from_kb(
         ts = int(time.time())
         # New layout: outputs/{title}_{id}/mindmap/{ts}/
         if notebook_id:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = paths.feature_output_dir("mindmap", ts)
         else:
             output_dir = _outputs_dir(email, notebook_id, f"{ts}_mindmap_input")
@@ -2553,7 +2529,7 @@ async def generate_drawio_from_kb(
         ts = int(time.time())
         # New layout: outputs/{title}_{id}/drawio/{ts}/
         if notebook_id:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = paths.feature_output_dir("drawio", ts)
         else:
             output_dir = project_root / OUTPUTS_BASE / (email or "default") / "_shared" / "drawio"
@@ -2682,7 +2658,7 @@ async def generate_flashcards(
         ts = int(time.time())
         flashcard_set_id = f"flashcard_{ts}"
         if notebook_id:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = paths.feature_output_dir("flashcard", ts)
         else:
             output_dir = _outputs_dir(email, notebook_id, flashcard_set_id)
@@ -2769,7 +2745,7 @@ async def generate_quiz(
         ts = int(time.time())
         quiz_id = f"quiz_{ts}"
         if notebook_id:
-            paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+            paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
             output_dir = paths.feature_output_dir("quiz", ts)
         else:
             output_dir = _outputs_dir(email, notebook_id, quiz_id)
@@ -2809,10 +2785,11 @@ async def list_flashcard_sets(
     notebook_id: str,
     notebook_title: Optional[str] = None,
     user_id: Optional[str] = None,
+    email: Optional[str] = None,
 ):
     """列出某 notebook 下所有已保存的闪卡集合（按时间倒序）"""
     try:
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         flashcard_root = paths.root / "flashcard"
         sets = []
         if flashcard_root.exists():
@@ -2845,10 +2822,11 @@ async def list_quiz_sets(
     notebook_id: str,
     notebook_title: Optional[str] = None,
     user_id: Optional[str] = None,
+    email: Optional[str] = None,
 ):
     """列出某 notebook 下所有已保存的测验集合（按时间倒序）"""
     try:
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         quiz_root = paths.root / "quiz"
         sets = []
         if quiz_root.exists():
@@ -2882,10 +2860,11 @@ async def get_flashcard_set(
     set_id: str,
     notebook_title: Optional[str] = None,
     user_id: Optional[str] = None,
+    email: Optional[str] = None,
 ):
     """读取指定闪卡集合的完整数据"""
     try:
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         json_file = paths.root / "flashcard" / set_id / "flashcards.json"
         if not json_file.exists():
             raise HTTPException(status_code=404, detail="Flashcard set not found")
@@ -2904,10 +2883,11 @@ async def get_quiz_set(
     set_id: str,
     notebook_title: Optional[str] = None,
     user_id: Optional[str] = None,
+    email: Optional[str] = None,
 ):
     """读取指定测验集合的完整数据"""
     try:
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         json_file = paths.root / "quiz" / set_id / "quiz.json"
         if not json_file.exists():
             raise HTTPException(status_code=404, detail="Quiz set not found")
@@ -2969,7 +2949,7 @@ async def run_deep_research(
             return result
 
         # 2. 将结果保存为 source
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         mgr = SourceManager(paths)
 
         # 格式化为 Markdown
@@ -3078,7 +3058,7 @@ async def search_and_add(
             }
 
         # 2. 将所有结果合并为一个 Markdown 文档
-        paths = get_notebook_paths(notebook_id, notebook_title or "", user_id)
+        paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
         mgr = SourceManager(paths)
 
         markdown_content = service.format_sources_as_markdown(sources)

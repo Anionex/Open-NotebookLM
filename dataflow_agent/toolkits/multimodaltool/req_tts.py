@@ -61,6 +61,37 @@ async def generate_speech_bytes_async(
     timeout: int = 120,
     **kwargs,
 ) -> bytes:
+    # 优先使用本地 TTS
+    use_local = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
+    tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
+    log.info(f"[TTS] USE_LOCAL_TTS={use_local}, TTS_ENGINE={tts_engine}")
+
+    if use_local:
+        try:
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "fastapi_app"))
+
+            if tts_engine == "qwen":
+                from qwen_tts_manager import generate_speech, is_available
+                log.info(f"[TTS] 使用本地 Qwen3-TTS")
+            elif tts_engine == "firered":
+                from fireredtts_manager import generate_speech, is_available
+                log.info(f"[TTS] 使用本地 FireRedTTS2")
+            else:
+                log.warning(f"[TTS] 未知引擎 {tts_engine}，回退到 API")
+                raise ValueError(f"Unknown TTS engine: {tts_engine}")
+
+            if is_available():
+                import asyncio
+                audio_bytes = await asyncio.to_thread(generate_speech, text, voice_name)
+                return audio_bytes
+            else:
+                log.warning(f"[TTS] {tts_engine} 不可用，回退到 API")
+        except Exception as e:
+            log.warning(f"[TTS] 本地 TTS 失败: {e}，回退到 API")
+
+    # 回退到 API-based TTS
     provider = get_provider(api_url, model)
     log.info(f"TTS using Provider: {provider.__class__.__name__}")
 

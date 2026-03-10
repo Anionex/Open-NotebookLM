@@ -64,7 +64,9 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
             import time
             ts = int(time.time())
             email = getattr(state.request, 'email', 'default')
-            output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_podcast"
+            # Sanitize email for filesystem safety
+            safe_email = re.sub(r'[^\w\-.]', '_', (email or 'default').replace('@', '_at_'))
+            output_dir = project_root / "outputs" / "kb_outputs" / safe_email / f"{ts}_podcast"
             output_dir.mkdir(parents=True, exist_ok=True)
             state.result_path = str(output_dir)
         else:
@@ -178,39 +180,106 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
         # Podcast script prompt
         language = state.request.language
         mode = getattr(state.request, "podcast_mode", "monologue")
+
+        # Qwen TTS 只支持单人叙述，强制使用 monologue 模式
+        use_local_tts = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
+        tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
+        if use_local_tts and tts_engine == "qwen" and mode == "dialog":
+            log.info("[Podcast] Qwen TTS 不支持对话模式，转换为单人叙述")
+            mode = "monologue"
+
         if mode == "dialog":
-            speaker_a = "主持人" if language == "zh" else "Host"
-            speaker_b = "嘉宾" if language == "zh" else "Guest"
-            prompt = f"""你是一位专业的知识播客制作人。基于以下资料，生成一段5-10分钟的双人对话播客脚本。
+            if language == "zh":
+                prompt = f"""你是一位专业的知识播客制作人。基于以下资料，生成一段5-10分钟的双人对话播客脚本。
 
-要求：
-1. 口语化、生动有趣，避免书面语
-2. 结构清晰：开场白 → 核心内容 → 总结
-3. 使用类比和例子帮助理解
-4. 适当加入互动性语言（"你可能会想..."）
-5. 使用{language}语言
-6. 严格使用如下格式逐行输出（每行一个角色）：
-{speaker_a}: ...
-{speaker_b}: ...
+角色设定：
+- 说话人1（主持人）：引导话题、提问、总结要点，语气亲切自然
+- 说话人2（嘉宾）：深入讲解、举例说明、回答问题，语气专业但不失幽默
+
+对话要求：
+1. 开场：主持人简短介绍主题，嘉宾用一个有趣的例子或观点吸引听众
+2. 展开：通过问答形式逐步深入，主持人适时提出听众可能关心的问题
+3. 互动：两人自然交流，可以有"确实是这样"、"这个很有意思"等回应
+4. 类比：用生活化的比喻解释复杂概念
+5. 节奏：避免一人长篇大论，保持一问一答或短段交流
+6. 结尾：主持人总结核心要点，嘉宾给出实用建议或展望
+
+格式要求（严格遵守）：
+- 每行一个角色，格式为"[S1]..."（主持人）或"[S2]..."（嘉宾）
+- 每段对话控制在1-3句话，保持自然节奏
+- 避免书面语，使用口语化表达
 
 资料内容：
 {contents_str}
 
 请生成播客脚本："""
+            else:
+                prompt = f"""You are a professional podcast producer. Based on the following materials, create a 5-10 minute two-person dialogue podcast script.
+
+Character Setup:
+- Speaker 1 (Host): Guides topics, asks questions, summarizes key points with a friendly tone
+- Speaker 2 (Guest): Provides in-depth explanations, examples, answers questions with expertise and humor
+
+Dialogue Requirements:
+1. Opening: Host briefly introduces the topic, Guest hooks listeners with an interesting example
+2. Development: Gradually dive deeper through Q&A, Host asks questions listeners might have
+3. Interaction: Natural conversation flow with responses like "Exactly", "That's fascinating"
+4. Analogies: Use relatable metaphors to explain complex concepts
+5. Pacing: Avoid long monologues, maintain back-and-forth rhythm
+6. Closing: Host summarizes key points, Guest offers practical advice or insights
+
+Format Requirements (strictly follow):
+- One speaker per line: "[S1]..." (Host) or "[S2]..." (Guest)
+- Keep each dialogue turn to 1-3 sentences for natural flow
+- Use conversational language, avoid formal writing style
+
+Materials:
+{contents_str}
+
+Generate the podcast script:"""
         else:
-            prompt = f"""你是一位专业的知识播客主播。基于以下资料，生成一段5-10分钟的知识播客脚本。
+            if language == "zh":
+                prompt = f"""你是一位专业的知识播客主播。基于以下资料，生成一段5-10分钟的知识播客口播稿。
 
-要求：
-1. 口语化、生动有趣，避免书面语
-2. 结构清晰：开场白 → 核心内容 → 总结
-3. 使用类比和例子帮助理解
-4. 适当加入互动性语言（"你可能会想..."）
-5. 使用{language}语言
+重要格式要求（必须严格遵守）：
+1. 输出纯文本，不要使用任何markdown格式（不要**、#、---、*、列表符号等）
+2. 不要添加舞台指示（不要【】、()等标注音乐、音效的内容）
+3. 不要添加角色标签（不要"主播："、"旁白："等）
+4. 直接输出可以朗读的连贯文本，就像你在对着麦克风说话
+
+内容要求：
+1. 口语化、生动有趣，像和朋友聊天一样自然
+2. 结构清晰：开场问候 → 引入主题 → 核心内容讲解 → 总结收尾
+3. 使用生活化的比喻和例子帮助理解
+4. 适当加入互动性语言（"你可能会想..."、"想象一下..."）
+5. 避免书面语和专业术语堆砌，用简单的话解释复杂概念
+6. 段落之间用自然的过渡语连接
 
 资料内容：
 {contents_str}
 
-请生成播客脚本："""
+请直接生成可以朗读的播客口播稿（纯文本，无格式）："""
+            else:
+                prompt = f"""You are a professional podcast host. Based on the following materials, create a 5-10 minute podcast narration script.
+
+Critical Format Requirements (must strictly follow):
+1. Output plain text only, no markdown formatting (no **, #, ---, *, bullet points, etc.)
+2. No stage directions (no [], () for music, sound effects annotations)
+3. No speaker labels (no "Host:", "Narrator:", etc.)
+4. Output continuous readable text as if you're speaking into a microphone
+
+Content Requirements:
+1. Conversational and engaging, like chatting with a friend
+2. Clear structure: greeting → topic introduction → core content → closing summary
+3. Use relatable analogies and examples
+4. Include interactive language ("You might wonder...", "Imagine...")
+5. Avoid jargon, explain complex concepts in simple terms
+6. Use natural transitions between sections
+
+Materials:
+{contents_str}
+
+Generate the podcast narration script (plain text, no formatting):"""
 
         try:
             agent = create_agent(
@@ -242,13 +311,73 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
         """
         Generate audio using TTS
         """
-        if not state.podcast_script or state.podcast_script.startswith("["):
+        if not state.podcast_script or (state.podcast_script.startswith("[") and not state.podcast_script.startswith("[S1]") and not state.podcast_script.startswith("[S2]")):
             state.audio_path = ""
             return state
 
         try:
             audio_path = str(Path(state.result_path) / "podcast.wav")
             mode = getattr(state.request, "podcast_mode", "monologue")
+
+            # Debug logging
+            use_local_tts = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
+            tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
+            log.info(f"[TTS DEBUG] mode={mode}, use_local_tts={use_local_tts}, tts_engine={tts_engine}")
+
+            # Qwen TTS 只支持单人叙述，强制使用 monologue 模式
+            if use_local_tts and tts_engine == "qwen":
+                if mode == "dialog":
+                    log.info("[TTS] Qwen TTS 不支持对话模式，转换为单人叙述")
+                    mode = "monologue"
+
+            # 本地 FireRedTTS2：分块生成对话
+            if use_local_tts and mode == "dialog" and tts_engine == "firered":
+                log.info("[TTS] 使用本地 FireRedTTS2 分块生成对话")
+
+                # 检查脚本是否已经是 [S1]/[S2] 格式
+                if "[S1]" in state.podcast_script or "[S2]" in state.podcast_script:
+                    converted_text = state.podcast_script
+                else:
+                    language = state.request.language
+                    speaker_a = "主持人" if language == "zh" else "Host"
+                    speaker_b = "嘉宾" if language == "zh" else "Guest"
+                    converted_script = []
+                    for line in state.podcast_script.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        if line.startswith(speaker_a + ":") or line.startswith(speaker_a + "："):
+                            converted_script.append("[S1]" + line.split(":", 1)[-1].split("：", 1)[-1].strip())
+                        elif line.startswith(speaker_b + ":") or line.startswith(speaker_b + "："):
+                            converted_script.append("[S2]" + line.split(":", 1)[-1].split("：", 1)[-1].strip())
+                        else:
+                            converted_script.append(line)
+                    converted_text = "\n".join(converted_script)
+
+                # 分块处理（每块最多6行对话，避免超过模型限制）
+                lines = [l for l in converted_text.split("\n") if l.strip()]
+                chunks = []
+                for i in range(0, len(lines), 6):
+                    chunks.append("\n".join(lines[i:i+6]))
+
+                log.info(f"[TTS] 分为 {len(chunks)} 块生成")
+                audio_chunks = []
+                for i, chunk in enumerate(chunks):
+                    log.info(f"[TTS] 生成第 {i+1}/{len(chunks)} 块")
+                    audio_bytes = await generate_speech_bytes_async(
+                        text=chunk,
+                        api_url=state.request.chat_api_url,
+                        api_key=state.request.api_key,
+                        model=state.request.tts_model,
+                        voice_name="Speaker1",
+                    )
+                    audio_chunks.append(audio_bytes)
+
+                with open(audio_path, "wb") as f:
+                    f.write(b"".join(audio_chunks))
+                state.audio_path = audio_path
+                log.info(f"[TTS] 音频已保存: {audio_path}")
+                return state
             max_chars = 1500
             concurrency = 4
 
@@ -364,7 +493,9 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
             state.audio_path = audio_path
             log.info(f"Audio generated successfully: {audio_path}")
         except Exception as e:
+            import traceback
             log.error(f"Audio generation failed: {e}")
+            log.error(f"Traceback: {traceback.format_exc()}")
             err_str = str(e)
             if "503" in err_str or "model_not_found" in err_str or "model not found" in err_str.lower():
                 state.audio_path = (

@@ -2,6 +2,8 @@
  * API configuration for backend calls.
  */
 
+import { getAccessToken } from '../stores/authStore';
+
 // API key for backend authentication
 export const API_KEY = import.meta.env.VITE_API_KEY || 'df-internal-2024-workflow-key';
 
@@ -15,9 +17,14 @@ export const API_URL_OPTIONS = (import.meta.env.VITE_LLM_API_URLS || 'https://ap
  * Get headers for API calls including the API key.
  */
 export function getApiHeaders(): HeadersInit {
-  return {
+  const token = getAccessToken();
+  const headers: HeadersInit = {
     'X-API-Key': API_KEY,
   };
+  if (token) {
+    (headers as Record<string, string>).Authorization = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 /**
@@ -29,6 +36,10 @@ export async function apiFetch(
 ): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set('X-API-Key', API_KEY);
+  const token = getAccessToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   return fetch(url, {
     ...options,

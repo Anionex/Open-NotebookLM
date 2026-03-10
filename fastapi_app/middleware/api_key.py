@@ -30,6 +30,7 @@ EXCLUDED_PATHS = {
     "/docs",
     "/openapi.json",
     "/redoc",
+    "/api/v1/auth/config",
 }
 
 # Path prefixes that don't require API key
@@ -50,6 +51,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
         # Skip excluded paths
         if path in EXCLUDED_PATHS:
+            print(f"[DEBUG] Path {path} in EXCLUDED_PATHS, skipping API key check")
             return await call_next(request)
 
         # Skip excluded prefixes

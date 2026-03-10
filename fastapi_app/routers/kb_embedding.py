@@ -7,7 +7,7 @@ from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.dependencies.auth import get_supabase_client
-from fastapi_app.notebook_paths import get_notebook_paths
+from fastapi_app.notebook_paths import get_notebook_paths, _sanitize_user_id
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base Embedding"])
 
@@ -17,7 +17,8 @@ def _vector_store_dir(email: Optional[str], notebook_id: Optional[str]):
     project_root = get_project_root()
     if not email:
         return project_root / "outputs" / "kb_data" / "vector_store_main"
-    base = project_root / "outputs" / "kb_data" / (email or "default")
+    safe_email = _sanitize_user_id(email)
+    base = project_root / "outputs" / "kb_data" / safe_email
     if notebook_id:
         safe_nb = notebook_id.replace("/", "_").replace("\\", "_")[:128]
         return base / safe_nb / "vector_store"
@@ -130,7 +131,8 @@ async def create_embedding(
         else:
             vector_store_dir = _vector_store_dir(user_email, notebook_id)
             safe_nb = (notebook_id or "_shared").replace("/", "_").replace("\\", "_")[:128]
-            mineru_output_base = project_root / "outputs" / "kb_mineru" / (user_email or "default") / safe_nb
+            safe_email = _sanitize_user_id(user_email) if user_email else "default"
+            mineru_output_base = project_root / "outputs" / "kb_mineru" / safe_email / safe_nb
 
         vector_store_dir.mkdir(parents=True, exist_ok=True)
         mineru_output_base.mkdir(parents=True, exist_ok=True)

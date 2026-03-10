@@ -16,13 +16,23 @@ try:
 except ImportError:
     pass
 
+# 启动时检查 Supabase 配置
+_supabase_url = os.getenv("SUPABASE_URL")
+_supabase_anon = os.getenv("SUPABASE_ANON_KEY")
+_supabase_service = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+if _supabase_url and _supabase_anon:
+    print(f"[INFO] Supabase 已配置: URL={_supabase_url[:30]}..., ANON_KEY={'已设置' if _supabase_anon else '未设置'}, SERVICE_KEY={'已设置' if _supabase_service else '未设置'}")
+else:
+    print(f"[INFO] Supabase 未配置: URL={'已设置' if _supabase_url else '未设置'}, ANON_KEY={'已设置' if _supabase_anon else '未设置'}")
+
+
 from urllib.parse import unquote
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from fastapi_app.routers import kb, kb_embedding, files, paper2drawio, paper2ppt
+from fastapi_app.routers import kb, kb_embedding, files, paper2drawio, paper2ppt, auth
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from dataflow_agent.utils import get_project_root
 
@@ -77,6 +87,21 @@ async def _lifespan(app: FastAPI):
                 print(f"[WARN] 启动本地 Embedding 失败: {e}")
         os.environ["EMBEDDING_API_URL"] = LOCAL_EMBEDDING_URL
         os.environ["EMBEDDING_MODEL"] = "Octen-Embedding-0.6B"
+
+    # 检查 TTS 模型
+    use_local_tts = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
+    tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
+    if use_local_tts:
+        try:
+            if tts_engine == "qwen":
+                from fastapi_app.qwen_tts_manager import check_and_download_model
+                check_and_download_model()
+            elif tts_engine == "firered":
+                from fastapi_app.fireredtts_manager import check_and_download_model
+                check_and_download_model()
+        except Exception as e:
+            print(f"[WARN] TTS 模型检查失败: {e}")
+
     yield
     if proc is not None and proc.poll() is None:
         proc.terminate()
@@ -119,6 +144,7 @@ def create_app() -> FastAPI:
     app.include_router(files.router, prefix="/api/v1", tags=["Files"])
     app.include_router(paper2drawio.router, prefix="/api/v1", tags=["Paper2Drawio"])
     app.include_router(paper2ppt.router, prefix="/api/v1", tags=["Paper2PPT"])
+    app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])
 
     # 静态文件：/outputs 下的文件（兼容 URL 中 %40 与 磁盘 @ 两种路径）
     project_root = get_project_root()

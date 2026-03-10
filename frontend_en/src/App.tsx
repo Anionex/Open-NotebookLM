@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Dashboard from './pages/Dashboard';
 import NotebookView from './pages/NotebookView';
+import AuthPage from './pages/AuthPage';
 import { useAuthStore } from './stores/authStore';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { initSupabase, getSupabaseClient } from './lib/supabase';
+import { Loader2 } from 'lucide-react';
 
 const pageVariants = {
   initial: (direction: number) => ({
@@ -27,33 +29,24 @@ function App() {
   const [selectedNotebook, setSelectedNotebook] = useState<any>(null);
   const [dashboardRefresh, setDashboardRefresh] = useState(0);
   const [direction, setDirection] = useState(0);
-  const { setSession } = useAuthStore();
+  const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
+  const { user, loading, setSession } = useAuthStore();
+
+  // Initialize Supabase from backend config
+  useEffect(() => {
+    initSupabase().then(setSupabaseConfigured);
+  }, []);
 
   // Initialize auth session
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      // 不做用户管理：使用 default，数据从 outputs 取
-      const mockUser = {
-        id: 'default',
-        email: 'default',
-        created_at: new Date().toISOString(),
-        app_metadata: {},
-        user_metadata: {},
-        aud: 'authenticated',
-        role: 'authenticated'
-      };
-
-      const mockSession = {
-        access_token: 'mock-token',
-        refresh_token: 'mock-refresh',
-        expires_in: 3600,
-        token_type: 'bearer',
-        user: mockUser as any
-      };
-
-      setSession(mockSession as any);
+    if (supabaseConfigured === null) return;
+    if (!supabaseConfigured) {
+      setSession(null);
       return;
     }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -68,7 +61,29 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession]);
+  }, [setSession, supabaseConfigured]);
+
+  useEffect(() => {
+    if (!user) {
+      setCurrentView('dashboard');
+      setSelectedNotebook(null);
+    }
+  }, [user]);
+
+  if (loading || supabaseConfigured === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f2f2f7]">
+        <Loader2 size={28} className="animate-spin text-slate-500" />
+      </div>
+    );
+  }
+
+  // If Supabase is configured but user is not logged in, show auth page
+  if (supabaseConfigured && !user) {
+    return <AuthPage />;
+  }
+
+  // If Supabase is not configured, allow trial mode (no auth required)
 
   const handleOpenNotebook = (notebook: any) => {
     setSelectedNotebook(notebook);
@@ -95,7 +110,7 @@ function App() {
             animate="animate"
             exit="exit"
           >
-            <Dashboard onOpenNotebook={handleOpenNotebook} refreshTrigger={dashboardRefresh} />
+            <Dashboard onOpenNotebook={handleOpenNotebook} refreshTrigger={dashboardRefresh} supabaseConfigured={supabaseConfigured} />
           </motion.div>
         ) : (
           <motion.div

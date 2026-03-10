@@ -10,7 +10,7 @@ import { MermaidPreview } from './tools/MermaidPreview';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { X, Eye, Trash2, FileText, Image, Video, Link as LinkIcon, Headphones } from 'lucide-react';
-import { API_KEY } from '../../config/api';
+import { apiFetch } from '../../config/api';
 
 const KnowledgeBase = () => {
   const { user } = useAuthStore();
@@ -186,11 +186,10 @@ const KnowledgeBase = () => {
       setMindmapStatus(null);
       setMindmapError(null);
 
-      const res = await fetch('/api/v1/kb/save-mindmap', {
+      const res = await apiFetch('/api/v1/kb/save-mindmap', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           file_url: previewFile.url,

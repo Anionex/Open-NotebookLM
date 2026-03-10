@@ -1,37 +1,65 @@
 /**
  * Supabase client singleton for frontend.
+ * Configuration is fetched from backend API.
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+let supabaseClient: SupabaseClient | null = null;
+let initPromise: Promise<boolean> | null = null;
 
 /**
- * Check if Supabase is properly configured.
+ * Initialize Supabase client from backend config.
+ * Returns true if configured, false otherwise.
  */
-export function isSupabaseConfigured(): boolean {
-  return Boolean(supabaseUrl && supabaseAnonKey);
-}
+export async function initSupabase(): Promise<boolean> {
+  if (initPromise) {
+    return initPromise;
+  }
 
-// Only create client when configured
-const supabaseClient: SupabaseClient | null = isSupabaseConfigured()
-  ? createClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : null;
+  initPromise = (async () => {
+    try {
+      const response = await fetch('/api/v1/auth/config');
+      const data = await response.json();
+
+      if (data.supabaseConfigured && data.supabaseUrl && data.supabaseAnonKey) {
+        supabaseClient = createClient(data.supabaseUrl, data.supabaseAnonKey, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true,
+          },
+        });
+        console.info('[Supabase] Configured and initialized');
+        return true;
+      } else {
+        console.info('[Supabase] Not configured, using trial mode');
+        return false;
+      }
+    } catch (error) {
+      console.error('[Supabase] Initialization failed:', error);
+      return false;
+    }
+  })();
+
+  return initPromise;
+}
 
 /**
- * Get Supabase client.
+ * Get Supabase client (must call initSupabase first).
  */
-export const supabase = supabaseClient as SupabaseClient;
-
-if (!isSupabaseConfigured()) {
-  console.info(
-    "[Supabase] Not configured. Auth, quotas, and cloud storage disabled."
-  );
+export function getSupabaseClient(): SupabaseClient | null {
+  return supabaseClient;
 }
+
+/**
+ * Legacy export for compatibility.
+ */
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    if (!supabaseClient) {
+      throw new Error('[Supabase] Client not initialized. Call initSupabase() first.');
+    }
+    return (supabaseClient as any)[prop];
+  }
+});

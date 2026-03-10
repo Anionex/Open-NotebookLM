@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import asyncio
 from pathlib import Path
 from typing import List, Dict, Any
@@ -58,7 +59,9 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             import time
             ts = int(time.time())
             email = getattr(state.request, 'email', 'default')
-            output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_mindmap"
+            # Sanitize email for filesystem safety
+            safe_email = re.sub(r'[^\w\-.]', '_', (email or 'default').replace('@', '_at_'))
+            output_dir = project_root / "outputs" / "kb_outputs" / safe_email / f"{ts}_mindmap"
             output_dir.mkdir(parents=True, exist_ok=True)
             state.result_path = str(output_dir)
 
