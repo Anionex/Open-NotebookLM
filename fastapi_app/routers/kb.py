@@ -652,7 +652,6 @@ async def chat_with_kb(
         if email and notebook_id:
             try:
                 # Find notebook directory by scanning outputs/{email}/
-                from pathlib import Path
                 project_root = get_project_root()
                 email_dir = project_root / "outputs" / email.replace("@", "_at_")
 

@@ -1,60 +1,289 @@
+/* Import Editorial Fonts - Must be first! */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  background-color: #f2f2f7;
-}
+/**
+ * Editorial Workspace Global Styles
+ * Magazine-inspired design with warm neutrals and vibrant accents
+ */
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+:root {
+  /* Base background - warm off-white */
+  background-color: #FAFAF9;
+
+  /* Set default font smoothing for crisp text */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+@layer base {
+  body {
+    @apply bg-neutral-50 text-neutral-900 font-sans;
+    margin: 0;
+  }
+
+  /* Typography defaults */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold text-neutral-800 tracking-tight;
+  }
+
+  h1 {
+    @apply text-5xl md:text-6xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  h4 {
+    @apply text-xl md:text-2xl;
+  }
+
+  /* Links - editorial style */
+  a {
+    @apply text-accent-600 hover:text-accent-700 transition-colors underline-offset-2;
+  }
+
+  /* Strong emphasis */
+  strong, b {
+    @apply font-semibold text-neutral-900;
+  }
+
+  /* Code elements */
+  code {
+    @apply font-mono text-sm bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded;
+  }
+
+  pre code {
+    @apply bg-transparent p-0;
+  }
+
+  /* Selection color - accent coral */
+  ::selection {
+    @apply bg-accent-200 text-accent-900;
+  }
+}
+
+@layer components {
+  /**
+   * Custom scrollbar - subtle and editorial
+   */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 rounded-full hover:bg-neutral-400 transition-colors;
+  }
+
+  /**
+   * Glass effect (use sparingly - editorial is more matte)
+   */
+  .glass-subtle {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+  }
+
+  /**
+   * Lifted effect - editorial signature
+   * Creates shadow underneath like printed material
+   */
+  .lifted {
+    @apply shadow-lifted hover:shadow-lifted-hover transition-shadow;
+  }
+
+  .lifted-hover {
+    @apply hover:shadow-lifted-hover hover:-translate-y-0.5 transition-all;
+  }
+
+  /**
+   * Text gradient - use for special headings
+   */
+  .text-gradient-accent {
+    @apply bg-gradient-to-r from-accent-600 to-accent-500 bg-clip-text text-transparent;
+  }
+
+  /**
+   * Focus styles - editorial appropriate
+   */
+  .focus-editorial {
+    @apply focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:ring-offset-neutral-50;
+  }
+
+  /**
+   * Asymmetric grid helper
+   * Creates magazine-style layouts
+   */
+  .grid-editorial {
+    @apply grid gap-8;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  /**
+   * Loading shimmer - editorial style
+   */
+  .shimmer-editorial {
+    background: linear-gradient(90deg,
+      #F5F5F4 0%,
+      #E7E5E4 50%,
+      #F5F5F4 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /**
+   * Divider - editorial style
+   */
+  .divider-editorial {
+    @apply border-t-2 border-neutral-200 my-8;
+  }
+
+  .divider-accent {
+    @apply border-t-4 border-accent-500 my-8 w-16;
+  }
 }
 
 @layer utilities {
-  .glass {
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /**
+   * Container utilities for editorial layouts
+   */
+  .container-editorial {
+    @apply mx-auto px-6 md:px-8 lg:px-12;
+    max-width: 1400px;
   }
-  .glass-heavy {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(40px) saturate(200%);
-    -webkit-backdrop-filter: blur(40px) saturate(200%);
+
+  .container-narrow {
+    @apply mx-auto px-6;
+    max-width: 720px;
   }
-  .glass-dark {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+
+  .container-wide {
+    @apply mx-auto px-6;
+    max-width: 1600px;
+  }
+
+  /**
+   * Aspect ratios for media
+   */
+  .aspect-editorial {
+    aspect-ratio: 16 / 10;
+  }
+
+  .aspect-card {
+    aspect-ratio: 4 / 3;
+  }
+
+  /**
+   * Text balance - for better headline wrapping
+   */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /**
+   * Editorial spacing rhythm
+   */
+  .space-editorial > * + * {
+    @apply mt-6;
+  }
+
+  .space-editorial-lg > * + * {
+    @apply mt-12;
+  }
+
+  /**
+   * Prose styling for markdown content
+   */
+  .prose-editorial {
+    @apply text-base leading-relaxed text-neutral-700;
+  }
+
+  .prose-editorial h1,
+  .prose-editorial h2,
+  .prose-editorial h3 {
+    @apply font-display font-semibold text-neutral-900 mt-8 mb-4;
+  }
+
+  .prose-editorial p {
+    @apply mb-4;
+  }
+
+  .prose-editorial a {
+    @apply text-accent-600 hover:text-accent-700 underline underline-offset-2;
+  }
+
+  .prose-editorial ul,
+  .prose-editorial ol {
+    @apply ml-6 mb-4;
+  }
+
+  .prose-editorial li {
+    @apply mb-2;
+  }
+
+  .prose-editorial code {
+    @apply font-mono text-sm bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded;
+  }
+
+  .prose-editorial pre {
+    @apply bg-neutral-900 text-neutral-50 p-4 rounded-lg overflow-x-auto mb-4;
+  }
+
+  .prose-editorial blockquote {
+    @apply border-l-4 border-accent-500 pl-4 italic text-neutral-600 my-4;
   }
 }
 
-.ios-shimmer {
-  background: linear-gradient(90deg, #f2f2f7 25%, #e5e5ea 50%, #f2f2f7 75%);
-  background-size: 200% 100%;
-  animation: ios-shimmer 1.5s ease-in-out infinite;
+/**
+ * Animation utilities
+ */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
-/* Slim scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
+/**
+ * Print styles - for generating reports/exports
+ */
+@media print {
+  @page {
+    margin: 2cm;
+  }
 
-/* iOS blue selection */
-::selection {
-  background: rgba(0, 122, 255, 0.25);
-  color: inherit;
+  body {
+    @apply bg-white text-black;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+
+  img {
+    page-break-inside: avoid;
+  }
 }
