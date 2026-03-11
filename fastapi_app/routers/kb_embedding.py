@@ -1,10 +1,8 @@
 from fastapi import APIRouter, HTTPException, Body
 from typing import List, Dict, Optional, Any
-import os
 from pathlib import Path
 from workflow_engine.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
 from workflow_engine.utils import get_project_root
-from fastapi_app.config import settings
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.dependencies.auth import get_supabase_client
 from fastapi_app.notebook_paths import get_notebook_paths, _sanitize_user_id
@@ -83,7 +81,7 @@ async def create_embedding(
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model_name: Optional[str] = Body(None, embed=True),
-    multimodal_model: Optional[str] = Body(settings.KB_EMBEDDING_MODEL, embed=True),
+    multimodal_model: Optional[str] = Body(None, embed=True),
     image_model: Optional[str] = Body(None, embed=True),
     video_model: Optional[str] = Body(None, embed=True),
 ):

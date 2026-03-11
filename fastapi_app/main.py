@@ -12,7 +12,6 @@ try:
     from dotenv import load_dotenv
     _root = Path(__file__).resolve().parent.parent
     load_dotenv(_root / "fastapi_app" / ".env")
-    load_dotenv(_root / ".env")
 except ImportError:
     pass
 

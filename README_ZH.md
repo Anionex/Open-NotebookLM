@@ -18,6 +18,7 @@
 
 ## 📅 更新日志
 
+- **2026.03.11** — 代码重构：实行严格的功能分层架构；集成本地 TTS 模型（[Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)）；新增基于来源的笔记 QA 问答编辑功能（Notion AI 风格）；UI 优化；简化配置文件结构
 - **2026.03.08** — 新增用户管理系统：Supabase 邮箱 + OTP 认证登录，多用户数据隔离，用户目录以邮箱命名；清理废弃脚本
 - **2026.02.27** — 迁移集成 [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) 深度研究模块；PPT 生成支持 Nano Banana 2 生图模型
 - **2026.02.13** — 项目发布
@@ -166,15 +167,33 @@ SERPER_API_KEY=your_serper_api_key
 
 #### Supabase（可选，用户管理）
 
-用于多用户认证与数据隔离。不配置时进入**体验模式**（无需登录，单用户本地存储，不影响核心功能）。
+用于多用户认证与数据隔离。**如果不配置或留空，系统将自动进入体验模式**（无需登录，单用户本地存储，所有核心功能正常使用）。
 
 配置后支持：邮箱 + 密码注册登录、OTP 邮件验证、多用户数据隔离（每个用户独立目录）。
 
 ```env
+# 如果不需要多用户功能，可以删除或留空以下配置
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
+
+#### TTS 语音合成（可选，播客功能）
+
+播客生成功能支持本地 TTS 模型。启用后会自动下载 [Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) 模型（约 3.4GB）。
+
+```env
+# 启用本地 TTS（0=禁用，1=启用）
+USE_LOCAL_TTS=1
+
+# TTS 引擎：qwen（推荐）或 firered
+TTS_ENGINE=qwen
+
+# 模型空闲自动卸载时间（秒，默认 300 = 5 分钟）
+TTS_IDLE_TIMEOUT=300
+```
+
+> **提示**：如果不需要播客功能，可以设置 `USE_LOCAL_TTS=0` 或删除此配置以节省磁盘空间。
 
 ### 3. 启动后端
 

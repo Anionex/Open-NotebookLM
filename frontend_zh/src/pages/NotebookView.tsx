@@ -181,11 +181,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     document.body.style.userSelect = 'none';
     const onMove = (e: MouseEvent) => {
       if (!resizeRef.current) return;
-      const delta = e.clientX - resizeRef.current.startX;
+      const { startX, startLeft, startRight } = resizeRef.current;
+      const delta = e.clientX - startX;
       if (resizing === 'left') {
-        setLeftPanelWidth(() => Math.min(480, Math.max(160, resizeRef.current!.startLeft + delta)));
+        setLeftPanelWidth(Math.min(480, Math.max(160, startLeft + delta)));
       } else {
-        setRightPanelWidth(() => Math.min(600, Math.max(200, resizeRef.current!.startRight - delta)));
+        setRightPanelWidth(Math.min(600, Math.max(200, startRight - delta)));
       }
     };
     const onUp = () => {

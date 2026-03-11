@@ -18,6 +18,7 @@ English | [中文](README_ZH.md)
 
 ## 📅 Changelog
 
+- **2026.03.11** — Code refactoring: strict layered architecture; integrated local TTS model ([Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)); added source-based note QA editing (Notion AI style); UI improvements; simplified configuration structure
 - **2026.03.08** — Added user management: Supabase email + OTP authentication, multi-user data isolation, email-based user directories; cleaned up deprecated scripts
 - **2026.02.27** — Integrated [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) deep research module; PPT generation now supports Nano Banana 2 image model
 - **2026.02.13** — Initial release
@@ -166,15 +167,33 @@ SERPER_API_KEY=your_serper_api_key
 
 #### Supabase (Optional — User Management)
 
-For multi-user authentication and data isolation. Without it, the app runs in **trial mode** (no login required, single local user, all core features still work).
+For multi-user authentication and data isolation. **If not configured or left empty, the system automatically enters trial mode** (no login required, single local user, all core features work normally).
 
 When configured: email + password sign-up/login, OTP email verification, per-user data isolation (separate directories per user).
 
 ```env
+# If you don't need multi-user features, you can delete or leave empty
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
+
+#### TTS Voice Synthesis (Optional — Podcast Feature)
+
+Podcast generation supports local TTS models. When enabled, it will automatically download the [Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) model (~3.4GB).
+
+```env
+# Enable local TTS (0=disabled, 1=enabled)
+USE_LOCAL_TTS=1
+
+# TTS engine: qwen (recommended) or firered
+TTS_ENGINE=qwen
+
+# Model idle auto-unload timeout (seconds, default 300 = 5 minutes)
+TTS_IDLE_TIMEOUT=300
+```
+
+> **Tip**: If you don't need podcast features, set `USE_LOCAL_TTS=0` or delete this config to save disk space.
 
 ### 3. Start Backend
 
