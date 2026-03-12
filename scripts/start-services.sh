@@ -42,10 +42,17 @@ echo ""
 echo "Services started in tmux session '$SESSION_NAME'"
 echo ""
 echo "Waiting for cpolar to start..."
-sleep 5
+sleep 10
 
 # 获取公网域名
-PUBLIC_URL=$(curl -s http://localhost:4048/http/in 2>/dev/null | grep -oP 'https?://[^"<>]+\.cpolar\.(cn|top|com)' | head -1)
+PUBLIC_URL=""
+for i in {1..6}; do
+    PUBLIC_URL=$(curl -s http://localhost:4048/http/in 2>/dev/null | grep -oP 'https?://[^"<>]+\.cpolar\.(cn|top|com)' | head -1)
+    if [ -n "$PUBLIC_URL" ]; then
+        break
+    fi
+    sleep 2
+done
 
 if [ -z "$PUBLIC_URL" ]; then
     # 尝试其他端口
