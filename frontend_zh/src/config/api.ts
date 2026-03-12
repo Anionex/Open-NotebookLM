@@ -4,6 +4,9 @@
 
 import { getAccessToken } from '../stores/authStore';
 
+// Backend API base URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 // API key for backend authentication
 export const API_KEY = import.meta.env.VITE_API_KEY || 'df-internal-2024-workflow-key';
 
@@ -41,7 +44,9 @@ export async function apiFetch(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  return fetch(url, {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+
+  return fetch(fullUrl, {
     ...options,
     headers,
   });

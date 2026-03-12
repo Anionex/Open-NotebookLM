@@ -198,13 +198,13 @@ TTS_IDLE_TIMEOUT=300
 ### 3. 启动后端
 
 ```bash
-uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8213 --reload
 ```
 
 后端启动时会自动拉起本地 Embedding 服务（Octen-Embedding-0.6B，端口 17997），首次启动会下载模型。如需关闭本地 Embedding，设置 `USE_LOCAL_EMBEDDING=0`。
 
-- 健康检查：http://localhost:8000/health
-- API 文档：http://localhost:8000/docs
+- 健康检查：http://localhost:8213/health
+- API 文档：http://localhost:8213/docs
 
 ### 4. 启动前端
 
@@ -221,6 +221,29 @@ cd frontend_en && npm install && npm run dev
 访问 http://localhost:3000（或终端提示的端口）。
 
 > 前端的 LLM API 地址和 API Key 可在页面右上角设置面板中动态修改，无需重启。
+
+#### 前端配置（可选）
+
+**本地部署**（前后端在同一台机器）：无需配置，默认即可使用。
+
+**公网访问**（通过 cpolar/ngrok 等公网地址访问）：需要配置后端 API 地址。
+
+创建 `frontend_zh/.env`（或 `frontend_en/.env`）：
+
+```env
+# 后端 API 基础地址
+VITE_API_BASE_URL=http://localhost:8213
+```
+
+**配置选项：**
+
+| 部署方式 | 配置 | 示例 |
+|---------|------|------|
+| **纯本地部署** | 留空或设置为 `http://localhost:8213` | `VITE_API_BASE_URL=http://localhost:8213` |
+| **公网访问** | 设置为后端的公网地址 | `VITE_API_BASE_URL=https://backend.example.com` |
+| **使用 Vite 代理** | 留空（使用相对路径） | `VITE_API_BASE_URL=` |
+
+> **注意**：修改 `.env` 后需要重启前端（`npm run dev`）才能生效。
 
 ---
 

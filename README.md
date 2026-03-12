@@ -198,13 +198,13 @@ TTS_IDLE_TIMEOUT=300
 ### 3. Start Backend
 
 ```bash
-uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8213 --reload
 ```
 
 On startup, the backend automatically launches a local embedding service (Octen-Embedding-0.6B on port 17997). The model is downloaded on first run. To disable local embedding, set `USE_LOCAL_EMBEDDING=0`.
 
-- Health check: http://localhost:8000/health
-- API docs: http://localhost:8000/docs
+- Health check: http://localhost:8213/health
+- API docs: http://localhost:8213/docs
 
 ### 4. Start Frontend
 
@@ -221,6 +221,29 @@ cd frontend_zh && npm install && npm run dev
 Open http://localhost:3000 (or the port shown in the terminal).
 
 > The LLM API URL and API key can be changed dynamically in the settings panel (top-right corner) without restarting.
+
+#### Frontend Configuration (Optional)
+
+**For local deployment** (frontend and backend on the same machine): No configuration needed. The default setup works out of the box.
+
+**For remote access** (accessing via public URL like cpolar/ngrok): You need to configure the backend API address.
+
+Create `frontend_zh/.env` (or `frontend_en/.env`):
+
+```env
+# Backend API base URL
+VITE_API_BASE_URL=http://localhost:8213
+```
+
+**Configuration options:**
+
+| Deployment Type | Configuration | Example |
+|----------------|---------------|---------|
+| **Local only** | Leave empty or set to `http://localhost:8213` | `VITE_API_BASE_URL=http://localhost:8213` |
+| **Public access** | Set to backend's public URL | `VITE_API_BASE_URL=https://backend.example.com` |
+| **Using Vite proxy** | Leave empty (uses relative paths) | `VITE_API_BASE_URL=` |
+
+> **Note**: After changing `.env`, restart the frontend (`npm run dev`) for changes to take effect.
 
 ---
 

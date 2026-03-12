@@ -8,12 +8,15 @@ import os
 from typing import Any, Optional
 
 from fastapi import Header, HTTPException
+from workflow_engine.logger import get_logger
+
+log = get_logger(__name__)
 
 try:
     from supabase import create_client, Client
-    print("[INFO] Supabase 库导入成功")
+    log.info("Supabase 库导入成功")
 except Exception as e:
-    print(f"[WARN] Supabase 库导入失败: {e}")
+    log.warning(f"Supabase 库导入失败: {e}")
     create_client = None  # type: ignore[misc, assignment]
     Client = Any  # type: ignore[misc, assignment]
 
@@ -126,9 +129,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> AuthU
     except HTTPException:
         raise
     except Exception as e:
+        log.error(f"Token validation failed: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=401,
-            detail=f"Token validation failed: {str(e)}"
+            detail="Token validation failed"
         )
 
 

@@ -6,6 +6,9 @@ from workflow_engine.utils import get_project_root
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.dependencies.auth import get_supabase_client
 from fastapi_app.notebook_paths import get_notebook_paths, _sanitize_user_id
+from workflow_engine.logger import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base Embedding"])
 
@@ -70,7 +73,7 @@ def _write_manifest_ids_to_supabase(manifest: Dict[str, Any]) -> None:
             if any(x in err_msg for x in ("kb_file_id", "pgrst204", "schema", "column", "could not find")):
                 pass
             else:
-                print(f"[kb_embedding] Supabase writeback failed: {e}")
+                log.warning(f"Supabase writeback failed: {e}")
 
 @router.post("/embedding")
 async def create_embedding(
@@ -116,7 +119,7 @@ async def create_embedding(
                     except Exception:
                         pass
             else:
-                print(f"Warning: File not found locally: {local_path}")
+                log.warning(f"File not found locally: {local_path}")
 
         if not process_list:
             return {"success": False, "message": "No valid files found to process."}
@@ -162,7 +165,7 @@ async def create_embedding(
             try:
                 _write_manifest_ids_to_supabase(manifest)
             except Exception as e:
-                print(f"[kb_embedding] writeback error: {e}")
+                log.warning(f"Supabase writeback error: {e}")
             raise HTTPException(
                 status_code=422,
                 detail=f"向量入库失败: {first_err}"
@@ -171,17 +174,18 @@ async def create_embedding(
         try:
             _write_manifest_ids_to_supabase(manifest)
         except Exception as e:
-            print(f"[kb_embedding] writeback error: {e}")
+            log.warning(f"Supabase writeback error: {e}")
 
         return {
             "success": True,
             "message": f"Successfully processed {len(process_list)} files",
             "manifest": manifest
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"向量入库失败: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="向量入库失败，请检查文件格式或联系管理员")
 
 @router.get("/list")
 async def list_kb_files(
@@ -242,9 +246,8 @@ async def delete_vector(
         manager.remove_file(file_id)
         return {"success": True, "message": "向量已删除"}
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"删除向量失败: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="删除向量失败")
 
 
 @router.post("/search")

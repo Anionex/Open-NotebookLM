@@ -19,7 +19,8 @@ export async function initSupabase(): Promise<boolean> {
 
   initPromise = (async () => {
     try {
-      const response = await fetch('/api/v1/auth/config');
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      const response = await fetch(`${apiBase}/api/v1/auth/config`);
       const data = await response.json();
 
       if (data.supabaseConfigured && data.supabaseUrl && data.supabaseAnonKey) {

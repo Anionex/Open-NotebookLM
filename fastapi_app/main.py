@@ -15,14 +15,18 @@ try:
 except ImportError:
     pass
 
+from workflow_engine.logger import get_logger
+
+log = get_logger(__name__)
+
 # 启动时检查 Supabase 配置
 _supabase_url = os.getenv("SUPABASE_URL")
 _supabase_anon = os.getenv("SUPABASE_ANON_KEY")
 _supabase_service = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 if _supabase_url and _supabase_anon:
-    print(f"[INFO] Supabase 已配置: URL={_supabase_url[:30]}..., ANON_KEY={'已设置' if _supabase_anon else '未设置'}, SERVICE_KEY={'已设置' if _supabase_service else '未设置'}")
+    log.info(f"Supabase 已配置: URL={_supabase_url[:30]}..., ANON_KEY={'已设置' if _supabase_anon else '未设置'}, SERVICE_KEY={'已设置' if _supabase_service else '未设置'}")
 else:
-    print(f"[INFO] Supabase 未配置: URL={'已设置' if _supabase_url else '未设置'}, ANON_KEY={'已设置' if _supabase_anon else '未设置'}")
+    log.info(f"Supabase 未配置: URL={'已设置' if _supabase_url else '未设置'}, ANON_KEY={'已设置' if _supabase_anon else '未设置'}")
 
 
 from urllib.parse import unquote
@@ -33,6 +37,7 @@ from fastapi.responses import FileResponse
 
 from fastapi_app.routers import kb, kb_embedding, files, paper2drawio, paper2ppt, auth
 from fastapi_app.middleware.api_key import APIKeyMiddleware
+from fastapi_app.middleware.logging import LoggingMiddleware
 from workflow_engine.utils import get_project_root
 
 # 本地 Embedding 服务端口（Octen-Embedding-0.6B）
@@ -52,9 +57,9 @@ async def _lifespan(app: FastAPI):
             import urllib.request
             urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=2)
             _already_running = True
-            print(f"[INFO] 本地 Embedding 已在运行，复用 @ {LOCAL_EMBEDDING_URL}")
-        except Exception:
-            pass
+            log.info(f"本地 Embedding 已在运行，复用 @ {LOCAL_EMBEDDING_URL}")
+        except Exception as e:
+            log.debug(f"本地 Embedding 健康检查失败: {e}")
         if not _already_running:
             try:
                 proc = subprocess.Popen(
@@ -71,19 +76,19 @@ async def _lifespan(app: FastAPI):
                 for _ in range(60):
                     time.sleep(0.5)
                     if proc.poll() is not None:
-                        print("[WARN] 本地 Embedding 子进程已退出，请检查上方日志")
+                        log.warning("本地 Embedding 子进程已退出，请检查上方日志")
                         break
                     try:
                         import urllib.request
                         urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=1)
-                        print(f"[INFO] 本地 Embedding 已就绪 (Octen-Embedding-0.6B) @ {LOCAL_EMBEDDING_URL}")
+                        log.info(f"本地 Embedding 已就绪 (Octen-Embedding-0.6B) @ {LOCAL_EMBEDDING_URL}")
                         break
                     except Exception:
                         continue
                 else:
-                    print("[WARN] 本地 Embedding 启动超时，请检查 sentence-transformers 是否已安装及上方日志")
+                    log.warning("本地 Embedding 启动超时，请检查 sentence-transformers 是否已安装及上方日志")
             except Exception as e:
-                print(f"[WARN] 启动本地 Embedding 失败: {e}")
+                log.warning(f"启动本地 Embedding 失败: {e}")
         os.environ["EMBEDDING_API_URL"] = LOCAL_EMBEDDING_URL
         os.environ["EMBEDDING_MODEL"] = "Octen-Embedding-0.6B"
 
@@ -99,7 +104,7 @@ async def _lifespan(app: FastAPI):
                 from fastapi_app.fireredtts_manager import check_and_download_model
                 check_and_download_model()
         except Exception as e:
-            print(f"[WARN] TTS 模型检查失败: {e}")
+            log.warning(f"TTS 模型检查失败: {e}")
 
     yield
     if proc is not None and proc.poll() is None:
@@ -134,6 +139,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Logging middleware (first to capture all requests)
+    app.add_middleware(LoggingMiddleware)
+
     # API key verification for /api/* routes
     app.add_middleware(APIKeyMiddleware)
 
@@ -166,17 +174,18 @@ def create_app() -> FastAPI:
                     if file_path.suffix.lower() == ".pdf":
                         resp.headers["Content-Disposition"] = "inline"
                     return resp
-            except Exception:
+            except Exception as e:
+                log.debug(f"文件路径解析失败: {candidate}, 错误: {e}")
                 continue
         raise HTTPException(status_code=404, detail="Not found")
 
-    print(f"[INFO] Serving /outputs from {outputs_dir}")
+    log.info(f"Serving /outputs from {outputs_dir}")
 
     @app.get("/health")
     async def health_check():
         return {"status": "ok"}
 
-    print("[INFO] 后端已连接 / Backend ready")
+    log.info("后端已连接 / Backend ready")
     return app
 
 
