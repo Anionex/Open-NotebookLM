@@ -38,7 +38,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
   onToggleTodo,
   numberedIndex,
 }) => {
-  const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scale, setScale] = useState(block.scale || 100);
   const [showMenu, setShowMenu] = useState(false);
@@ -103,6 +103,18 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
       }
       if (content === '[ ] ' || content === '[] ') {
         onTypeChange(block.id, 'todo', '');
+        return;
+      }
+      if (content.startsWith('###### ')) {
+        onTypeChange(block.id, 'heading6', content.slice(7));
+        return;
+      }
+      if (content.startsWith('##### ')) {
+        onTypeChange(block.id, 'heading5', content.slice(6));
+        return;
+      }
+      if (content.startsWith('#### ')) {
+        onTypeChange(block.id, 'heading4', content.slice(5));
         return;
       }
       if (content.startsWith('### ')) {
@@ -193,6 +205,39 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
             className="w-full outline-none bg-transparent text-xl font-semibold"
           />
         );
+      case 'heading4':
+        return (
+          <input
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            value={block.content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full outline-none bg-transparent text-lg font-semibold"
+          />
+        );
+      case 'heading5':
+        return (
+          <input
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            value={block.content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full outline-none bg-transparent text-base font-semibold"
+          />
+        );
+      case 'heading6':
+        return (
+          <input
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            value={block.content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full outline-none bg-transparent text-sm font-semibold"
+          />
+        );
       case 'code':
         return (
           <textarea
@@ -245,7 +290,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         return (
           <div className="flex items-start gap-2">
             <span className="mt-1 shrink-0 text-gray-500 min-w-[1.5rem] text-right">
-              {numberedIndex !== undefined ? `${numberedIndex}.` : '1.'}
+              {block.number !== undefined ? `${block.number}.` : numberedIndex !== undefined ? `${numberedIndex}.` : '1.'}
             </span>
             <textarea
               {...baseTextareaProps}

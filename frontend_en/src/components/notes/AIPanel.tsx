@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { apiFetch } from '../../config/api';
 import { getApiSettings } from '../../services/apiSettingsService';
+import { Badge, BadgeGroup } from '../ui';
 import type { KnowledgeFile } from '../../types';
 
 interface AIPanelProps {
   blockId: string;
   files: KnowledgeFile[];
   user: any;
+  notebook?: any;
   noteContext: string;
   noteMemory: string;
   onInsertText: (text: string, blockId: string) => void;
@@ -28,18 +30,35 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   blockId,
   files,
   user,
+  notebook,
   noteContext,
   noteMemory,
   onInsertText,
   onClose,
   onUpdateMemory,
 }) => {
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  // Default: select all files
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
+    new Set(files.map(f => f.id))
+  );
   const [inputText, setInputText] = useState('');
   const [showPresets, setShowPresets] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-select newly added files
+  useEffect(() => {
+    setSelectedFileIds(prev => {
+      const newIds = new Set(prev);
+      files.forEach(f => {
+        if (!prev.has(f.id)) {
+          newIds.add(f.id);
+        }
+      });
+      return newIds;
+    });
+  }, [files]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -83,6 +102,8 @@ export const AIPanel: React.FC<AIPanelProps> = ({
           files: selectedFilePaths,
           query: fullPrompt,
           history: [],
+          email: user?.email || user?.id || undefined,
+          notebook_id: notebook?.id || undefined,
           api_key: apiSettings?.apiKey?.trim() || undefined,
           api_url: apiSettings?.apiUrl?.trim() || undefined,
         }),
@@ -107,25 +128,27 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   };
 
   return (
-    <div className="mt-1 border border-blue-200 bg-blue-50/60 rounded-xl p-3 shadow-sm">
+    <div className="mt-1 border border-accent-200 bg-accent-50/40 rounded-xl p-3 shadow-sm">
       {/* Source file selection - horizontal, small text */}
       {files.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-          <span className="text-xs text-gray-400 shrink-0 font-medium">Sources:</span>
+        <BadgeGroup className="mb-2.5 max-h-24 overflow-y-auto">
+          <span className="text-xs text-neutral-500 shrink-0 font-medium">Sources:</span>
           {files.map(f => (
             <button
               key={f.id}
               onClick={() => toggleFile(f.id)}
-              className={`px-2 py-0.5 text-xs rounded-full border transition-all ${
-                selectedFileIds.has(f.id)
-                  ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
-              }`}
+              className="focus:outline-none"
             >
-              {f.name || f.id}
+              <Badge
+                variant={selectedFileIds.has(f.id) ? 'accent' : 'default'}
+                size="sm"
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                {f.name || f.id}
+              </Badge>
             </button>
           ))}
-        </div>
+        </BadgeGroup>
       )}
 
       {/* Input area */}
@@ -142,7 +165,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
             if (e.key === 'Escape') onClose();
           }}
           placeholder="Ask AI to help write, organize, or expand your notes..."
-          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-400 resize-none bg-white"
+          className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-lg outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 resize-none bg-white transition-all"
           rows={1}
           onInput={e => {
             e.currentTarget.style.height = 'auto';
@@ -152,7 +175,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
         <div className="flex gap-1 shrink-0">
           <button
             onClick={() => setShowPresets(!showPresets)}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors"
+            className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors"
             title="Preset prompts"
           >
             {showPresets ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -160,7 +183,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
           <button
             onClick={handleAsk}
             disabled={loading || !inputText.trim()}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+            className="p-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 transition-colors shadow-sm"
           >
             {loading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -170,7 +193,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
           </button>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors"
+            className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors"
           >
             <X size={16} />
           </button>
@@ -179,7 +202,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
 
       {/* Preset prompts dropdown */}
       {showPresets && (
-        <div className="mt-1.5 border border-gray-200 bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="mt-1.5 border border-neutral-200 bg-white rounded-lg shadow-sm overflow-hidden">
           {ORGANIZE_PRESETS.map(p => (
             <button
               key={p.label}
@@ -188,7 +211,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
                 setShowPresets(false);
                 textareaRef.current?.focus();
               }}
-              className="w-full px-3 py-2 text-sm text-left hover:bg-blue-50 text-gray-700 border-b border-gray-100 last:border-0 transition-colors"
+              className="w-full px-3 py-2 text-sm text-left hover:bg-accent-50 text-neutral-700 border-b border-neutral-100 last:border-0 transition-colors"
             >
               {p.label}
             </button>
@@ -198,17 +221,17 @@ export const AIPanel: React.FC<AIPanelProps> = ({
 
       {/* AI Response */}
       {aiResponse && !loading && (
-        <div className="mt-2.5 p-3 bg-white rounded-lg border border-gray-200 text-sm">
-          <div className="flex items-center gap-1 text-xs text-blue-500 font-medium mb-1.5">
+        <div className="mt-2.5 p-3 bg-white rounded-lg border border-neutral-200 text-sm">
+          <div className="flex items-center gap-1 text-xs text-accent-600 font-medium mb-1.5">
             <Bot size={12} /> AI Response
           </div>
-          <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+          <p className="text-neutral-700 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
           <button
             onClick={() => {
               onInsertText(aiResponse, blockId);
               onClose();
             }}
-            className="mt-2 px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 flex items-center gap-1 transition-colors"
+            className="mt-2 px-3 py-1.5 bg-success-500 text-white rounded-lg text-xs hover:bg-success-600 flex items-center gap-1 transition-colors shadow-sm"
           >
             <Copy size={12} /> Paste to note
           </button>

@@ -106,6 +106,18 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         onTypeChange(block.id, 'todo', '');
         return;
       }
+      if (content.startsWith('###### ')) {
+        onTypeChange(block.id, 'heading6', content.slice(7));
+        return;
+      }
+      if (content.startsWith('##### ')) {
+        onTypeChange(block.id, 'heading5', content.slice(6));
+        return;
+      }
+      if (content.startsWith('#### ')) {
+        onTypeChange(block.id, 'heading4', content.slice(5));
+        return;
+      }
       if (content.startsWith('### ')) {
         onTypeChange(block.id, 'heading3', content.slice(4));
         return;
@@ -192,6 +204,39 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             className="w-full outline-none bg-transparent text-xl font-semibold"
+          />
+        );
+      case 'heading4':
+        return (
+          <input
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            value={block.content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full outline-none bg-transparent text-lg font-semibold"
+          />
+        );
+      case 'heading5':
+        return (
+          <input
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            value={block.content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full outline-none bg-transparent text-base font-semibold"
+          />
+        );
+      case 'heading6':
+        return (
+          <input
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            value={block.content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full outline-none bg-transparent text-sm font-semibold"
           />
         );
       case 'code':
