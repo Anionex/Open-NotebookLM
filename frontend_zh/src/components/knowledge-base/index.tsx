@@ -9,11 +9,13 @@ import { RightPanel } from './RightPanel';
 import { MermaidPreview } from './tools/MermaidPreview';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
+import { useToast } from '../../hooks/useToast';
 import { X, Eye, Trash2, FileText, Image, Video, Link as LinkIcon, Headphones } from 'lucide-react';
 import { apiFetch } from '../../config/api';
 
 const KnowledgeBase = () => {
   const { user } = useAuthStore();
+  const { showToast, ToastContainer } = useToast();
   // State
   const [activeSection, setActiveSection] = useState<SectionType>('library');
   const [activeTool, setActiveTool] = useState<ToolType>('chat');
@@ -164,7 +166,7 @@ const KnowledgeBase = () => {
       setPreviewFile(null);
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Delete failed');
+      showToast('删除失败', 'error');
     }
   };
 
@@ -291,7 +293,8 @@ const KnowledgeBase = () => {
 
   return (
     <div className="w-full h-full flex bg-[#02020a] text-gray-200 overflow-hidden font-sans relative">
-      
+      {ToastContainer}
+
       {/* 1. Sidebar */}
       <Sidebar 
         activeSection={activeSection} 

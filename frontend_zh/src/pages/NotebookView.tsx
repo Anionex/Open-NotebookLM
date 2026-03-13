@@ -19,6 +19,7 @@ import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
 import { QuizContainer } from '../components/quiz/QuizContainer';
 import { NotionEditor } from '../components/notes/NotionEditor';
+import { useToast } from '../hooks/useToast';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -28,6 +29,7 @@ const DEFAULT_USER = { id: 'default', email: 'default' };
 const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void }) => {
   const { user } = useAuthStore();
   const effectiveUser = user || DEFAULT_USER;
+  const { showToast, ToastContainer } = useToast();
   const [activeTool, setActiveTool] = useState<ToolType>('chat');
   
   // Files management
@@ -348,7 +350,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   const handleLoadSavedSet = async (item: typeof outputFeed[number]) => {
     if (!item.setId) {
-      alert('加载失败：该条目没有保存的集合 ID，可能是在持久化功能添加之前创建的。');
+      showToast('加载失败：该条目没有保存的集合 ID，可能是在持久化功能添加之前创建的。', 'error');
       return;
     }
     setLoadingSetId(item.id);
@@ -370,7 +372,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     } catch (err) {
       console.error('Load saved set error:', err);
-      alert('加载失败，数据可能已被删除。');
+      showToast('加载失败，数据可能已被删除。', 'error');
     } finally {
       setLoadingSetId(null);
     }
@@ -570,7 +572,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       if (!apiUrl || !apiKey) {
         const msg = '请先在设置中配置 API URL 和 API Key';
         setVectorError(msg);
-        alert(msg);
+        showToast(msg, 'warning');
         return;
       }
       if (!apiUrl.includes('/embeddings')) {
@@ -996,7 +998,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       .map(({ title, link, snippet }) => ({ title, link, snippet }));
     if (items.length === 0) return;
     if (!notebook?.id || !effectiveUser?.email) {
-      alert('请先选择笔记本并登录');
+      showToast('请先选择笔记本并登录', 'warning');
       return;
     }
     setImportingSources(true);
@@ -1022,9 +1024,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       setFastResearchSources([]);
       setFastResearchSelected(new Set());
       const embeddedMsg = data?.embedded ? `，已向量化 ${data.embedded} 个` : '';
-      alert(`已导入 ${data?.imported ?? items.length} 个来源${embeddedMsg}`);
+      showToast(`已导入 ${data?.imported ?? items.length} 个来源${embeddedMsg}`, 'success');
     } catch (err: any) {
-      alert(err?.message || '导入失败');
+      showToast(err?.message || '导入失败', 'error');
     } finally {
       setImportingSources(false);
     }
@@ -1229,7 +1231,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   ) => {
     if (!e.target.files) return;
     if (!notebook?.id) {
-      alert('请先选择或创建一个笔记本再上传文件');
+      showToast('请先选择或创建一个笔记本再上传文件', 'warning');
       return;
     }
     const file = e.target.files[0];
@@ -1254,16 +1256,16 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       await fetchVectorList();
       if (data.embedded) {
         if (options?.onSuccess) options.onSuccess();
-        else alert('上传成功，已自动入库！');
+        else showToast('上传成功，已自动入库！', 'success');
       } else {
         if (options?.onSuccess) options.onSuccess();
-        else alert('上传成功，但自动入库失败。可在来源管理中重新入库。');
+        else showToast('上传成功，但自动入库失败。可在来源管理中重新入库。', 'warning');
       }
     } catch (err: any) {
       console.error('Upload error:', err);
       const msg = err?.message || '上传失败，请重试';
       setRetrievalError(msg);
-      alert(msg);
+      showToast(msg, 'error');
     } finally {
       setFileUploading(false);
     }
@@ -1372,7 +1374,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   // Tool handlers (PPT, Mindmap, etc.)
   const handleToolGenerate = async (tool: ToolType) => {
     if (selectedIds.size === 0) {
-      alert('请先选择至少一个文件');
+      showToast('请先选择至少一个文件', 'warning');
       return;
     }
 
@@ -1388,7 +1390,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const apiUrl = settings?.apiUrl?.trim() || '';
       const apiKey = settings?.apiKey?.trim() || '';
       if (!apiUrl || !apiKey) {
-        alert('请先在设置中配置 API URL 和 API Key');
+        showToast('请先在设置中配置 API URL 和 API Key', 'warning');
         setToolLoading(false);
         return;
       }
@@ -1437,13 +1439,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         });
         const validSources = [...validDocFiles, ...linkFiles];
         if (validSources.length === 0) {
-          alert('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD 或网页引入）。');
+          showToast('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD 或网页引入）。', 'warning');
           setToolLoading(false);
           return;
         }
         const docPaths = validSources.map(f => f.url).filter(Boolean) as string[];
         if (docPaths.length !== validSources.length) {
-          alert('无法获取文档/网页路径，请重试。');
+          showToast('无法获取文档/网页路径，请重试。', 'error');
           setToolLoading(false);
           return;
         }
@@ -1645,7 +1647,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
     } catch (err) {
       console.error('Tool generation error:', err);
-      alert('生成失败，请重试');
+      showToast('生成失败，请重试', 'error');
     } finally {
       setToolLoading(false);
     }
@@ -1804,6 +1806,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   return (
     <>
+      {ToastContainer}
       <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
       {/* Citation tooltip styles */}
       <style>{`

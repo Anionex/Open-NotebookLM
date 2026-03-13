@@ -171,6 +171,9 @@ def bocha_web_search(
     鉴权：Authorization: Bearer {API KEY}。
     返回统一格式: [{ "title", "link", "snippet" }]，snippet 优先用 summary 字段。
     """
+    from workflow_engine.logger import get_logger
+    log = get_logger(__name__)
+
     payload: Dict[str, Any] = {
         "query": query,
         "count": max(1, min(50, count)),
@@ -181,21 +184,47 @@ def bocha_web_search(
         "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json",
     }
-    with httpx.Client(timeout=25) as client:
-        resp = client.post(BOCHA_WEB_SEARCH_URL, json=payload, headers=headers)
-        resp.raise_for_status()
-        body = resp.json()
 
-    if body.get("code") != 200:
-        raise RuntimeError(body.get("msg") or body.get("message") or f"博查 API 返回 code={body.get('code')}")
+    log.debug(f"博查搜索请求: query={query[:100]}, count={count}")
 
-    data = body.get("data") or {}
-    web_pages = data.get("webPages") or {}
+    try:
+        with httpx.Client(timeout=25) as client:
+            resp = client.post(BOCHA_WEB_SEARCH_URL, json=payload, headers=headers)
+            resp.raise_for_status()
+            body = resp.json()
+    except httpx.HTTPStatusError as e:
+        log.error(f"博查 API HTTP 错误: {e.response.status_code}, {e.response.text[:200]}")
+        raise RuntimeError(f"博查 API 请求失败: HTTP {e.response.status_code}")
+    except Exception as e:
+        log.error(f"博查 API 请求异常: {type(e).__name__}: {str(e)}")
+        raise
+
+    # 检查响应码
+    code = body.get("code")
+    if code != 200:
+        msg = body.get("msg") or body.get("message") or "未知错误"
+        log.error(f"博查 API 返回错误: code={code}, message={msg}")
+        raise RuntimeError(f"博查 API 返回 code={code}: {msg}")
+
+    # 解析响应数据
+    data = body.get("data")
+    if not data:
+        log.warning("博查 API 响应中没有 data 字段")
+        return []
+
+    web_pages = data.get("webPages")
+    if not web_pages:
+        log.warning("博查 API 响应中没有 webPages 字段")
+        return []
+
     items = web_pages.get("value") or []
+    log.info(f"博查搜索返回 {len(items)} 条结果")
 
     results: List[Dict[str, Any]] = []
     for item in items[:count]:
         url = (item.get("url") or "").strip()
+        if not url:
+            continue
         name = (item.get("name") or "").strip() or "Untitled"
         snippet = (item.get("summary") or item.get("snippet") or "").strip()
         results.append({
@@ -204,4 +233,6 @@ def bocha_web_search(
             "snippet": snippet,
             "source": _safe_domain(url),
         })
+
+    log.debug(f"博查搜索成功返回 {len(results)} 条有效结果")
     return results
