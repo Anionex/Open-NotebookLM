@@ -201,7 +201,7 @@ TTS_IDLE_TIMEOUT=300
 uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8213 --reload
 ```
 
-后端启动时会自动拉起本地 Embedding 服务（Octen-Embedding-0.6B，端口 17997），首次启动会下载模型。如需关闭本地 Embedding，设置 `USE_LOCAL_EMBEDDING=0`。
+后端启动时会自动拉起本地 Embedding 服务（Octen-Embedding-0.6B，默认端口 `26210`），首次启动会下载模型。如需关闭本地 Embedding，设置 `USE_LOCAL_EMBEDDING=0`。
 
 - 健康检查：http://localhost:8213/health
 - API 文档：http://localhost:8213/docs
@@ -220,30 +220,81 @@ cd frontend_en && npm install && npm run dev
 
 访问 http://localhost:3000（或终端提示的端口）。
 
+> `npm run dev` 默认读取各前端目录下的 `vite.config.ts`，当前默认端口是 `3000`。
+> 如果使用仓库自带的 `scripts/start.sh`，脚本会启动**中文前端**并强制使用 `3001` 端口，同时启动后端 `8213` 和 `cpolar` 隧道。
+
 > 前端的 LLM API 地址和 API Key 可在页面右上角设置面板中动态修改，无需重启。
 
 #### 前端配置（可选）
 
 **本地部署**（前后端在同一台机器）：无需配置，默认即可使用。
 
-**公网访问**（通过 cpolar/ngrok 等公网地址访问）：需要配置后端 API 地址。
+**公网部署**（通过 cpolar/ngrok 等内网穿透工具）：
+
+前端内置智能检测功能：
+- 当 `.env` 配置为 `localhost` 但从公网访问时，会自动使用相对路径（当前域名）
+- 开发模式下，Vite 会将 `/api` 和 `/outputs` 代理到本地后端 `http://localhost:8213`
+- **推荐方式**：使用 nginx 反向代理，将前端和后端统一到同一域名下，无需额外配置
+
+> **说明**：上面的 `3000`、`3001`、`8080`、`8213` 只是文档示例端口，实际部署时请按你的前端、后端和代理服务的真实监听端口修改对应配置。
+> 对于个人测试或轻量使用，`scripts/start.sh + Vite 代理 + cpolar` 已可工作；如需更稳定的公网访问或大规模应用，仍推荐使用 nginx 反向代理方案。
+> 当前仓库中的 `scripts/start.sh` 默认使用 `CPOLAR_TUNNEL_NAME=opennotebook`，并显示配置中的 `CPOLAR_PUBLIC_URL`。如果你修改了 cpolar 保留隧道，也请同步修改脚本里的这两个变量。
 
 创建 `frontend_zh/.env`（或 `frontend_en/.env`）：
 
 ```env
-# 后端 API 基础地址
+# 后端 API 基础地址（本地开发）
 VITE_API_BASE_URL=http://localhost:8213
 ```
 
-**配置选项：**
+**部署方式对比：**
 
-| 部署方式 | 配置 | 示例 |
+| 部署方式 | 配置 | 说明 |
 |---------|------|------|
-| **纯本地部署** | 留空或设置为 `http://localhost:8213` | `VITE_API_BASE_URL=http://localhost:8213` |
-| **公网访问** | 设置为后端的公网地址 | `VITE_API_BASE_URL=https://backend.example.com` |
-| **使用 Vite 代理** | 留空（使用相对路径） | `VITE_API_BASE_URL=` |
+| **本地开发** | `VITE_API_BASE_URL=http://localhost:8213` | 前端和后端都在本地运行 |
+| **`scripts/start.sh` 启动** | `VITE_API_BASE_URL=http://localhost:8213` | 当前脚本会启动中文前端 `3001`、后端 `8213`，并通过命名 cpolar 隧道暴露前端 |
+| **公网部署（推荐）** | `VITE_API_BASE_URL=http://localhost:8213` | 使用 nginx 反向代理统一域名，智能检测自动切换到相对路径 |
+| **公网部署（分离）** | `VITE_API_BASE_URL=https://backend-xxx.cpolar.io` | 前后端使用不同域名，需手动配置后端地址 |
 
-> **注意**：修改 `.env` 后需要重启前端（`npm run dev`）才能生效。
+**推荐：使用 nginx 反向代理统一域名**
+
+创建 `nginx.conf`：
+
+```nginx
+server {
+    listen 8080;
+
+    # 前端
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # 后端 API
+    location /api/ {
+        proxy_pass http://localhost:8213/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # 后端输出文件
+    location /outputs/ {
+        proxy_pass http://localhost:8213/outputs/;
+    }
+}
+```
+
+如果你不是直接运行 `npm run dev`，而是沿用当前仓库的 `scripts/start.sh`，请把上面前端反向代理目标从 `http://localhost:3000` 改成 `http://localhost:3001`。
+
+然后使用 cpolar 暴露 nginx 端口：
+```bash
+cpolar http 8080
+```
+
+这样前端和后端在同一域名下，智能检测会自动使用相对路径，无需修改配置。实际部署时请把示例中的端口替换为你的真实端口。
+
+> **注意**：修改 `.env` 后需要重新构建前端（`npm run build`）或重启开发服务器（`npm run dev`）。
 
 ---
 

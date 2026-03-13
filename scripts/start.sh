@@ -2,6 +2,9 @@
 
 # 快速启动脚本 - 后台启动所有服务并显示访问信息
 
+CPOLAR_TUNNEL_NAME="opennotebook"
+CPOLAR_PUBLIC_URL="https://opennotebook.nas.cpolar.cn"
+
 cd /data/users/szl/opennotebook/opennotebookLM
 
 # 清理端口占用
@@ -11,6 +14,7 @@ lsof -ti:3001 | xargs kill -9 2>/dev/null
 pkill -9 -f "uvicorn fastapi_app.main:app" 2>/dev/null
 pkill -9 -f "vite.*--port 3001" 2>/dev/null
 pkill -9 -f "cpolar http 3001" 2>/dev/null
+pkill -9 -f "cpolar start ${CPOLAR_TUNNEL_NAME}" 2>/dev/null
 sleep 1
 
 # 后台启动后端
@@ -27,22 +31,14 @@ cd ..
 
 # 后台启动 cpolar
 echo "启动 cpolar 隧道..."
-nohup cpolar http 3001 > logs/cpolar.log 2>&1 &
+nohup cpolar start "${CPOLAR_TUNNEL_NAME}" -processMode single > logs/cpolar.log 2>&1 &
 CPOLAR_PID=$!
 
 # 等待服务启动
 echo "等待服务启动..."
 sleep 12
 
-# 获取公网地址
-PUBLIC_URL=""
-for i in {1..8}; do
-    PUBLIC_URL=$(curl -s http://localhost:4048/http/in 2>/dev/null | grep -oP 'https?://[^"<>]+\.cpolar\.(cn|top|com)' | head -1)
-    if [ -n "$PUBLIC_URL" ]; then
-        break
-    fi
-    sleep 2
-done
+PUBLIC_URL="$CPOLAR_PUBLIC_URL"
 
 # 显示信息
 echo ""
@@ -54,7 +50,7 @@ echo "前端: http://localhost:3001"
 if [ -n "$PUBLIC_URL" ]; then
     echo "公网: $PUBLIC_URL"
 else
-    echo "公网: 获取中... (稍后运行: curl -s http://localhost:4048/http/in | grep cpolar)"
+    echo "公网: $CPOLAR_PUBLIC_URL (如果未生效，检查 logs/cpolar.log)"
 fi
 echo "======================================="
 echo ""
@@ -68,5 +64,5 @@ echo "  Backend: logs/backend.log"
 echo "  Frontend: logs/frontend.log"
 echo "  Cpolar: logs/cpolar.log"
 echo ""
-echo "停止服务: ./scripts/stop-services.sh"
+echo "停止服务: ./scripts/stop.sh"
 echo ""
