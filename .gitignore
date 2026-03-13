@@ -10,6 +10,7 @@ logs/
 
 # Outputs
 outputs/
+dataflow_agent/
 
 # Python
 __pycache__/
@@ -60,4 +61,3 @@ Thumbs.db
 # Static uploads
 static/uploads/
 .claude/
-

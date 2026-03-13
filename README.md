@@ -309,7 +309,7 @@ opennotebookLM/
 │   ├── dependencies/        #   Dependency injection (auth, Supabase client)
 │   ├── middleware/           #   Middleware (API key validation)
 │   └── workflow_adapters/   #   Workflow adapter layer
-├── dataflow_agent/          # Workflow engine (DataFlow-Agent)
+├── workflow_engine/         # Workflow engine (DataFlow-Agent)
 │   ├── agentroles/          #   Agent role definitions
 │   ├── workflow/            #   Workflows (Paper2PPT, PDF2PPT, Image2Drawio, etc.)
 │   ├── promptstemplates/    #   Prompt templates

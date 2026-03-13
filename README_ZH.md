@@ -309,7 +309,7 @@ opennotebookLM/
 │   ├── dependencies/        #   依赖注入（认证、Supabase 客户端）
 │   ├── middleware/           #   中间件（API Key 校验）
 │   └── workflow_adapters/   #   工作流适配层
-├── dataflow_agent/          # 工作流引擎（DataFlow-Agent）
+├── workflow_engine/         # 工作流引擎（DataFlow-Agent）
 │   ├── agentroles/          #   Agent 角色定义
 │   ├── workflow/            #   工作流（Paper2PPT、PDF2PPT、Image2Drawio 等）
 │   ├── promptstemplates/    #   提示模板
