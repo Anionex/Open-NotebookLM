@@ -14,7 +14,9 @@ interface NotionEditorProps {
   notebook: any;
   user: any;
   files?: KnowledgeFile[];
-  onSaved?: () => void;
+  onSaved?: (noteInfo: { title: string; fileName: string }) => void;
+  initialTitle?: string;
+  initialBlocks?: Block[];
 }
 
 export const NotionEditor: React.FC<NotionEditorProps> = ({
@@ -23,10 +25,12 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   user,
   files = [],
   onSaved,
+  initialTitle = 'Untitled',
+  initialBlocks = [{ id: '1', type: 'text', content: '' }],
 }) => {
-  const [title, setTitle] = useState('Untitled');
+  const [title, setTitle] = useState(initialTitle);
   const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([{ id: '1', type: 'text', content: '' }]);
+  const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [slashMenuBlock, setSlashMenuBlock] = useState<string | null>(null);
   const [aiPanelBlock, setAiPanelBlock] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -282,7 +286,11 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
     let codeContent = '';
     let tableLines: string[] = [];
 
-    const removeBold = (s: string) => s.replace(/\*\*(.*?)\*\*/g, '$1');
+    const cleanMarkdown = (s: string) => s
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/__(.*?)__/g, '$1')
+      .replace(/_(.*?)_/g, '$1');
 
     const flushTable = () => {
       if (tableLines.length > 0) {
@@ -307,24 +315,34 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
         tableLines.push(line);
       } else {
         flushTable();
-        if (line.startsWith('# ')) {
-          newBlocks.push({ id: generateId(), type: 'heading1', content: removeBold(line.slice(2)) });
-        } else if (line.startsWith('## ')) {
-          newBlocks.push({ id: generateId(), type: 'heading2', content: removeBold(line.slice(3)) });
+        if (line.startsWith('###### ')) {
+          newBlocks.push({ id: generateId(), type: 'heading6', content: cleanMarkdown(line.slice(7)) });
+        } else if (line.startsWith('##### ')) {
+          newBlocks.push({ id: generateId(), type: 'heading5', content: cleanMarkdown(line.slice(6)) });
+        } else if (line.startsWith('#### ')) {
+          newBlocks.push({ id: generateId(), type: 'heading4', content: cleanMarkdown(line.slice(5)) });
         } else if (line.startsWith('### ')) {
-          newBlocks.push({ id: generateId(), type: 'heading3', content: removeBold(line.slice(4)) });
-        } else if (line.match(/^[-*+]\s/)) {
-          newBlocks.push({ id: generateId(), type: 'bulletList', content: removeBold(line.slice(2)) });
+          newBlocks.push({ id: generateId(), type: 'heading3', content: cleanMarkdown(line.slice(4)) });
+        } else if (line.startsWith('## ')) {
+          newBlocks.push({ id: generateId(), type: 'heading2', content: cleanMarkdown(line.slice(3)) });
+        } else if (line.startsWith('# ')) {
+          newBlocks.push({ id: generateId(), type: 'heading1', content: cleanMarkdown(line.slice(2)) });
+        } else if (line.match(/^\s*[-*+]\s/)) {
+          const trimmed = line.trimStart();
+          newBlocks.push({ id: generateId(), type: 'bulletList', content: cleanMarkdown(trimmed.slice(2)) });
         } else if (line.match(/^\d+\.\s/)) {
-          newBlocks.push({ id: generateId(), type: 'numberedList', content: removeBold(line.replace(/^\d+\.\s+/, '')) });
+          const match = line.match(/^(\d+)\.\s+(.*)$/);
+          if (match) {
+            newBlocks.push({ id: generateId(), type: 'numberedList', content: cleanMarkdown(match[2]), number: parseInt(match[1]) });
+          }
         } else if (line.startsWith('> ')) {
-          newBlocks.push({ id: generateId(), type: 'quote', content: removeBold(line.slice(2)) });
+          newBlocks.push({ id: generateId(), type: 'quote', content: cleanMarkdown(line.slice(2)) });
         } else if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
           newBlocks.push({ id: generateId(), type: 'divider', content: '' });
         } else if (line.trim() === '') {
           // skip empty lines
         } else {
-          newBlocks.push({ id: generateId(), type: 'text', content: removeBold(line) });
+          newBlocks.push({ id: generateId(), type: 'text', content: cleanMarkdown(line) });
         }
       }
     });
@@ -349,6 +367,9 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
           case 'heading1': return `# ${block.content}\n`;
           case 'heading2': return `## ${block.content}\n`;
           case 'heading3': return `### ${block.content}\n`;
+          case 'heading4': return `#### ${block.content}\n`;
+          case 'heading5': return `##### ${block.content}\n`;
+          case 'heading6': return `###### ${block.content}\n`;
           case 'bulletList': return `- ${block.content}\n`;
           case 'numberedList': {
             numIdx++;
@@ -371,11 +392,10 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
       const t = blocks[i].type;
       if (t === 'numberedList') {
         count++;
-      } else if (t === 'text' || t.startsWith('heading')) {
-        // Stop at text or heading blocks
+      } else {
+        // Stop at any non-numberedList block
         break;
       }
-      // bulletList, todo, quote etc. don't break numbering
     }
     return count;
   };
@@ -389,7 +409,8 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
         ? `![Cover](${coverImage})\n\n# ${title}\n\n${content}`
         : `# ${title}\n\n${content}`;
       const blob = new Blob([mdContent], { type: 'text/markdown' });
-      const file = new File([blob], `${title}.md`, { type: 'text/markdown' });
+      const fileName = `${title}_${Date.now()}.md`;
+      const file = new File([blob], fileName, { type: 'text/markdown' });
 
       const formData = new FormData();
       formData.append('file', file);
@@ -402,7 +423,7 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
       if (!res.ok) throw new Error('Save failed');
 
       alert('Note saved to knowledge base!');
-      onSaved?.();
+      onSaved?.({ title, fileName });
       onClose();
     } catch {
       alert('Failed to save note');

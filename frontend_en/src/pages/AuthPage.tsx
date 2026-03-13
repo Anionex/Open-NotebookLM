@@ -16,6 +16,7 @@ export default function AuthPage() {
     signUpWithEmail,
     verifyOtp,
     resendOtp,
+    continueAsGuest,
     clearError,
     clearPendingVerification,
   } = useAuthStore();
@@ -333,6 +334,18 @@ export default function AuthPage() {
           {displayError && (
             <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {displayError}
+            </div>
+          )}
+
+          {mode !== 'verify' && (
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={continueAsGuest}
+                className="text-sm text-slate-500 hover:text-slate-700 underline"
+              >
+                Continue as Guest
+              </button>
             </div>
           )}
         </motion.div>

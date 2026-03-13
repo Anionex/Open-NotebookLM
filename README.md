@@ -96,6 +96,7 @@ English | [中文](README_ZH.md)
 | 📚 **Knowledge Base** | Upload PDFs, paste URLs/text, import from web search — aggregate multiple sources into a notebook |
 | 🔐 **User Management** | Supabase email + OTP authentication, multi-user data isolation; works without login when unconfigured |
 | 💬 **Smart QA** | RAG-based Q&A grounded in selected documents, with persistent chat history |
+| ✍️ **AI-Assisted Notes** | Notion-style block editor with AI polish, rewrite, explain, and source-based generation; supports headings (1-6), lists, code blocks, and Markdown formatting |
 | 🎨 **PPT Generation** | One-click editable slide decks from knowledge base content |
 | 🧠 **Mind Maps** | Generate Mermaid mind maps with preview and export |
 | 🎙️ **Knowledge Podcast** | Turn knowledge base content into podcast scripts and narration assets |
