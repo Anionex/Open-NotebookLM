@@ -53,6 +53,19 @@ class AppSettings(BaseSettings):
     USE_LOCAL_TTS: int = 0
     TTS_ENGINE: str = "qwen"
     TTS_IDLE_TIMEOUT: int = 300
+    LOCAL_TTS_MODEL: str = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+    LOCAL_TTS_PORT: int = 26211
+    LOCAL_TTS_CMD: str = "vllm-omni"
+    LOCAL_TTS_CUDA_VISIBLE_DEVICES: Optional[str] = None
+    LOCAL_TTS_GPU_MEMORY_UTILIZATION: float = 0.3
+
+    # Local Embedding
+    USE_LOCAL_EMBEDDING: int = 1
+    LOCAL_EMBEDDING_MODEL: str = "Octen/Octen-Embedding-0.6B"
+    LOCAL_EMBEDDING_PORT: int = 26210
+    LOCAL_EMBEDDING_CMD: str = "vllm"
+    LOCAL_EMBEDDING_CUDA_VISIBLE_DEVICES: Optional[str] = None
+    LOCAL_EMBEDDING_GPU_MEMORY_UTILIZATION: float = 0.3
 
     class Config:
         env_file = ".env"

@@ -2,7 +2,9 @@ import os
 import re
 import wave
 import base64
+import io
 from typing import Optional, List
+import httpx
 from workflow_engine.logger import get_logger
 from workflow_engine.toolkits.multimodaltool.providers import get_provider
 from workflow_engine.toolkits.multimodaltool.req_img import _post_raw
@@ -52,6 +54,67 @@ def split_tts_text(content: str, limit: int) -> List[str]:
                 final_parts.append(p[i:i + limit])
     return final_parts
 
+
+def _read_wav_frames(audio_bytes: bytes) -> Optional[tuple[int, int, int, bytes]]:
+    if len(audio_bytes) < 12 or audio_bytes[:4] != b"RIFF" or audio_bytes[8:12] != b"WAVE":
+        return None
+
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
+            return (
+                wav_file.getnchannels(),
+                wav_file.getsampwidth(),
+                wav_file.getframerate(),
+                wav_file.readframes(wav_file.getnframes()),
+            )
+    except wave.Error:
+        return None
+
+
+def save_audio_chunks_to_wav(
+    audio_chunks: List[bytes],
+    save_path: str,
+    default_channels: int = 1,
+    default_sampwidth: int = 2,
+    default_framerate: int = 24000,
+) -> str:
+    if not audio_chunks:
+        raise ValueError("No audio chunks to save")
+
+    wav_chunks: List[bytes] = []
+    wav_params: Optional[tuple[int, int, int]] = None
+    all_chunks_are_wav = True
+
+    for idx, chunk in enumerate(audio_chunks, start=1):
+        wav_payload = _read_wav_frames(chunk)
+        if wav_payload is None:
+            all_chunks_are_wav = False
+            break
+
+        channels, sampwidth, framerate, frames = wav_payload
+        current_params = (channels, sampwidth, framerate)
+        if wav_params is None:
+            wav_params = current_params
+        elif wav_params != current_params:
+            raise ValueError(
+                f"Inconsistent WAV params across chunks: expected {wav_params}, got {current_params} at chunk {idx}"
+            )
+        wav_chunks.append(frames)
+
+    with wave.open(save_path, "wb") as wav_file:
+        if all_chunks_are_wav and wav_params is not None:
+            wav_file.setnchannels(wav_params[0])
+            wav_file.setsampwidth(wav_params[1])
+            wav_file.setframerate(wav_params[2])
+            wav_file.writeframes(b"".join(wav_chunks))
+        else:
+            wav_file.setnchannels(default_channels)
+            wav_file.setsampwidth(default_sampwidth)
+            wav_file.setframerate(default_framerate)
+            wav_file.writeframes(b"".join(audio_chunks))
+
+    return save_path
+
 async def generate_speech_bytes_async(
     text: str,
     api_url: str,
@@ -68,26 +131,51 @@ async def generate_speech_bytes_async(
 
     if use_local:
         try:
-            import sys
-            from pathlib import Path
-            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "fastapi_app"))
-
             if tts_engine == "qwen":
-                from qwen_tts_manager import generate_speech, is_available
-                log.info(f"[TTS] 使用本地 Qwen3-TTS")
+                local_tts_api_url = os.getenv("LOCAL_TTS_API_URL", "http://127.0.0.1:26211/v1").rstrip("/")
+                local_tts_model = os.getenv("LOCAL_TTS_MODEL", model or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
+                has_chinese = bool(re.search(r"[\u4e00-\u9fff]", text))
+                language = kwargs.get("language") or ("Chinese" if has_chinese else "English")
+                instructions = kwargs.get("instructions") or (
+                    "用自然、亲切的播客主播语气讲述，语速适中，富有感染力"
+                    if has_chinese else
+                    "Speak in a natural, friendly podcast host tone with moderate pace and engaging delivery"
+                )
+                payload = {
+                    "model": local_tts_model,
+                    "input": text,
+                    "voice": voice_name,
+                    "response_format": kwargs.get("response_format", "wav"),
+                    "language": language,
+                    "instructions": instructions,
+                }
+                headers = {"Content-Type": "application/json"}
+                local_api_key = os.getenv("LOCAL_TTS_API_KEY", "").strip()
+                if local_api_key:
+                    headers["Authorization"] = f"Bearer {local_api_key}"
+                log.info(f"[TTS] 使用本地 Qwen3-TTS vLLM-Omni: {local_tts_api_url}/audio/speech")
+                async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), http2=False) as client:
+                    resp = await client.post(
+                        f"{local_tts_api_url}/audio/speech",
+                        headers=headers,
+                        json=payload,
+                    )
+                    log.info(f"[TTS] local status={resp.status_code}")
+                    resp.raise_for_status()
+                    return resp.content
             elif tts_engine == "firered":
+                import sys
+                from pathlib import Path
+                sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "fastapi_app"))
                 from fireredtts_manager import generate_speech, is_available
-                log.info(f"[TTS] 使用本地 FireRedTTS2")
+                log.info(f"[TTS] 使用本地 FireRedTTS2（非 vLLM）")
+                if is_available():
+                    import asyncio
+                    audio_bytes = await asyncio.to_thread(generate_speech, text, voice_name)
+                    return audio_bytes
             else:
                 log.warning(f"[TTS] 未知引擎 {tts_engine}，回退到 API")
                 raise ValueError(f"Unknown TTS engine: {tts_engine}")
-
-            if is_available():
-                import asyncio
-                audio_bytes = await asyncio.to_thread(generate_speech, text, voice_name)
-                return audio_bytes
-            else:
-                log.warning(f"[TTS] {tts_engine} 不可用，回退到 API")
         except Exception as e:
             log.warning(f"[TTS] 本地 TTS 失败: {e}，回退到 API")
 
@@ -153,12 +241,7 @@ async def generate_speech_and_save_async(
 
     os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
 
-    # Save as WAV (assuming 24kHz, 16bit, Mono as per user doc)
-    with wave.open(save_path, "wb") as wav_file:
-        wav_file.setnchannels(1)        # 1 Channel
-        wav_file.setsampwidth(2)        # 16 bit = 2 bytes
-        wav_file.setframerate(24000)    # 24kHz
-        wav_file.writeframes(b"".join(audio_chunks))
+    save_audio_chunks_to_wav(audio_chunks, save_path)
 
     log.info(f"Audio saved to {save_path}")
     return save_path

@@ -4,8 +4,11 @@ import os
 import subprocess
 import sys
 import time
+import shutil
+import importlib.util
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Iterable, List, Optional
 
 # 加载 .env，使 SUPABASE_* 等环境变量在 os.getenv 中可用
 try:
@@ -41,78 +44,335 @@ from fastapi_app.middleware.logging import LoggingMiddleware
 from workflow_engine.utils import get_project_root
 
 # 本地 Embedding 服务端口（Octen-Embedding-0.6B）
-LOCAL_EMBEDDING_PORT = 26210
-LOCAL_EMBEDDING_URL = f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/v1/embeddings"
+LOCAL_EMBEDDING_PORT = int(os.getenv("LOCAL_EMBEDDING_PORT", "26210"))
+LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "Octen/Octen-Embedding-0.6B")
+
+LOCAL_TTS_PORT = int(os.getenv("LOCAL_TTS_PORT", "26211"))
+LOCAL_TTS_MODEL = os.getenv("LOCAL_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
+
+
+def _resolve_command(env_name: str, default_binary: str) -> str:
+    configured = os.getenv(env_name, "").strip()
+    if configured:
+        return configured
+    return shutil.which(default_binary) or default_binary
+
+
+def _resolve_gpu_memory_utilization(env_name: str, default: str = "0.3") -> str:
+    value = os.getenv(env_name, "").strip() or os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "").strip()
+    if not value:
+        return default
+    return value
+
+
+def _default_hf_cache_root() -> Path:
+    hf_home = os.getenv("HF_HOME", "").strip()
+    if hf_home:
+        return Path(hf_home).expanduser() / "hub"
+    return Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def _resolve_cached_model_path(model_name: str) -> str:
+    model_name = model_name.strip()
+    if not model_name:
+        return model_name
+
+    local_path = Path(model_name).expanduser()
+    if local_path.exists():
+        return str(local_path.resolve())
+
+    if "/" not in model_name:
+        return model_name
+
+    org, repo = model_name.split("/", 1)
+    cache_root = _default_hf_cache_root()
+    snapshots_dir = cache_root / f"models--{org}--{repo}" / "snapshots"
+    if not snapshots_dir.exists():
+        log.warning("未找到模型本地缓存快照，继续使用 repo id: %s", model_name)
+        return model_name
+
+    snapshots = [path for path in snapshots_dir.iterdir() if path.is_dir()]
+    if not snapshots:
+        log.warning("模型缓存目录下没有 snapshots，继续使用 repo id: %s", model_name)
+        return model_name
+
+    latest_snapshot = max(snapshots, key=lambda path: path.stat().st_mtime)
+    resolved = str(latest_snapshot.resolve())
+    log.info("模型 %s 解析为本地缓存路径 %s", model_name, resolved)
+    return resolved
+
+
+def _query_available_gpus() -> list[str]:
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,memory.free,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return []
+
+    rows: list[tuple[int, int, int]] = []
+    for line in result.stdout.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 3:
+            continue
+        try:
+            rows.append((int(parts[0]), int(parts[1]), int(parts[2])))
+        except ValueError:
+            continue
+
+    rows.sort(key=lambda item: (-item[1], item[2], item[0]))
+    return [str(index) for index, _, _ in rows]
+
+
+def _select_cuda_visible_devices(env_name: str, reserved: set[str]) -> Optional[str]:
+    configured = os.getenv(env_name, "").strip()
+    if configured:
+        return configured
+
+    available = _query_available_gpus()
+    for gpu in available:
+        if gpu not in reserved:
+            reserved.add(gpu)
+            return gpu
+    return None
+
+
+def _build_child_env(project_root: str, cuda_visible_devices: Optional[str] = None) -> dict[str, str]:
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "").strip()
+    if existing_pythonpath:
+        env["PYTHONPATH"] = f"{project_root}:{existing_pythonpath}"
+    else:
+        env["PYTHONPATH"] = project_root
+    if cuda_visible_devices:
+        env["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices
+    return env
+
+
+def _http_ready(url: str, timeout: float = 2.0) -> bool:
+    try:
+        import urllib.request
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return 200 <= getattr(resp, "status", 200) < 500
+    except Exception:
+        return False
+
+
+def _port_in_use(port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _pick_service_port(preferred_port: int, reserved_ports: set[int]) -> int:
+    if preferred_port not in reserved_ports and not _port_in_use(preferred_port):
+        reserved_ports.add(preferred_port)
+        return preferred_port
+
+    for candidate in range(preferred_port + 1, preferred_port + 20):
+        if candidate in reserved_ports:
+            continue
+        if not _port_in_use(candidate):
+            reserved_ports.add(candidate)
+            return candidate
+
+    raise RuntimeError(f"无法为本地服务找到空闲端口，起始端口={preferred_port}")
+
+
+def _wait_for_ready(url: str, label: str, proc: Optional[subprocess.Popen], timeout_s: float = 180.0) -> None:
+    deadline = time.time() + timeout_s
+    last_error = ""
+    while time.time() < deadline:
+        if proc is not None and proc.poll() is not None:
+            raise RuntimeError(f"{label} 子进程已退出，退出码={proc.returncode}")
+        if _http_ready(url):
+            return
+        time.sleep(1.0)
+    raise RuntimeError(f"{label} 启动超时，等待地址: {url}。{last_error}")
+
+
+def _resolve_stage_config_path() -> str:
+    configured = os.getenv("VLLM_OMNI_STAGE_CONFIG", "").strip()
+    if configured:
+        return configured
+
+    spec = importlib.util.find_spec("vllm_omni")
+    if spec and spec.submodule_search_locations:
+        base = Path(next(iter(spec.submodule_search_locations)))
+        candidate = base / "model_executor" / "stage_configs" / "qwen3_tts.yaml"
+        if candidate.exists():
+            return str(candidate)
+
+    return "vllm_omni/model_executor/stage_configs/qwen3_tts.yaml"
+
+
+def _spawn_process_with_candidates(
+    command_candidates: Iterable[List[str]],
+    cwd: str,
+    ready_url: str,
+    label: str,
+    timeout_s: float = 180.0,
+    extra_env: Optional[dict[str, str]] = None,
+) -> subprocess.Popen:
+    errors = []
+    for cmd in command_candidates:
+        log.info("%s 启动命令: %s", label, " ".join(cmd))
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                env=extra_env,
+                stdout=None,
+                stderr=None,
+            )
+        except FileNotFoundError as e:
+            errors.append(f"{cmd[0]} 不存在: {e}")
+            continue
+        try:
+            _wait_for_ready(ready_url, label, proc, timeout_s=timeout_s)
+            return proc
+        except Exception as e:
+            errors.append(f"{' '.join(cmd)} -> {e}")
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            continue
+    raise RuntimeError(f"{label} 启动失败: {' | '.join(errors)}")
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    # 默认使用本地 Embedding（Octen-Embedding-0.6B），不再用远程；设 USE_LOCAL_EMBEDDING=0 可关闭
-    use_local = os.getenv("USE_LOCAL_EMBEDDING", "1").strip().lower() in ("1", "true", "yes")
-    proc = None
-    if use_local:
-        # 检查 embedding 服务是否已在运行（--reload 场景下避免重复拉起）
-        _already_running = False
-        try:
-            import urllib.request
-            urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=2)
-            _already_running = True
-            log.info(f"本地 Embedding 已在运行，复用 @ {LOCAL_EMBEDDING_URL}")
-        except Exception as e:
-            log.debug(f"本地 Embedding 健康检查失败: {e}")
-        if not _already_running:
-            try:
-                proc = subprocess.Popen(
-                    [
-                        sys.executable, "-m", "uvicorn",
-                        "fastapi_app.embedding_server:app",
-                        "--host", "127.0.0.1",
-                        "--port", str(LOCAL_EMBEDDING_PORT),
-                    ],
-                    cwd=str(Path(__file__).resolve().parent.parent),
-                    stdout=None,
-                    stderr=None,
-                )
-                for _ in range(60):
-                    time.sleep(0.5)
-                    if proc.poll() is not None:
-                        log.warning("本地 Embedding 子进程已退出，请检查上方日志")
-                        break
-                    try:
-                        import urllib.request
-                        urllib.request.urlopen(f"http://127.0.0.1:{LOCAL_EMBEDDING_PORT}/health", timeout=1)
-                        log.info(f"本地 Embedding 已就绪 (Octen-Embedding-0.6B) @ {LOCAL_EMBEDDING_URL}")
-                        break
-                    except Exception:
-                        continue
-                else:
-                    log.warning("本地 Embedding 启动超时，请检查 sentence-transformers 是否已安装及上方日志")
-            except Exception as e:
-                log.warning(f"启动本地 Embedding 失败: {e}")
-        os.environ["EMBEDDING_API_URL"] = LOCAL_EMBEDDING_URL
-        os.environ["EMBEDDING_MODEL"] = "Octen-Embedding-0.6B"
+    managed_procs: list[subprocess.Popen] = []
+    project_root = str(Path(__file__).resolve().parent.parent)
+    embedding_cmd = _resolve_command("LOCAL_EMBEDDING_CMD", "vllm")
+    tts_command = _resolve_command("LOCAL_TTS_CMD", "vllm-omni")
+    resolved_embedding_model = _resolve_cached_model_path(LOCAL_EMBEDDING_MODEL)
+    resolved_tts_model = _resolve_cached_model_path(LOCAL_TTS_MODEL)
+    reserved_gpus: set[str] = set()
+    reserved_ports: set[int] = set()
 
-    # 检查 TTS 模型
+    # 默认使用本地 Embedding（Octen-Embedding-0.6B）vLLM 服务；设 USE_LOCAL_EMBEDDING=0 可关闭
+    use_local = os.getenv("USE_LOCAL_EMBEDDING", "1").strip().lower() in ("1", "true", "yes")
+    if use_local:
+        embedding_port = LOCAL_EMBEDDING_PORT
+        embedding_base_url = f"http://127.0.0.1:{embedding_port}/v1"
+        embedding_url = f"{embedding_base_url}/embeddings"
+        embedding_ready_url = f"{embedding_base_url}/models"
+        if _http_ready(embedding_ready_url):
+            log.info("本地 Embedding vLLM 已在运行，复用 @ %s", embedding_url)
+            reserved_ports.add(embedding_port)
+        else:
+            if _port_in_use(embedding_port):
+                embedding_port = _pick_service_port(embedding_port, reserved_ports)
+                embedding_base_url = f"http://127.0.0.1:{embedding_port}/v1"
+                embedding_url = f"{embedding_base_url}/embeddings"
+                embedding_ready_url = f"{embedding_base_url}/models"
+                log.warning("本地 Embedding 默认端口被占用，改用端口 %s", embedding_port)
+            else:
+                reserved_ports.add(embedding_port)
+            embedding_cuda = _select_cuda_visible_devices("LOCAL_EMBEDDING_CUDA_VISIBLE_DEVICES", reserved_gpus)
+            embedding_env = _build_child_env(project_root, embedding_cuda)
+            if embedding_cuda:
+                log.info("本地 Embedding vLLM 使用 GPU=%s", embedding_cuda)
+            embedding_gpu_util = _resolve_gpu_memory_utilization(
+                "LOCAL_EMBEDDING_GPU_MEMORY_UTILIZATION"
+            )
+            embedding_candidates = [
+                [
+                    embedding_cmd,
+                    "serve",
+                    resolved_embedding_model,
+                    "--host", "127.0.0.1",
+                    "--port", str(embedding_port),
+                    "--runner", "pooling",
+                    "--trust-remote-code",
+                    "--gpu-memory-utilization", embedding_gpu_util,
+                ],
+            ]
+            proc = _spawn_process_with_candidates(
+                embedding_candidates,
+                cwd=project_root,
+                ready_url=embedding_ready_url,
+                label="本地 Embedding vLLM",
+                timeout_s=240.0,
+                extra_env=embedding_env,
+            )
+            managed_procs.append(proc)
+            log.info("本地 Embedding vLLM 已就绪 @ %s", embedding_url)
+        os.environ["EMBEDDING_API_URL"] = embedding_url
+        os.environ["EMBEDDING_MODEL"] = resolved_embedding_model
+
+    # 本地 TTS 改为 vLLM-Omni 服务，后端启动时等待 ready
     use_local_tts = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
     tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
     if use_local_tts:
-        try:
-            if tts_engine == "qwen":
-                from fastapi_app.qwen_tts_manager import check_and_download_model
-                check_and_download_model()
-            elif tts_engine == "firered":
-                from fastapi_app.fireredtts_manager import check_and_download_model
-                check_and_download_model()
-        except Exception as e:
-            log.warning(f"TTS 模型检查失败: {e}")
+        if tts_engine == "qwen":
+            tts_port = LOCAL_TTS_PORT
+            tts_base_url = f"http://127.0.0.1:{tts_port}/v1"
+            tts_ready_url = f"{tts_base_url}/audio/voices"
+            if _http_ready(tts_ready_url):
+                log.info("本地 Qwen3-TTS vLLM-Omni 已在运行，复用 @ %s", tts_base_url)
+                reserved_ports.add(tts_port)
+            else:
+                if _port_in_use(tts_port):
+                    tts_port = _pick_service_port(tts_port, reserved_ports)
+                    tts_base_url = f"http://127.0.0.1:{tts_port}/v1"
+                    tts_ready_url = f"{tts_base_url}/audio/voices"
+                    log.warning("本地 TTS 默认端口被占用，改用端口 %s", tts_port)
+                else:
+                    reserved_ports.add(tts_port)
+                tts_cuda = _select_cuda_visible_devices("LOCAL_TTS_CUDA_VISIBLE_DEVICES", reserved_gpus)
+                tts_env = _build_child_env(project_root, tts_cuda)
+                if tts_cuda:
+                    log.info("本地 Qwen3-TTS vLLM-Omni 使用 GPU=%s", tts_cuda)
+                stage_config_path = _resolve_stage_config_path()
+                tts_gpu_util = _resolve_gpu_memory_utilization("LOCAL_TTS_GPU_MEMORY_UTILIZATION")
+                tts_cmd = [
+                    tts_command,
+                    "serve",
+                    resolved_tts_model,
+                    "--host", "127.0.0.1",
+                    "--port", str(tts_port),
+                    "--trust-remote-code",
+                    "--omni",
+                    "--stage-configs-path", stage_config_path,
+                    "--gpu-memory-utilization", tts_gpu_util,
+                ]
+                proc = _spawn_process_with_candidates(
+                    [tts_cmd],
+                    cwd=project_root,
+                    ready_url=tts_ready_url,
+                    label="本地 Qwen3-TTS vLLM-Omni",
+                    timeout_s=300.0,
+                    extra_env=tts_env,
+                )
+                managed_procs.append(proc)
+                log.info("本地 Qwen3-TTS vLLM-Omni 已就绪 @ %s", tts_base_url)
+            os.environ["LOCAL_TTS_API_URL"] = tts_base_url
+            os.environ["LOCAL_TTS_MODEL"] = resolved_tts_model
+        else:
+            log.warning("TTS_ENGINE=%s 当前未切到 vLLM-Omni，仍将走原有本地/远程回退逻辑", tts_engine)
 
     yield
-    if proc is not None and proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    for proc in managed_procs:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
 
 def create_app() -> FastAPI:
