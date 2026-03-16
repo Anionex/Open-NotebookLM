@@ -431,6 +431,12 @@ class IntelligentQAState(MainState):
     # 来源编号映射 {1: "filename.md", 2: "doc.pdf", ...}
     source_mapping: Dict[int, str] = field(default_factory=dict)
 
+    # 引用预览映射 {1: "chunk preview ...", 2: "chunk preview ..."}
+    source_preview_mapping: Dict[int, str] = field(default_factory=dict)
+
+    # 引用详情映射 {1: {"fileName": "...", "filePath": "...", "preview": "...", "chunkIndex": 0}}
+    source_reference_mapping: Dict[int, Dict[str, Any]] = field(default_factory=dict)
+
     # 最终回答
     answer: str = ""
 

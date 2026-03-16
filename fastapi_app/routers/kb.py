@@ -8,7 +8,9 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
+from fastapi.responses import StreamingResponse
 from typing import Optional, List, Dict, Any
+from openai import AsyncOpenAI
 
 import fitz  # PyMuPDF
 
@@ -29,6 +31,8 @@ from fastapi_app.source_manager import SourceManager
 from fastapi_app.services.fast_research_service import fast_research_search
 from fastapi_app.services.deep_research_report_service import generate_report_from_search
 from workflow_engine.toolkits.research_tools import fetch_page_text
+from workflow_engine.workflow.wf_intelligent_qa import prepare_parallel_file_analyses, build_intelligent_qa_prompt
+from workflow_engine.promptstemplates.resources.pt_qa_agent_repo import KbPromptAgent as KbPromptAgentPrompts
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 
@@ -599,6 +603,82 @@ def _vector_store_base_dir(email: Optional[str], notebook_id: Optional[str]) -> 
     return str(base) if base.exists() else None
 
 
+def _resolve_chat_files(files: List[str]) -> List[str]:
+    project_root = get_project_root()
+    local_files: List[str] = []
+    for f in files:
+        clean_path = f.lstrip('/')
+        p = project_root / clean_path
+        if p.exists():
+            local_files.append(str(p))
+            log.info(f"[chat] ✓ Found file: {f} -> {p}")
+            continue
+        p_raw = Path(f)
+        if p_raw.exists():
+            local_files.append(str(p_raw))
+            log.info(f"[chat] ✓ Found file (raw): {f} -> {p_raw}")
+        else:
+            log.warning(f"[chat] ✗ File not found: {f}")
+    return local_files
+
+
+def _resolve_vector_store_dir(email: Optional[str], notebook_id: Optional[str]) -> Optional[str]:
+    vector_store_base_dir = None
+    if email and notebook_id:
+        try:
+            project_root = get_project_root()
+            email_dir = project_root / "outputs" / email.replace("@", "_at_")
+            if email_dir.exists():
+                for nb_dir in email_dir.iterdir():
+                    if nb_dir.is_dir() and nb_dir.name.endswith(f"_{notebook_id}"):
+                        vector_store_path = nb_dir / "vector_store"
+                        if vector_store_path.exists():
+                            vector_store_base_dir = str(vector_store_path)
+                            log.info(f"[chat] Found vector store: {vector_store_base_dir}")
+                            break
+            if not vector_store_base_dir:
+                log.warning(f"[chat] No vector_store found for email={email}, notebook_id={notebook_id}")
+        except Exception as e:
+            log.warning(f"[chat] Failed to search for vector store: {e}")
+
+    if not vector_store_base_dir:
+        vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
+        if vector_store_base_dir:
+            log.info(f"[chat] Using legacy paths system, vector_store_base_dir: {vector_store_base_dir}")
+        else:
+            log.warning("[chat] vector_store_base_dir not found in either new or legacy system")
+    return vector_store_base_dir
+
+
+def _build_chat_request(
+    files: List[str],
+    query: str,
+    history: List[Dict[str, str]],
+    email: Optional[str],
+    notebook_id: Optional[str],
+    api_url: Optional[str],
+    api_key: Optional[str],
+    model: str,
+) -> IntelligentQARequest:
+    local_files = _resolve_chat_files(files)
+    if not local_files:
+        log.warning("[chat] No valid local files found, will rely on RAG only")
+
+    return IntelligentQARequest(
+        file_ids=local_files,
+        query=query,
+        history=history,
+        vector_store_base_dir=_resolve_vector_store_dir(email, notebook_id),
+        chat_api_url=api_url or os.getenv("DF_API_URL"),
+        api_key=api_key or os.getenv("DF_API_KEY"),
+        model=model,
+    )
+
+
+def _jsonl_line(payload: Dict[str, Any]) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+
+
 @router.post("/chat")
 async def chat_with_kb(
     files: List[str] = Body(..., embed=True),
@@ -620,75 +700,8 @@ async def chat_with_kb(
     log.info(f"[chat_with_kb] query length: {len(query)}")
 
     try:
-        # Normalize file paths (web path -> local absolute path)
-        project_root = get_project_root()
-        local_files = []
+        req = _build_chat_request(files, query, history, email, notebook_id, api_url, api_key, model)
 
-        for f in files:
-            # remove leading /outputs/ if present, or just join
-            # Web path: /outputs/kb_data/...
-            clean_path = f.lstrip('/')
-            p = project_root / clean_path
-            if p.exists():
-                local_files.append(str(p))
-                log.info(f"[chat_with_kb] ✓ Found file: {f} -> {p}")
-            else:
-                # Try raw path
-                p_raw = Path(f)
-                if p_raw.exists():
-                    local_files.append(str(p_raw))
-                    log.info(f"[chat_with_kb] ✓ Found file (raw): {f} -> {p_raw}")
-                else:
-                    log.warning(f"[chat_with_kb] ✗ File not found: {f}")
-
-        log.info(f"[chat_with_kb] Resolved local_files: {local_files}")
-
-        if not local_files:
-             # Just return empty answer or handle logic
-             log.warning("[chat_with_kb] No valid local files found, will rely on RAG only")
-
-        # Use new notebook paths system instead of legacy _vector_store_base_dir
-        vector_store_base_dir = None
-        if email and notebook_id:
-            try:
-                # Find notebook directory by scanning outputs/{email}/
-                project_root = get_project_root()
-                email_dir = project_root / "outputs" / email.replace("@", "_at_")
-
-                if email_dir.exists():
-                    # Look for directories matching pattern *_{notebook_id}
-                    for nb_dir in email_dir.iterdir():
-                        if nb_dir.is_dir() and nb_dir.name.endswith(f"_{notebook_id}"):
-                            vector_store_path = nb_dir / "vector_store"
-                            if vector_store_path.exists():
-                                vector_store_base_dir = str(vector_store_path)
-                                log.info(f"[chat_with_kb] Found vector store: {vector_store_base_dir}")
-                                break
-
-                if not vector_store_base_dir:
-                    log.warning(f"[chat_with_kb] No vector_store found for email={email}, notebook_id={notebook_id}")
-            except Exception as e:
-                log.warning(f"[chat_with_kb] Failed to search for vector store: {e}")
-
-        # Fallback to legacy system if needed
-        if not vector_store_base_dir:
-            vector_store_base_dir = _vector_store_base_dir(email, notebook_id)
-            if vector_store_base_dir:
-                log.info(f"[chat_with_kb] Using legacy paths system, vector_store_base_dir: {vector_store_base_dir}")
-            else:
-                log.warning(f"[chat_with_kb] vector_store_base_dir not found in either new or legacy system")
-
-        # Construct Request
-        req = IntelligentQARequest(
-            file_ids=local_files,
-            query=query,
-            history=history,
-            vector_store_base_dir=vector_store_base_dir,
-            chat_api_url=api_url or os.getenv("DF_API_URL"),
-            api_key=api_key or os.getenv("DF_API_KEY"),
-            model=model
-        )
-        
         state = IntelligentQAState(request=req)
         
         # Run workflow via registry (统一使用 run_workflow)
@@ -702,24 +715,34 @@ async def chat_with_kb(
         answer = ""
         file_analyses = []
         source_mapping = {}
+        source_preview_mapping = {}
+        source_reference_mapping = {}
 
         if isinstance(result_state, dict):
             answer = result_state.get("answer", "")
             file_analyses = result_state.get("file_analyses", [])
             source_mapping = result_state.get("source_mapping", {})
+            source_preview_mapping = result_state.get("source_preview_mapping", {})
+            source_reference_mapping = result_state.get("source_reference_mapping", {})
         else:
             answer = getattr(result_state, "answer", "")
             file_analyses = getattr(result_state, "file_analyses", [])
             source_mapping = getattr(result_state, "source_mapping", {})
+            source_preview_mapping = getattr(result_state, "source_preview_mapping", {})
+            source_reference_mapping = getattr(result_state, "source_reference_mapping", {})
 
         # 将 source_mapping 的 int key 转为 str（JSON 要求）
         source_mapping_str = {str(k): v for k, v in source_mapping.items()} if source_mapping else {}
+        source_preview_mapping_str = {str(k): v for k, v in source_preview_mapping.items()} if source_preview_mapping else {}
+        source_reference_mapping_str = {str(k): v for k, v in source_reference_mapping.items()} if source_reference_mapping else {}
 
         return {
             "success": True,
             "answer": answer,
             "file_analyses": file_analyses,
-            "source_mapping": source_mapping_str
+            "source_mapping": source_mapping_str,
+            "source_preview_mapping": source_preview_mapping_str,
+            "source_reference_mapping": source_reference_mapping_str,
         }
 
     except HTTPException:
@@ -728,6 +751,100 @@ async def chat_with_kb(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/stream")
+async def chat_with_kb_stream(
+    files: List[str] = Body(..., embed=True),
+    query: str = Body(..., embed=True),
+    history: List[Dict[str, str]] = Body([], embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
+    api_url: Optional[str] = Body(None, embed=True),
+    api_key: Optional[str] = Body(None, embed=True),
+    model: str = Body(settings.KB_CHAT_MODEL, embed=True),
+):
+    log.info("[chat_with_kb_stream] === Request received ===")
+
+    async def event_generator():
+        full_answer = ""
+        try:
+            req = _build_chat_request(files, query, history, email, notebook_id, api_url, api_key, model)
+            state = IntelligentQAState(request=req)
+            yield _jsonl_line({
+                "type": "stage",
+                "stage": "preparing",
+                "message": "正在准备来源",
+                "message_en": "Preparing sources",
+            })
+
+            yield _jsonl_line({
+                "type": "stage",
+                "stage": "analyzing",
+                "message": "正在分析来源内容",
+                "message_en": "Analyzing sources",
+            })
+            await prepare_parallel_file_analyses(state)
+
+            yield _jsonl_line({
+                "type": "stage",
+                "stage": "retrieving",
+                "message": "正在检索相关片段",
+                "message_en": "Retrieving relevant chunks",
+            })
+            prompt = build_intelligent_qa_prompt(state)
+
+            source_mapping_str = {str(k): v for k, v in (state.source_mapping or {}).items()}
+            source_preview_mapping_str = {str(k): v for k, v in (state.source_preview_mapping or {}).items()}
+            source_reference_mapping_str = {str(k): v for k, v in (state.source_reference_mapping or {}).items()}
+
+            yield _jsonl_line({
+                "type": "meta",
+                "file_analyses": state.file_analyses,
+                "source_mapping": source_mapping_str,
+                "source_preview_mapping": source_preview_mapping_str,
+                "source_reference_mapping": source_reference_mapping_str,
+            })
+
+            yield _jsonl_line({
+                "type": "stage",
+                "stage": "generating",
+                "message": "正在生成回答",
+                "message_en": "Generating answer",
+            })
+
+            client = AsyncOpenAI(
+                api_key=req.api_key,
+                base_url=req.chat_api_url,
+            )
+
+            stream = await client.chat.completions.create(
+                model=req.model,
+                messages=[
+                    {"role": "system", "content": KbPromptAgentPrompts.system_prompt_for_kb_prompt_agent.strip()},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                stream=True,
+            )
+
+            async for chunk in stream:
+                delta = ""
+                try:
+                    delta = chunk.choices[0].delta.content or ""
+                except Exception:
+                    delta = ""
+                if not delta:
+                    continue
+                full_answer += delta
+                yield _jsonl_line({"type": "delta", "delta": delta})
+
+            yield _jsonl_line({"type": "done", "answer": full_answer})
+        except Exception as e:
+            log.exception(f"[chat_with_kb_stream] failed: {e}")
+            yield _jsonl_line({"type": "error", "message": str(e), "answer": full_answer})
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 
 # ---------- 1.1 对话记录：入库与读取 ----------

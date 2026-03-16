@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Code, Quote, Image, FileText, Download, Save } from 'lucide-react';
 import { apiFetch } from '../../config/api';
+import { useToast } from '../../hooks/useToast';
 
 interface NoteEditorProps {
   onClose: () => void;
@@ -10,6 +11,7 @@ interface NoteEditorProps {
 }
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({ onClose, notebook, user, onSaved }) => {
+  const { showToast, ToastContainer } = useToast();
   const [title, setTitle] = useState('无标题');
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -83,11 +85,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ onClose, notebook, user,
       const res = await apiFetch('/api/v1/kb/upload', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('保存失败');
 
-      alert('笔记已保存到知识库！');
+      showToast('笔记已保存到知识库！', 'success');
       onSaved?.();
       onClose();
     } catch (err) {
-      alert('保存笔记失败');
+      showToast('保存笔记失败', 'error');
     } finally {
       setSaving(false);
     }
@@ -107,7 +109,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ onClose, notebook, user,
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-lg">
+    <>
+      {ToastContainer}
+      <div className="flex flex-col h-full bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between p-4 border-b">
         <input
           type="text"
@@ -185,5 +189,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ onClose, notebook, user,
         <p>开始输入...</p>
       </div>
     </div>
+    </>
   );
 };

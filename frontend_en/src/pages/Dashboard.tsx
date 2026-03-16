@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore';
 import { apiFetch } from '../config/api';
 import { API_URL_OPTIONS, DEFAULT_LLM_API_URL } from '../config/api';
 import { getApiSettings, saveApiSettings, type ApiSettings, type SearchProvider, type SearchEngine } from '../services/apiSettingsService';
+import { fetchWithCache, getCachedValue, setCachedValue } from '../services/clientCache';
 
 export interface Notebook {
   id: string;
@@ -19,6 +20,8 @@ export interface Notebook {
   created_at?: string;
   updated_at?: string;
 }
+
+const NOTEBOOK_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: { onOpenNotebook: (n: Notebook) => void; refreshTrigger?: number; supabaseConfigured: boolean | null }) => {
   const { user, signOut } = useAuthStore();
@@ -39,6 +42,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
 
   const effectiveUserId = user?.id || 'local';
   const effectiveEmail = user?.email || '';
+  const notebookListCacheKey = `notebooks:${effectiveUserId}:${effectiveEmail || 'anonymous'}`;
 
   useEffect(() => {
     const s = getApiSettings(effectiveUserId);
@@ -69,36 +73,47 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
     }, 1500);
   };
 
-  const fetchNotebooks = async () => {
-    setLoading(true);
+  const fetchNotebooks = async (options?: { force?: boolean }) => {
+    const cached = getCachedValue<Notebook[]>(notebookListCacheKey);
+    if (cached) {
+      setNotebooks(cached);
+      setLoading(false);
+      if (!options?.force) return;
+    } else {
+      setLoading(true);
+    }
     try {
-      const res = await apiFetch(`/api/v1/kb/notebooks?user_id=${encodeURIComponent(effectiveUserId)}&email=${encodeURIComponent(effectiveEmail)}`);
-      const data = await res.json();
-      if (data?.success && Array.isArray(data.notebooks)) {
-        const list: Notebook[] = data.notebooks.map((row: any) => ({
-          id: row.id,
-          title: row.name,
-          name: row.name,
-          description: row.description,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-          date: row.updated_at ? new Date(row.updated_at).toLocaleDateString('zh-CN') : '',
-          sources: typeof row.sources === 'number' ? row.sources : 0,
-        }));
-        setNotebooks(list);
-      } else {
-        setNotebooks([]);
-      }
+      const list = await fetchWithCache<Notebook[]>(
+        notebookListCacheKey,
+        NOTEBOOK_LIST_CACHE_TTL_MS,
+        async () => {
+          const res = await apiFetch(`/api/v1/kb/notebooks?user_id=${encodeURIComponent(effectiveUserId)}&email=${encodeURIComponent(effectiveEmail)}`);
+          const data = await res.json();
+          if (!data?.success || !Array.isArray(data.notebooks)) return [];
+          return data.notebooks.map((row: any) => ({
+            id: row.id,
+            title: row.name,
+            name: row.name,
+            description: row.description,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            date: row.updated_at ? new Date(row.updated_at).toLocaleDateString('zh-CN') : '',
+            sources: typeof row.sources === 'number' ? row.sources : 0,
+          }));
+        },
+        { force: options?.force, useStaleOnError: true }
+      );
+      setNotebooks(list);
     } catch (err) {
       console.error('Failed to fetch notebooks:', err);
-      setNotebooks([]);
+      if (!cached) setNotebooks([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNotebooks();
+    fetchNotebooks({ force: refreshTrigger > 0 });
   }, [effectiveUserId, refreshTrigger]);
 
   const handleCreateNotebook = async () => {
@@ -125,7 +140,11 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
           date: nb.updated_at ? new Date(nb.updated_at).toLocaleDateString('zh-CN') : '',
           sources: 0,
         };
-        setNotebooks(prev => [newNb, ...prev]);
+        setNotebooks(prev => {
+          const next = [newNb, ...prev.filter(item => item.id !== newNb.id)];
+          setCachedValue(notebookListCacheKey, next, NOTEBOOK_LIST_CACHE_TTL_MS);
+          return next;
+        });
         setCreateModalOpen(false);
         setNewNotebookName('');
         onOpenNotebook(newNb);

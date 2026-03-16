@@ -11,6 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { getSupabaseClient } from '../lib/supabase';
 import { apiFetch } from '../config/api';
 import { getApiSettings } from '../services/apiSettingsService';
+import { fetchWithCache, invalidateCacheByPrefix } from '../services/clientCache';
 import type { KnowledgeFile, ChatMessage, ToolType } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { MermaidPreview } from '../components/knowledge-base/tools/MermaidPreview';
@@ -24,6 +25,29 @@ import 'katex/dist/katex.min.css';
 
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
+
+type CitationReference = {
+  fileName: string;
+  filePath?: string;
+  preview?: string;
+  chunkIndex?: number | null;
+  sourceNumber?: string;
+};
+
+type CitationTooltipState = {
+  title: string;
+  preview: string;
+  x: number;
+  y: number;
+};
+
+type SourceDetailCacheEntry = {
+  content: string;
+  format: 'text' | 'markdown';
+};
+
+const FILE_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
+const SOURCE_DETAIL_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void }) => {
   const { user } = useAuthStore();
@@ -46,6 +70,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const conversationIdRef = React.useRef<string | null>(null);
   const [inputMsg, setInputMsg] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatLoadingStage, setChatLoadingStage] = useState('Thinking...');
 
   // Chat历史：本地持久化
   type ConversationItem = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
@@ -164,6 +189,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [sourceDetailContent, setSourceDetailContent] = useState('');
   const [sourceDetailFormat, setSourceDetailFormat] = useState<'text' | 'markdown'>('text');
   const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
+  const [sourceDetailCitationFocus, setSourceDetailCitationFocus] = useState<CitationReference | null>(null);
+  const sourceDetailCitationRef = React.useRef<HTMLDivElement | null>(null);
+  const [hoveredCitation, setHoveredCitation] = useState<CitationTooltipState | null>(null);
 
   // Loading state for saved flashcard/quiz sets
   const [loadingSetId, setLoadingSetId] = useState<string | null>(null);
@@ -181,11 +209,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     document.body.style.userSelect = 'none';
     const onMove = (e: MouseEvent) => {
       if (!resizeRef.current) return;
-      const delta = e.clientX - resizeRef.current.startX;
+      const { startX, startLeft, startRight } = resizeRef.current;
+      const delta = e.clientX - startX;
       if (resizing === 'left') {
-        setLeftPanelWidth(() => Math.min(480, Math.max(160, resizeRef.current!.startLeft + delta)));
+        setLeftPanelWidth(Math.min(480, Math.max(160, startLeft + delta)));
       } else {
-        setRightPanelWidth(() => Math.min(600, Math.max(200, resizeRef.current!.startRight - delta)));
+        setRightPanelWidth(Math.min(600, Math.max(200, startRight - delta)));
       }
     };
     const onUp = () => {
@@ -812,33 +841,48 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return `kb_files_${uid}`;
   };
 
+  const cacheScopeUser = effectiveUser?.id || effectiveUser?.email || 'anonymous';
+  const cacheScopeNotebook = notebook?.id || 'no-notebook';
+  const encodeCachePart = (value?: string) => encodeURIComponent(value || '');
+  const getFilesCacheKey = () => `notebook-files:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}`;
+  const getSourceDetailCacheKey = (file: KnowledgeFile) => (
+    `source-detail:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}:${encodeCachePart(file.type)}:${encodeCachePart(file.url || file.name)}`
+  );
+  const invalidateNotebookSourceCaches = () => {
+    invalidateCacheByPrefix(`notebook-files:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}`);
+    invalidateCacheByPrefix(`source-detail:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}`);
+  };
+
   const fetchFiles = async () => {
     try {
-      let mappedFiles: KnowledgeFile[] = [];
-      // 数据从 outputs 取：调用后端按磁盘扫描
-      if (notebook?.id) {
-        const params = new URLSearchParams({
-          user_id: effectiveUser.id,
-          notebook_id: notebook.id,
-          email: effectiveUser.email || effectiveUser.id,
-        });
-        const res = await apiFetch(`/api/v1/kb/files?${params.toString()}`);
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data?.files) ? data.files : [];
-          mappedFiles = list.map((row: any) => ({
-            id: row.id || `file-${row.name}`,
-            name: row.name,
-            type: mapFileType(row.file_type || row.name?.split('.').pop() || ''),
-            size: formatSize(row.file_size || 0),
-            uploadTime: '',
-            isEmbedded: false,
-            desc: '',
-            url: row.url || row.static_url,
-          }));
-        }
-      }
-
+      const mappedFiles = notebook?.id
+        ? await fetchWithCache<KnowledgeFile[]>(
+            getFilesCacheKey(),
+            FILE_LIST_CACHE_TTL_MS,
+            async () => {
+              const params = new URLSearchParams({
+                user_id: effectiveUser.id,
+                notebook_id: notebook.id,
+                email: effectiveUser.email || effectiveUser.id,
+              });
+              const res = await apiFetch(`/api/v1/kb/files?${params.toString()}`);
+              if (!res.ok) throw new Error('Failed to fetch source list');
+              const data = await res.json();
+              const list = Array.isArray(data?.files) ? data.files : [];
+              return list.map((row: any) => ({
+                id: row.id || `file-${row.name}`,
+                name: row.name,
+                type: mapFileType(row.file_type || row.name?.split('.').pop() || ''),
+                size: formatSize(row.file_size || 0),
+                uploadTime: '',
+                isEmbedded: false,
+                desc: '',
+                url: row.url || row.static_url,
+              }));
+            },
+            { useStaleOnError: true }
+          )
+        : [];
       setFiles(mappedFiles);
       setSelectedIds(new Set(mappedFiles.map(f => f.id)));
     } catch (err) {
@@ -880,62 +924,95 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return (name.endsWith('.pdf') || name.endsWith('.md')) || (url.endsWith('.pdf') || url.endsWith('.md'));
   };
 
-  const openSourceDetail = async (file: KnowledgeFile) => {
+  const normalizeCitationPath = (value?: string) => {
+    if (!value) return '';
+    const normalized = value.replace(/\\/g, '/');
+    const outputsIdx = normalized.indexOf('/outputs/');
+    return outputsIdx >= 0 ? normalized.slice(outputsIdx) : normalized;
+  };
+
+  const findFileForCitation = (ref: CitationReference) => {
+    const targetPath = normalizeCitationPath(ref.filePath);
+    return files.find((file) => {
+      const filePath = normalizeCitationPath(file.url);
+      if (targetPath && filePath && targetPath === filePath) return true;
+      return file.name === ref.fileName;
+    }) || null;
+  };
+
+  const openSourceDetail = async (file: KnowledgeFile, citationFocus?: CitationReference | null) => {
     setSourceDetailView(file);
     setSourceDetailContent('');
     setSourceDetailFormat('text');
     setSourceDetailLoading(false);
+    setSourceDetailCitationFocus(citationFocus ?? null);
     if (file.type === 'link' && file.url && (file.url.startsWith('http://') || file.url.startsWith('https://'))) {
       setSourceDetailLoading(true);
       try {
-        const res = await apiFetch('/api/v1/kb/fetch-page-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: file.url })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSourceDetailContent(data?.content ?? '[No content]');
-        } else {
-          setSourceDetailContent('[Fetch failed]');
-        }
+        const detail = await fetchWithCache<SourceDetailCacheEntry>(
+          getSourceDetailCacheKey(file),
+          SOURCE_DETAIL_CACHE_TTL_MS,
+          async () => {
+            const res = await apiFetch('/api/v1/kb/fetch-page-content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: file.url })
+            });
+            if (!res.ok) {
+              return { content: '[Fetch failed]', format: 'text' };
+            }
+            const data = await res.json();
+            return { content: data?.content ?? '[No content]', format: 'text' };
+          },
+          { useStaleOnError: true }
+        );
+        setSourceDetailContent(detail.content);
+        setSourceDetailFormat(detail.format);
       } catch {
         setSourceDetailContent('[Request failed]');
+        setSourceDetailFormat('text');
       } finally {
         setSourceDetailLoading(false);
       }
     } else if (isPreviewableDoc(file) && file.url && (file.url.startsWith('/outputs/') || file.url.startsWith('/'))) {
       setSourceDetailLoading(true);
       try {
-        // Prefer MinerU output MD for display; fallback to parse-local-file
-        const displayRes = await apiFetch('/api/v1/kb/get-source-display-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: file.url })
-        });
-        if (displayRes.ok) {
-          const displayData = await displayRes.json();
-          if (displayData?.from_mineru && displayData?.content != null) {
-            setSourceDetailContent(displayData.content);
-            setSourceDetailFormat('markdown');
-            setSourceDetailLoading(false);
-            return;
-          }
-        }
-        const res = await apiFetch('/api/v1/kb/parse-local-file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path_or_url: file.url })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSourceDetailContent(data?.content ?? '[No content]');
-          setSourceDetailFormat((data?.format === 'markdown' ? 'markdown' : 'text') as 'text' | 'markdown');
-        } else {
-          setSourceDetailContent('[Parse failed]');
-        }
+        const detail = await fetchWithCache<SourceDetailCacheEntry>(
+          getSourceDetailCacheKey(file),
+          SOURCE_DETAIL_CACHE_TTL_MS,
+          async () => {
+            const displayRes = await apiFetch('/api/v1/kb/get-source-display-content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: file.url })
+            });
+            if (displayRes.ok) {
+              const displayData = await displayRes.json();
+              if (displayData?.from_mineru && displayData?.content != null) {
+                return { content: displayData.content, format: 'markdown' };
+              }
+            }
+            const res = await apiFetch('/api/v1/kb/parse-local-file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path_or_url: file.url })
+            });
+            if (!res.ok) {
+              return { content: '[Parse failed]', format: 'text' };
+            }
+            const data = await res.json();
+            return {
+              content: data?.content ?? '[No content]',
+              format: (data?.format === 'markdown' ? 'markdown' : 'text') as 'text' | 'markdown',
+            };
+          },
+          { useStaleOnError: true }
+        );
+        setSourceDetailContent(detail.content);
+        setSourceDetailFormat(detail.format);
       } catch {
         setSourceDetailContent('[Request failed]');
+        setSourceDetailFormat('text');
       } finally {
         setSourceDetailLoading(false);
       }
@@ -945,6 +1022,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       setSourceDetailContent(`[No parse preview] ${file.name}`);
     }
   };
+
+  const handleCitationClick = async (
+    citationNumber: string,
+    sourceReferenceMapping?: Record<string, CitationReference>
+  ) => {
+    const ref = sourceReferenceMapping?.[citationNumber];
+    if (!ref) return;
+    const targetFile = findFileForCitation(ref);
+    if (!targetFile) return;
+    setSelectedIds(prev => {
+      if (prev.has(targetFile.id)) return prev;
+      const next = new Set(prev);
+      next.add(targetFile.id);
+      return next;
+    });
+    await openSourceDetail(targetFile, { ...ref, sourceNumber: citationNumber });
+  };
+
+  React.useEffect(() => {
+    if (!sourceDetailCitationFocus || sourceDetailLoading) return;
+    const timer = window.setTimeout(() => {
+      sourceDetailCitationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [sourceDetailCitationFocus, sourceDetailLoading, sourceDetailContent]);
 
   const runFastResearch = async () => {
     if (!fastResearchQuery.trim()) return;
@@ -1016,6 +1118,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         throw new Error(data?.detail || data?.message || 'Import failed');
       }
       const data = await res.json();
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       await fetchVectorList();
       setFastResearchSources([]);
@@ -1070,6 +1173,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       };
       setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
       setSelectedIds(prev => new Set([...prev, newFile.id]));
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       setIntroduceUrl('');
       setIntroduceUrlSuccess('Fetched and added as source');
@@ -1123,6 +1227,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       };
       setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
       setSelectedIds(prev => new Set([...prev, newFile.id]));
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       setIntroduceText('');
       setIntroduceTextSuccess('Added as source');
@@ -1196,6 +1301,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
         setSelectedIds(prev => new Set([...prev, newFile.id]));
       }
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       setDeepResearchTopic('');
       setDeepResearchSuccess({
@@ -1249,6 +1355,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       if (!res.ok) throw new Error('Upload failed');
 
       const data = await res.json();
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       await fetchVectorList();
       if (data.embedded) {
@@ -1282,6 +1389,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     setChatMessages(prev => [...prev, userMsg]);
     setInputMsg('');
     setIsChatLoading(true);
+    setChatLoadingStage('Preparing sources...');
 
     try {
       if (selectedIds.size === 0) {
@@ -1308,8 +1416,37 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }));
 
       const settings = getApiSettings(effectiveUser?.id || null);
+      const assistantMessageId = (Date.now() + 1).toString();
+      const assistantTime = new Date().toLocaleTimeString();
+      let streamedContent = '';
+      let streamedDetails: ChatMessage['details'] | undefined;
+      let streamedSourceMapping: ChatMessage['sourceMapping'] | undefined;
+      let streamedSourcePreviewMapping: ChatMessage['sourcePreviewMapping'] | undefined;
+      let streamedSourceReferenceMapping: ChatMessage['sourceReferenceMapping'] | undefined;
 
-      const res = await apiFetch('/api/v1/kb/chat', {
+      const syncAssistantMessage = () => {
+        setChatMessages(prev => prev.map(msg => (
+          msg.id === assistantMessageId
+            ? {
+                ...msg,
+                content: streamedContent,
+                details: streamedDetails,
+                sourceMapping: streamedSourceMapping,
+                sourcePreviewMapping: streamedSourcePreviewMapping,
+                sourceReferenceMapping: streamedSourceReferenceMapping,
+              }
+            : msg
+        )));
+      };
+
+      setChatMessages(prev => [...prev, {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        time: assistantTime,
+      }]);
+
+      const res = await apiFetch('/api/v1/kb/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1326,18 +1463,70 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
 
       if (!res.ok) throw new Error("Chat request failed");
+      if (!res.body) throw new Error("Chat stream not available");
 
-      const data = await res.json();
-      
-      const botMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.answer || "Sorry, I couldn't answer that.",
-        time: new Date().toLocaleTimeString(),
-        details: data.file_analyses,
-        sourceMapping: data.source_mapping || undefined
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processEvent = (rawLine: string) => {
+        const line = rawLine.trim();
+        if (!line) return;
+        const event = JSON.parse(line);
+        if (event.type === 'meta') {
+          streamedDetails = event.file_analyses || undefined;
+          streamedSourceMapping = event.source_mapping || undefined;
+          streamedSourcePreviewMapping = event.source_preview_mapping || undefined;
+          streamedSourceReferenceMapping = event.source_reference_mapping || undefined;
+          syncAssistantMessage();
+          return;
+        }
+        if (event.type === 'stage') {
+          setChatLoadingStage(event.message_en || event.message || 'Thinking...');
+          return;
+        }
+        if (event.type === 'delta') {
+          if (!streamedContent) setChatLoadingStage('Generating answer...');
+          streamedContent += event.delta || '';
+          syncAssistantMessage();
+          return;
+        }
+        if (event.type === 'done') {
+          if (typeof event.answer === 'string' && event.answer.length >= streamedContent.length) {
+            streamedContent = event.answer;
+            syncAssistantMessage();
+          }
+          return;
+        }
+        if (event.type === 'error') {
+          throw new Error(event.message || 'Chat stream failed');
+        }
       };
-      setChatMessages(prev => [...prev, botMsg]);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          processEvent(line);
+        }
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) processEvent(buffer);
+
+      const botMsg: ChatMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: streamedContent || "Sorry, I couldn't answer that.",
+        time: assistantTime,
+        details: streamedDetails,
+        sourceMapping: streamedSourceMapping,
+        sourcePreviewMapping: streamedSourcePreviewMapping,
+        sourceReferenceMapping: streamedSourceReferenceMapping
+      };
+      setChatMessages(prev => prev.map(msg => msg.id === assistantMessageId ? botMsg : msg));
       persistCurrentConversation([...chatMessages, userMsg, botMsg]);
 
       const cid = conversationIdRef.current;
@@ -1355,16 +1544,22 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     } catch (err) {
       console.error("Chat error:", err);
+      const errorContent = err instanceof Error ? err.message : "An error occurred. Please try again later.";
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "An error occurred. Please try again later.",
+        content: errorContent || "An error occurred. Please try again later.",
         time: new Date().toLocaleTimeString()
       };
-      setChatMessages(prev => [...prev, errorMsg]);
+      setChatMessages(prev => {
+        const emptyAssistant = prev.find(msg => msg.role === 'assistant' && !msg.content.trim());
+        if (!emptyAssistant) return [...prev, errorMsg];
+        return prev.map(msg => msg.id === emptyAssistant.id ? errorMsg : msg);
+      });
       persistCurrentConversation([...chatMessages, userMsg, errorMsg]);
     } finally {
       setIsChatLoading(false);
+      setChatLoadingStage('Thinking...');
     }
   };
 
@@ -1664,38 +1859,78 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     }
   };
 
-  const renderInline = (text: string, sourceMapping?: Record<string, string>) => {
-    // 1) 先提取行内公式 $...$ 保护起来，避免 escapeHtml 破坏
+  const renderTooltipText = (text: string) => {
+    if (!text) return '';
     const mathSlots: string[] = [];
-    let protected_ = text.replace(/\$([^$\n]+?)\$/g, (_m, tex) => {
+    let processed = text;
+    // 处理 \(...\) 行内公式
+    processed = processed.replace(/\\\((.+?)\\\)/g, (_m, tex) => {
       mathSlots.push(renderKatex(tex, false));
       return `\x00MATH${mathSlots.length - 1}\x00`;
     });
+    // 处理 \[...\] 块级公式
+    processed = processed.replace(/\\\[(.+?)\\\]/g, (_m, tex) => {
+      mathSlots.push(renderKatex(tex, true));
+      return `\x00MATH${mathSlots.length - 1}\x00`;
+    });
+    // 转义HTML
+    processed = escapeHtml(processed);
+    // 还原公式
+    processed = processed.replace(/\x00MATH(\d+)\x00/g, (_m, idx) => mathSlots[Number(idx)]);
+    return processed;
+  };
+
+  const renderInline = (
+    text: string,
+    sourceMapping?: Record<string, string>,
+    sourcePreviewMapping?: Record<string, string>,
+    sourceReferenceMapping?: Record<string, CitationReference>
+  ) => {
+    // 1) 先提取行内公式，支持 $...$ 和 \(...\) 格式
+    const mathSlots: string[] = [];
+    let protected_ = text
+      .replace(/\\\((.+?)\\\)/g, (_m, tex) => {
+        mathSlots.push(renderKatex(tex, false));
+        return `\x00MATH${mathSlots.length - 1}\x00`;
+      })
+      .replace(/\$([^$\n]+?)\$/g, (_m, tex) => {
+        mathSlots.push(renderKatex(tex, false));
+        return `\x00MATH${mathSlots.length - 1}\x00`;
+      });
     // 2) 正常 escapeHtml + markdown 处理
     let html = escapeHtml(protected_);
     html = html.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-gray-100 text-gray-800 font-mono text-xs">$1</code>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-blue-600 hover:text-blue-500 underline">$1</a>');
-    // Highlight numbered citation markers [1], [2], etc. with hover tooltip showing source name
+    // Highlight numbered citation markers [1], [2], etc. with hover tooltip showing file name + chunk preview
     html = html.replace(/\[(\d{1,2})\]/g, (_match, num) => {
-      const sourceName = sourceMapping?.[num] || '';
-      const dataAttr = sourceName ? ` data-source="${escapeHtml(sourceName)}"` : '';
-      return `<sup class="cite-ref"${dataAttr} style="background-color:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-size:0.75em;font-weight:600;margin:0 1px;cursor:pointer;position:relative;">[${num}]</sup>`;
+      const hasSource = sourceReferenceMapping?.[num] || sourceMapping?.[num];
+      return `<sup class="cite-ref" data-cite="${num}"${hasSource ? ' data-source-tooltip="1"' : ''} style="background-color:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-size:0.75em;font-weight:600;margin:0 1px;cursor:pointer;position:relative;">[${num}]</sup>`;
     });
     // 3) 还原公式占位符
     html = html.replace(/\x00MATH(\d+)\x00/g, (_m, idx) => mathSlots[Number(idx)]);
     return html;
   };
 
-  const renderMarkdownToHtml = (content: string, sourceMapping?: Record<string, string>) => {
+  const renderMarkdownToHtml = (
+    content: string,
+    sourceMapping?: Record<string, string>,
+    sourcePreviewMapping?: Record<string, string>,
+    sourceReferenceMapping?: Record<string, CitationReference>
+  ) => {
     if (!content) return '';
-    // 先提取 $$...$$ 块级公式，替换为占位符
+    // 先提取块级公式，支持 $$...$$ 和 \[...\] 格式
     const blockMathSlots: string[] = [];
-    let processed = content.replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
-      blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
-      return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
-    });
+    let processed = content
+      .replace(/\\\[([\s\S]+?)\\\]/g, (_m, tex) => {
+        blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
+        return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
+      })
+      .replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
+        blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
+        return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
+      });
     const codeBlockRegex = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
     let lastIndex = 0;
     let html = '';
@@ -1725,7 +1960,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         if (headingMatch) {
           closeLists();
           const level = headingMatch[1].length;
-          const headingText = renderInline(headingMatch[2], sourceMapping);
+          const headingText = renderInline(headingMatch[2], sourceMapping, sourcePreviewMapping, sourceReferenceMapping);
           blockHtml += `<h${level} class="font-semibold text-gray-900 mt-3 mb-2">${headingText}</h${level}>`;
           continue;
         }
@@ -1736,7 +1971,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             blockHtml += '<ul class="list-disc pl-5 space-y-1">';
             inUl = true;
           }
-          blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''), sourceMapping)}</li>`;
+          blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''), sourceMapping, sourcePreviewMapping, sourceReferenceMapping)}</li>`;
           continue;
         }
 
@@ -1746,7 +1981,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             blockHtml += '<ol class="list-decimal pl-5 space-y-1">';
             inOl = true;
           }
-          blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''), sourceMapping)}</li>`;
+          blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''), sourceMapping, sourcePreviewMapping, sourceReferenceMapping)}</li>`;
           continue;
         }
 
@@ -1757,7 +1992,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         }
 
         closeLists();
-        blockHtml += `<p class="my-1">${renderInline(line, sourceMapping)}</p>`;
+        blockHtml += `<p class="my-1">${renderInline(line, sourceMapping, sourcePreviewMapping, sourceReferenceMapping)}</p>`;
       }
 
       closeLists();
@@ -1778,10 +2013,84 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return html;
   };
 
-  const MarkdownContent = ({ content, sourceMapping }: { content: string; sourceMapping?: Record<string, string> }) => (
+  const MarkdownContent = ({
+    content,
+    sourceMapping,
+    sourcePreviewMapping,
+    sourceReferenceMapping,
+  }: {
+    content: string;
+    sourceMapping?: Record<string, string>;
+    sourcePreviewMapping?: Record<string, string>;
+    sourceReferenceMapping?: Record<string, CitationReference>;
+  }) => (
     <div
       className="text-sm leading-relaxed text-gray-700"
-      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content, sourceMapping) }}
+      onClick={(event) => {
+        const target = event.target as HTMLElement | null;
+        const citeEl = target?.closest('.cite-ref[data-cite]') as HTMLElement | null;
+        if (!citeEl) return;
+        const citationNumber = citeEl.dataset.cite;
+        if (!citationNumber) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleCitationClick(citationNumber, sourceReferenceMapping);
+      }}
+      onMouseMove={(event) => {
+        const target = event.target as HTMLElement | null;
+        const citeEl = target?.closest('.cite-ref[data-cite]') as HTMLElement | null;
+        if (!citeEl) {
+          if (hoveredCitation) setHoveredCitation(null);
+          return;
+        }
+        const citationNumber = citeEl.dataset.cite;
+        if (!citationNumber) {
+          if (hoveredCitation) setHoveredCitation(null);
+          return;
+        }
+        const ref = sourceReferenceMapping?.[citationNumber];
+        const title = ref?.fileName || sourceMapping?.[citationNumber] || '';
+        const preview = ref?.preview || sourcePreviewMapping?.[citationNumber] || '';
+        if (!title && !preview) {
+          if (hoveredCitation) setHoveredCitation(null);
+          return;
+        }
+        setHoveredCitation({
+          title,
+          preview,
+          x: event.clientX,
+          y: event.clientY - 18,
+        });
+      }}
+      onMouseLeave={() => setHoveredCitation(null)}
+      onMouseOver={(event) => {
+        const target = event.target as HTMLElement | null;
+        const citeEl = target?.closest('.cite-ref[data-cite]') as HTMLElement | null;
+        if (!citeEl) {
+          setHoveredCitation(null);
+          return;
+        }
+        const citationNumber = citeEl.dataset.cite;
+        if (!citationNumber) {
+          setHoveredCitation(null);
+          return;
+        }
+        const ref = sourceReferenceMapping?.[citationNumber];
+        const title = ref?.fileName || sourceMapping?.[citationNumber] || '';
+        const preview = ref?.preview || sourcePreviewMapping?.[citationNumber] || '';
+        if (!title && !preview) {
+          setHoveredCitation(null);
+          return;
+        }
+        const rect = citeEl.getBoundingClientRect();
+        setHoveredCitation({
+          title,
+          preview,
+          x: rect.left + rect.width / 2,
+          y: rect.top - 12,
+        });
+      }}
+      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content, sourceMapping, sourcePreviewMapping, sourceReferenceMapping) }}
     />
   );
 
@@ -1800,55 +2109,75 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return trimmed;
   };
 
+  const tooltipViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const tooltipLeft = hoveredCitation
+    ? Math.min(Math.max(hoveredCitation.x, 220), tooltipViewportWidth - 220)
+    : 220;
 
   return (
     <>
       <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
       {/* Citation tooltip styles */}
       <style>{`
-        .cite-ref[data-source] {
+        .cite-ref[data-source-tooltip] {
           transition: background-color 0.15s ease;
         }
-        .cite-ref[data-source]:hover {
+        .cite-ref[data-source-tooltip]:hover {
           background-color: #bfdbfe !important;
-        }
-        .cite-ref[data-source]:hover::after {
-          content: "📄 " attr(data-source);
-          position: absolute;
-          bottom: calc(100% + 8px);
-          left: 50%;
-          transform: translateX(-50%);
-          background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-          color: #f1f5f9;
-          padding: 8px 14px;
-          border-radius: 8px;
-          font-size: 12px;
-          line-height: 1.4;
-          font-weight: 500;
-          letter-spacing: 0.01em;
-          white-space: nowrap;
-          z-index: 50;
-          pointer-events: none;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.1);
-          animation: citeTooltipIn 0.15s ease-out;
-        }
-        .cite-ref[data-source]:hover::before {
-          content: "";
-          position: absolute;
-          bottom: calc(100% + 2px);
-          left: 50%;
-          transform: translateX(-50%);
-          border: 5px solid transparent;
-          border-top-color: #1e293b;
-          z-index: 50;
-          pointer-events: none;
-          animation: citeTooltipIn 0.15s ease-out;
         }
         @keyframes citeTooltipIn {
           from { opacity: 0; transform: translateX(-50%) translateY(4px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
+      {hoveredCitation && (
+        <div
+          className="fixed z-[80] pointer-events-none"
+          style={{
+            left: `${tooltipLeft}px`,
+            top: `${Math.max(hoveredCitation.y, 24)}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div
+            className="w-[min(640px,calc(100vw-32px))] rounded-xl px-4 py-3 text-left shadow-[0_12px_30px_rgba(15,23,42,0.36)]"
+            style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid #334155',
+            }}
+          >
+            <div
+              className="rounded-lg px-3 py-2 text-[13px] font-bold leading-snug break-words"
+              style={{
+                backgroundColor: '#1e293b',
+                color: '#ffffff',
+              }}
+            >
+              {hoveredCitation.title}
+            </div>
+            {hoveredCitation.preview && (
+              <div
+                className="mt-3 pt-3"
+                style={{
+                  borderTop: '1px solid #334155',
+                }}
+              >
+                <div
+                  className="max-h-[70vh] overflow-y-auto pr-2 text-[14px] leading-6 whitespace-pre-wrap break-words"
+                  style={{
+                    color: '#e2e8f0',
+                    opacity: 1,
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#475569 #1e293b',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: renderTooltipText(hoveredCitation.preview) }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="mx-auto h-0 w-0 border-x-[6px] border-t-[7px] border-x-transparent" style={{ borderTopColor: '#0f172a' }} />
+        </div>
+      )}
       {/* Header */}
       <header className="h-14 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-4">
@@ -2015,7 +2344,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             <div className="flex-1 flex flex-col min-h-0">
               <button
                 type="button"
-                onClick={() => setSourceDetailView(null)}
+                onClick={() => { setSourceDetailView(null); setSourceDetailCitationFocus(null); }}
                 className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 mb-2"
               >
                 <ChevronLeft size={18} />
@@ -2035,6 +2364,31 @@ rel="noopener noreferrer"
                 </a>
               )}
               <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-gray-200 rounded-xl p-3">
+                {sourceDetailCitationFocus && (
+                  <div
+                    ref={sourceDetailCitationRef}
+                    className="mb-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2.5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                        Citation [{sourceDetailCitationFocus.sourceNumber}]
+                      </span>
+                      {typeof sourceDetailCitationFocus.chunkIndex === 'number' && (
+                        <span className="text-[11px] text-blue-600">
+                          Chunk #{sourceDetailCitationFocus.chunkIndex + 1}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">
+                      {sourceDetailCitationFocus.fileName}
+                    </p>
+                    {sourceDetailCitationFocus.preview && (
+                      <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                        {sourceDetailCitationFocus.preview}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {sourceDetailLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 size={24} className="animate-spin text-blue-500" />
@@ -2158,7 +2512,12 @@ rel="noopener noreferrer"
                       msg.role === 'assistant' ? 'bg-ios-gray-50 text-ios-gray-700 rounded-2xl rounded-tl-md' : 'bg-primary text-white rounded-2xl rounded-tr-md'
                     }`}>
                       {msg.role === 'assistant' ? (
-                        <MarkdownContent content={msg.content} sourceMapping={msg.sourceMapping} />
+                        <MarkdownContent
+                          content={msg.content}
+                          sourceMapping={msg.sourceMapping}
+                          sourcePreviewMapping={msg.sourcePreviewMapping}
+                          sourceReferenceMapping={msg.sourceReferenceMapping}
+                        />
                       ) : (
                         <span>{msg.content}</span>
                       )}
@@ -2171,7 +2530,7 @@ rel="noopener noreferrer"
                       <Bot size={16} />
                     </div>
                     <div className="bg-ios-gray-50 rounded-2xl rounded-tl-md px-4 py-3 text-sm flex items-center gap-2 text-ios-gray-500 shadow-ios-sm">
-                      <Loader2 size={14} className="animate-spin" /> Thinking...
+                      <Loader2 size={14} className="animate-spin" /> {chatLoadingStage}
                     </div>
                   </div>
                 )}
@@ -2183,7 +2542,7 @@ rel="noopener noreferrer"
           {chatSubView === 'current' && (
             <div className="px-6 pb-6 shrink-0">
               <div className="max-w-[800px] mx-auto relative">
-                <div className="glass rounded-ios-xl border border-white/30 shadow-ios-sm">
+                <div className="glass rounded-ios-xl border border-slate-200/85 bg-white/82 shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-primary/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.12),0_18px_40px_rgba(37,99,235,0.16)]">
                   <input
                     type="text"
                     value={inputMsg}
@@ -2191,10 +2550,10 @@ rel="noopener noreferrer"
                     onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
                     placeholder={selectedIds.size > 0 ? "Type here..." : "Select files first..."}
                     disabled={selectedIds.size === 0}
-                    className="w-full bg-transparent rounded-ios-xl py-4 pl-6 pr-24 focus:outline-none text-lg disabled:opacity-50"
+                    className="w-full bg-transparent rounded-ios-xl py-4 pl-6 pr-24 text-lg text-slate-800 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <span className="text-xs text-ios-gray-400 font-medium">{selectedIds.size} sources</span>
+                    <span className="text-xs text-slate-500 font-medium">{selectedIds.size} sources</span>
                     <motion.button
                       whileTap={{ scale: 0.88 }}
                       onClick={handleSendMessage}
@@ -2991,7 +3350,7 @@ rel="noopener noreferrer"
                       }}
                     />
                   </label>
-                  {introduceUploadSuccess && <p className="text-xs text-green-600 mt-1">{introduceUploadSuccess}</p>}
+                  {introduceUploadSuccess && <p className="text-xs font-medium text-green-800 mt-1">{introduceUploadSuccess}</p>}
                   <p className="text-xs text-gray-400 mt-1">PDF, images, documents, audio, etc.</p>
                 </div>
 
@@ -3017,7 +3376,7 @@ rel="noopener noreferrer"
                     </button>
                   </div>
                   {introduceUrlError && <p className="text-xs text-red-500 mt-1">{introduceUrlError}</p>}
-                  {introduceUrlSuccess && <p className="text-xs text-green-600 mt-1">{introduceUrlSuccess}</p>}
+                  {introduceUrlSuccess && <p className="text-xs font-medium text-green-800 mt-1">{introduceUrlSuccess}</p>}
                   <p className="text-xs text-gray-400 mt-1">Fetch page content (strip HTML) and add as source</p>
                 </div>
 
@@ -3044,7 +3403,7 @@ rel="noopener noreferrer"
                     </button>
                   </div>
                   {introduceTextError && <p className="text-xs text-red-500 mt-1">{introduceTextError}</p>}
-                  {introduceTextSuccess && <p className="text-xs text-green-600 mt-1">{introduceTextSuccess}</p>}
+                  {introduceTextSuccess && <p className="text-xs font-medium text-green-800 mt-1">{introduceTextSuccess}</p>}
                 </div>
               </div>
             </div>

@@ -12,10 +12,10 @@ from workflow_engine.state import KBPodcastState, MainState
 from workflow_engine.agentroles import create_agent
 from workflow_engine.utils import get_project_root
 import re
-import wave
 from workflow_engine.toolkits.multimodaltool.req_tts import (
     generate_speech_bytes_async,
-    split_tts_text
+    save_audio_chunks_to_wav,
+    split_tts_text,
 )
 
 log = get_logger(__name__)
@@ -317,6 +317,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
                         api_key=state.request.api_key,
                         model=state.request.tts_model,
                         voice_name=voice,
+                        language=state.request.language,
                     )
 
             async def _run_no_sem(seg):
@@ -327,6 +328,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
                     api_key=state.request.api_key,
                     model=state.request.tts_model,
                     voice_name=voice,
+                    language=state.request.language,
                 )
 
             async def _run_with_retry(seg, attempts=3, base_delay=0.8, use_sem=True):
@@ -355,11 +357,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
             audio_chunks = results
 
             os.makedirs(os.path.dirname(os.path.abspath(audio_path)), exist_ok=True)
-            with wave.open(audio_path, "wb") as wav_file:
-                wav_file.setnchannels(1)        # 1 Channel
-                wav_file.setsampwidth(2)        # 16 bit = 2 bytes
-                wav_file.setframerate(24000)    # 24kHz
-                wav_file.writeframes(b"".join(audio_chunks))
+            save_audio_chunks_to_wav(audio_chunks, audio_path)
 
             state.audio_path = audio_path
             log.info(f"Audio generated successfully: {audio_path}")

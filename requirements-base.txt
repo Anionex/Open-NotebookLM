@@ -111,9 +111,11 @@ vendi-score==0.0.3
 google-api-core>=2.28.0
 google-api-python-client>=2.187.0
 
-# ------ Audio ------
+# ------ Audio / TTS ------
 librosa>=0.11.0
 soundfile>=0.13.0
+qwen-tts>=0.1.0
+fireredtts2>=0.1.0
 
 # ------ OCR (PaddlePaddle) ------
 paddlepaddle==3.0.0

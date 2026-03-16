@@ -24,6 +24,13 @@ export interface ChatMessage {
     analysis: string;
   }[];
   sourceMapping?: Record<string, string>;
+  sourcePreviewMapping?: Record<string, string>;
+  sourceReferenceMapping?: Record<string, {
+    fileName: string;
+    filePath?: string;
+    preview?: string;
+    chunkIndex?: number | null;
+  }>;
 }
 
 export type SectionType = 'library' | 'upload' | 'output' | 'settings';

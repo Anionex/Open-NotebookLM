@@ -7,6 +7,7 @@ import { TextSelectionToolbar } from './TextSelectionToolbar';
 import { DiffPreviewPanel } from './DiffPreviewPanel';
 import { Image, Download, Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import { apiFetch } from '../../config/api';
+import { useToast } from '../../hooks/useToast';
 import type { KnowledgeFile } from '../../types';
 
 interface NotionEditorProps {
@@ -24,6 +25,7 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   files = [],
   onSaved,
 }) => {
+  const { showToast, ToastContainer } = useToast();
   const [title, setTitle] = useState('无标题');
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([{ id: '1', type: 'text', content: '' }]);
@@ -388,11 +390,11 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
       const res = await apiFetch('/api/v1/kb/upload', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('保存失败');
 
-      alert('笔记已保存到知识库！');
+      showToast('笔记已保存到知识库！', 'success');
       onSaved?.();
       onClose();
     } catch {
-      alert('保存笔记失败');
+      showToast('保存笔记失败', 'error');
     } finally {
       setSaving(false);
     }
@@ -413,9 +415,11 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   };
 
   return (
-    <div
-      className={`flex flex-col h-full bg-white w-full ${isFullScreen ? 'fixed inset-0 z-50' : ''}`}
-    >
+    <>
+      {ToastContainer}
+      <div
+        className={`flex flex-col h-full bg-white w-full ${isFullScreen ? 'fixed inset-0 z-50' : ''}`}
+      >
       <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10 shrink-0">
         <div className="flex items-center gap-2">
           <button
@@ -561,5 +565,6 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
         />
       )}
     </div>
+    </>
   );
 };

@@ -11,6 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { getSupabaseClient } from '../lib/supabase';
 import { apiFetch } from '../config/api';
 import { getApiSettings } from '../services/apiSettingsService';
+import { fetchWithCache, invalidateCacheByPrefix } from '../services/clientCache';
 import type { KnowledgeFile, ChatMessage, ToolType } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { MermaidPreview } from '../components/knowledge-base/tools/MermaidPreview';
@@ -19,20 +20,54 @@ import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
 import { QuizContainer } from '../components/quiz/QuizContainer';
 import { NotionEditor } from '../components/notes/NotionEditor';
+import { useToast } from '../hooks/useToast';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
 
+type PendingSourceItem = {
+  id: string;
+  name: string;
+  sourceType: 'upload';
+  status: 'processing' | 'error';
+  message?: string;
+};
+
+type CitationReference = {
+  fileName: string;
+  filePath?: string;
+  preview?: string;
+  chunkIndex?: number | null;
+  sourceNumber?: string;
+};
+
+type CitationTooltipState = {
+  title: string;
+  preview: string;
+  x: number;
+  y: number;
+};
+
+type SourceDetailCacheEntry = {
+  content: string;
+  format: 'text' | 'markdown';
+};
+
+const FILE_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
+const SOURCE_DETAIL_CACHE_TTL_MS = 15 * 60 * 1000;
+
 const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void }) => {
   const { user } = useAuthStore();
   const effectiveUser = user || DEFAULT_USER;
+  const { showToast, ToastContainer } = useToast();
   const [activeTool, setActiveTool] = useState<ToolType>('chat');
   
   // Files management
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingSources, setPendingSources] = useState<PendingSourceItem[]>([]);
   
   // Chat state
   const WELCOME_MSG: ChatMessage = {
@@ -46,6 +81,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const conversationIdRef = React.useRef<string | null>(null);
   const [inputMsg, setInputMsg] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatLoadingStage, setChatLoadingStage] = useState('思考中...');
 
   // 对话历史：本地持久化
   type ConversationItem = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
@@ -147,13 +183,19 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [introduceTextLoading, setIntroduceTextLoading] = useState(false);
   const [introduceTextError, setIntroduceTextError] = useState('');
   const [introduceTextSuccess, setIntroduceTextSuccess] = useState('');
-  const [introduceUploadSuccess, setIntroduceUploadSuccess] = useState('');
+  const processingUploadCount = pendingSources.filter(
+    item => item.sourceType === 'upload' && item.status === 'processing'
+  ).length;
+  const sourceListCount = files.length + pendingSources.length;
 
   // 来源详情：点击某项后翻转显示解析内容（PDF 等解析为 markdown 展示）
   const [sourceDetailView, setSourceDetailView] = useState<KnowledgeFile | null>(null);
   const [sourceDetailContent, setSourceDetailContent] = useState('');
   const [sourceDetailFormat, setSourceDetailFormat] = useState<'text' | 'markdown'>('text');
   const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
+  const [sourceDetailCitationFocus, setSourceDetailCitationFocus] = useState<CitationReference | null>(null);
+  const sourceDetailCitationRef = React.useRef<HTMLDivElement | null>(null);
+  const [hoveredCitation, setHoveredCitation] = useState<CitationTooltipState | null>(null);
 
   // Flashcard state
   const [flashcards, setFlashcards] = useState<any[]>([]);
@@ -181,11 +223,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     document.body.style.userSelect = 'none';
     const onMove = (e: MouseEvent) => {
       if (!resizeRef.current) return;
-      const delta = e.clientX - resizeRef.current.startX;
+      const { startX, startLeft, startRight } = resizeRef.current;
+      const delta = e.clientX - startX;
       if (resizing === 'left') {
-        setLeftPanelWidth(() => Math.min(480, Math.max(160, resizeRef.current!.startLeft + delta)));
+        setLeftPanelWidth(Math.min(480, Math.max(160, startLeft + delta)));
       } else {
-        setRightPanelWidth(() => Math.min(600, Math.max(200, resizeRef.current!.startRight - delta)));
+        setRightPanelWidth(Math.min(600, Math.max(200, startRight - delta)));
       }
     };
     const onUp = () => {
@@ -347,7 +390,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   const handleLoadSavedSet = async (item: typeof outputFeed[number]) => {
     if (!item.setId) {
-      alert('加载失败：该条目没有保存的集合 ID，可能是在持久化功能添加之前创建的。');
+      showToast('加载失败：该条目没有保存的集合 ID，可能是在持久化功能添加之前创建的。', 'error');
       return;
     }
     setLoadingSetId(item.id);
@@ -369,7 +412,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     } catch (err) {
       console.error('Load saved set error:', err);
-      alert('加载失败，数据可能已被删除。');
+      showToast('加载失败，数据可能已被删除。', 'error');
     } finally {
       setLoadingSetId(null);
     }
@@ -569,7 +612,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       if (!apiUrl || !apiKey) {
         const msg = '请先在设置中配置 API URL 和 API Key';
         setVectorError(msg);
-        alert(msg);
+        showToast(msg, 'warning');
         return;
       }
       if (!apiUrl.includes('/embeddings')) {
@@ -812,33 +855,48 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return `kb_files_${uid}`;
   };
 
+  const cacheScopeUser = effectiveUser?.id || effectiveUser?.email || 'anonymous';
+  const cacheScopeNotebook = notebook?.id || 'no-notebook';
+  const encodeCachePart = (value?: string) => encodeURIComponent(value || '');
+  const getFilesCacheKey = () => `notebook-files:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}`;
+  const getSourceDetailCacheKey = (file: KnowledgeFile) => (
+    `source-detail:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}:${encodeCachePart(file.type)}:${encodeCachePart(file.url || file.name)}`
+  );
+  const invalidateNotebookSourceCaches = () => {
+    invalidateCacheByPrefix(`notebook-files:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}`);
+    invalidateCacheByPrefix(`source-detail:${encodeCachePart(cacheScopeUser)}:${encodeCachePart(cacheScopeNotebook)}`);
+  };
+
   const fetchFiles = async () => {
     try {
-      let mappedFiles: KnowledgeFile[] = [];
-      // 数据从 outputs 取：调用后端按磁盘扫描
-      if (notebook?.id) {
-        const params = new URLSearchParams({
-          user_id: effectiveUser.id,
-          notebook_id: notebook.id,
-          email: effectiveUser.email || effectiveUser.id,
-        });
-        const res = await apiFetch(`/api/v1/kb/files?${params.toString()}`);
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data?.files) ? data.files : [];
-          mappedFiles = list.map((row: any) => ({
-            id: row.id || `file-${row.name}`,
-            name: row.name,
-            type: mapFileType(row.file_type || row.name?.split('.').pop() || ''),
-            size: formatSize(row.file_size || 0),
-            uploadTime: '',
-            isEmbedded: false,
-            desc: '',
-            url: row.url || row.static_url,
-          }));
-        }
-      }
-
+      const mappedFiles = notebook?.id
+        ? await fetchWithCache<KnowledgeFile[]>(
+            getFilesCacheKey(),
+            FILE_LIST_CACHE_TTL_MS,
+            async () => {
+              const params = new URLSearchParams({
+                user_id: effectiveUser.id,
+                notebook_id: notebook.id,
+                email: effectiveUser.email || effectiveUser.id,
+              });
+              const res = await apiFetch(`/api/v1/kb/files?${params.toString()}`);
+              if (!res.ok) throw new Error('来源列表获取失败');
+              const data = await res.json();
+              const list = Array.isArray(data?.files) ? data.files : [];
+              return list.map((row: any) => ({
+                id: row.id || `file-${row.name}`,
+                name: row.name,
+                type: mapFileType(row.file_type || row.name?.split('.').pop() || ''),
+                size: formatSize(row.file_size || 0),
+                uploadTime: '',
+                isEmbedded: false,
+                desc: '',
+                url: row.url || row.static_url,
+              }));
+            },
+            { useStaleOnError: true }
+          )
+        : [];
       setFiles(mappedFiles);
       setSelectedIds(new Set(mappedFiles.map(f => f.id)));
     } catch (err) {
@@ -873,6 +931,30 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     setSelectedIds(newSet);
   };
 
+  const upsertFileInList = (file: KnowledgeFile) => {
+    setFiles(prev => [
+      file,
+      ...prev.filter(existing => {
+        if (file.id && existing.id === file.id) return false;
+        if (file.url && existing.url === file.url) return false;
+        return true;
+      }),
+    ]);
+    setSelectedIds(prev => new Set([...prev, file.id]));
+  };
+
+  const removePendingSource = (pendingId: string) => {
+    setPendingSources(prev => prev.filter(item => item.id !== pendingId));
+  };
+
+  const markPendingSourceError = (pendingId: string, message: string) => {
+    setPendingSources(prev => prev.map(item => (
+      item.id === pendingId
+        ? { ...item, status: 'error', message }
+        : item
+    )));
+  };
+
   /** PDF / .md 等可解析为正文并预览 */
   const isPreviewableDoc = (f: KnowledgeFile) => {
     const name = (f.name || '').toLowerCase();
@@ -880,62 +962,95 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return (name.endsWith('.pdf') || name.endsWith('.md')) || (url.endsWith('.pdf') || url.endsWith('.md'));
   };
 
-  const openSourceDetail = async (file: KnowledgeFile) => {
+  const normalizeCitationPath = (value?: string) => {
+    if (!value) return '';
+    const normalized = value.replace(/\\/g, '/');
+    const outputsIdx = normalized.indexOf('/outputs/');
+    return outputsIdx >= 0 ? normalized.slice(outputsIdx) : normalized;
+  };
+
+  const findFileForCitation = (ref: CitationReference) => {
+    const targetPath = normalizeCitationPath(ref.filePath);
+    return files.find((file) => {
+      const filePath = normalizeCitationPath(file.url);
+      if (targetPath && filePath && targetPath === filePath) return true;
+      return file.name === ref.fileName;
+    }) || null;
+  };
+
+  const openSourceDetail = async (file: KnowledgeFile, citationFocus?: CitationReference | null) => {
     setSourceDetailView(file);
     setSourceDetailContent('');
     setSourceDetailFormat('text');
     setSourceDetailLoading(false);
+    setSourceDetailCitationFocus(citationFocus ?? null);
     if (file.type === 'link' && file.url && (file.url.startsWith('http://') || file.url.startsWith('https://'))) {
       setSourceDetailLoading(true);
       try {
-        const res = await apiFetch('/api/v1/kb/fetch-page-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: file.url })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSourceDetailContent(data?.content ?? '[无内容]');
-        } else {
-          setSourceDetailContent('[抓取失败]');
-        }
+        const detail = await fetchWithCache<SourceDetailCacheEntry>(
+          getSourceDetailCacheKey(file),
+          SOURCE_DETAIL_CACHE_TTL_MS,
+          async () => {
+            const res = await apiFetch('/api/v1/kb/fetch-page-content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: file.url })
+            });
+            if (!res.ok) {
+              return { content: '[抓取失败]', format: 'text' };
+            }
+            const data = await res.json();
+            return { content: data?.content ?? '[无内容]', format: 'text' };
+          },
+          { useStaleOnError: true }
+        );
+        setSourceDetailContent(detail.content);
+        setSourceDetailFormat(detail.format);
       } catch {
         setSourceDetailContent('[请求失败]');
+        setSourceDetailFormat('text');
       } finally {
         setSourceDetailLoading(false);
       }
     } else if (isPreviewableDoc(file) && file.url && (file.url.startsWith('/outputs/') || file.url.startsWith('/'))) {
       setSourceDetailLoading(true);
       try {
-        // 优先展示 MinerU 产出的 MD；若无则回退到 parse-local-file
-        const displayRes = await apiFetch('/api/v1/kb/get-source-display-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: file.url })
-        });
-        if (displayRes.ok) {
-          const displayData = await displayRes.json();
-          if (displayData?.from_mineru && displayData?.content != null) {
-            setSourceDetailContent(displayData.content);
-            setSourceDetailFormat('markdown');
-            setSourceDetailLoading(false);
-            return;
-          }
-        }
-        const res = await apiFetch('/api/v1/kb/parse-local-file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path_or_url: file.url })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSourceDetailContent(data?.content ?? '[无内容]');
-          setSourceDetailFormat((data?.format === 'markdown' ? 'markdown' : 'text') as 'text' | 'markdown');
-        } else {
-          setSourceDetailContent('[解析失败]');
-        }
+        const detail = await fetchWithCache<SourceDetailCacheEntry>(
+          getSourceDetailCacheKey(file),
+          SOURCE_DETAIL_CACHE_TTL_MS,
+          async () => {
+            const displayRes = await apiFetch('/api/v1/kb/get-source-display-content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: file.url })
+            });
+            if (displayRes.ok) {
+              const displayData = await displayRes.json();
+              if (displayData?.from_mineru && displayData?.content != null) {
+                return { content: displayData.content, format: 'markdown' };
+              }
+            }
+            const res = await apiFetch('/api/v1/kb/parse-local-file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path_or_url: file.url })
+            });
+            if (!res.ok) {
+              return { content: '[解析失败]', format: 'text' };
+            }
+            const data = await res.json();
+            return {
+              content: data?.content ?? '[无内容]',
+              format: (data?.format === 'markdown' ? 'markdown' : 'text') as 'text' | 'markdown',
+            };
+          },
+          { useStaleOnError: true }
+        );
+        setSourceDetailContent(detail.content);
+        setSourceDetailFormat(detail.format);
       } catch {
         setSourceDetailContent('[请求失败]');
+        setSourceDetailFormat('text');
       } finally {
         setSourceDetailLoading(false);
       }
@@ -945,6 +1060,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       setSourceDetailContent(`[暂无解析预览] ${file.name}`);
     }
   };
+
+  const handleCitationClick = async (
+    citationNumber: string,
+    sourceReferenceMapping?: Record<string, CitationReference>
+  ) => {
+    const ref = sourceReferenceMapping?.[citationNumber];
+    if (!ref) return;
+    const targetFile = findFileForCitation(ref);
+    if (!targetFile) return;
+    setSelectedIds(prev => {
+      if (prev.has(targetFile.id)) return prev;
+      const next = new Set(prev);
+      next.add(targetFile.id);
+      return next;
+    });
+    await openSourceDetail(targetFile, { ...ref, sourceNumber: citationNumber });
+  };
+
+  React.useEffect(() => {
+    if (!sourceDetailCitationFocus || sourceDetailLoading) return;
+    const timer = window.setTimeout(() => {
+      sourceDetailCitationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [sourceDetailCitationFocus, sourceDetailLoading, sourceDetailContent]);
 
   const runFastResearch = async () => {
     if (!fastResearchQuery.trim()) return;
@@ -995,7 +1135,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       .map(({ title, link, snippet }) => ({ title, link, snippet }));
     if (items.length === 0) return;
     if (!notebook?.id || !effectiveUser?.email) {
-      alert('请先选择笔记本并登录');
+      showToast('请先选择笔记本并登录', 'warning');
       return;
     }
     setImportingSources(true);
@@ -1016,14 +1156,15 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         throw new Error(data?.detail || data?.message || '导入失败');
       }
       const data = await res.json();
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       await fetchVectorList();
       setFastResearchSources([]);
       setFastResearchSelected(new Set());
       const embeddedMsg = data?.embedded ? `，已向量化 ${data.embedded} 个` : '';
-      alert(`已导入 ${data?.imported ?? items.length} 个来源${embeddedMsg}`);
+      showToast(`已导入 ${data?.imported ?? items.length} 个来源${embeddedMsg}`, 'success');
     } catch (err: any) {
-      alert(err?.message || '导入失败');
+      showToast(err?.message || '导入失败', 'error');
     } finally {
       setImportingSources(false);
     }
@@ -1070,6 +1211,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       };
       setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
       setSelectedIds(prev => new Set([...prev, newFile.id]));
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       setIntroduceUrl('');
       setIntroduceUrlSuccess('已抓取并加入来源');
@@ -1123,6 +1265,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       };
       setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
       setSelectedIds(prev => new Set([...prev, newFile.id]));
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       setIntroduceText('');
       setIntroduceTextSuccess('已添加为来源');
@@ -1196,6 +1339,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
         setSelectedIds(prev => new Set([...prev, newFile.id]));
       }
+      invalidateNotebookSourceCaches();
       await fetchFiles();
       setDeepResearchTopic('');
       setDeepResearchSuccess({
@@ -1221,48 +1365,102 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return url;
   };
 
-  // Upload handler（不做用户管理时用 effectiveUser）；可选 onSuccess 用于引入弹框内反馈
-  const handleFileUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    options?: { onSuccess?: () => void }
+  const uploadFiles = async (
+    inputFiles: FileList | File[],
+    options?: { closeModalOnQueue?: boolean }
   ) => {
-    if (!e.target.files) return;
+    const uploadQueue = Array.from(inputFiles || []);
+    if (!uploadQueue.length) return;
     if (!notebook?.id) {
-      alert('请先选择或创建一个笔记本再上传文件');
+      showToast('请先选择或创建一个笔记本再上传文件', 'warning');
       return;
     }
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('email', effectiveUser.email || effectiveUser.id || 'default');
-    formData.append('user_id', effectiveUser.id || 'default');
-    formData.append('notebook_id', notebook.id);
-    formData.append('notebook_title', notebook?.title || notebook?.name || '');
 
+    const queuedSources: PendingSourceItem[] = uploadQueue.map((file, index) => ({
+      id: `pending-upload-${Date.now()}-${index}-${file.name}`,
+      name: file.name,
+      sourceType: 'upload',
+      status: 'processing',
+    }));
+
+    setPendingSources(prev => [...queuedSources, ...prev]);
+    if (options?.closeModalOnQueue) {
+      setShowIntroduceModal(false);
+    }
     setFileUploading(true);
+    showToast(
+      uploadQueue.length > 1
+        ? `已添加 ${uploadQueue.length} 个文件，正在处理`
+        : `已添加 ${uploadQueue[0].name}，正在处理`,
+      'info'
+    );
+
+    let successCount = 0;
+    let failureCount = 0;
+    let embeddedCount = 0;
+
     try {
-      const res = await apiFetch('/api/v1/kb/upload', {
-        method: 'POST',
-        body: formData
-      });
+      for (let i = 0; i < uploadQueue.length; i += 1) {
+        const file = uploadQueue[i];
+        const pendingItem = queuedSources[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('email', effectiveUser.email || effectiveUser.id || 'default');
+        formData.append('user_id', effectiveUser.id || 'default');
+        formData.append('notebook_id', notebook.id);
+        formData.append('notebook_title', notebook?.title || notebook?.name || '');
 
-      if (!res.ok) throw new Error('Upload failed');
+        try {
+          const res = await apiFetch('/api/v1/kb/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(data?.detail || data?.message || `上传 ${file.name} 失败`);
+          }
 
-      const data = await res.json();
-      await fetchFiles();
-      await fetchVectorList();
-      if (data.embedded) {
-        if (options?.onSuccess) options.onSuccess();
-        else alert('上传成功，已自动入库！');
-      } else {
-        if (options?.onSuccess) options.onSuccess();
-        else alert('上传成功，但自动入库失败。可在来源管理中重新入库。');
+          const newFile: KnowledgeFile = {
+            id: data.id || data.storage_path || `file-${data.filename || file.name}`,
+            name: data.filename || file.name,
+            type: mapFileType(data.file_type || file.type || file.name.split('.').pop() || ''),
+            size: typeof data.file_size === 'number' ? formatSize(data.file_size) : formatSize(file.size || 0),
+            uploadTime: '',
+            isEmbedded: !!data.embedded,
+            desc: '',
+            url: data.static_url || '',
+          };
+
+          removePendingSource(pendingItem.id);
+          upsertFileInList(newFile);
+          successCount += 1;
+          if (data.embedded) embeddedCount += 1;
+        } catch (err: any) {
+          const msg = err?.message || `上传 ${file.name} 失败`;
+          console.error('Upload error:', err);
+          markPendingSourceError(pendingItem.id, msg);
+          setRetrievalError(msg);
+          failureCount += 1;
+        }
       }
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      const msg = err?.message || '上传失败，请重试';
-      setRetrievalError(msg);
-      alert(msg);
+
+      if (successCount > 0) {
+        invalidateNotebookSourceCaches();
+        await fetchFiles();
+        await fetchVectorList();
+        if (failureCount === 0) {
+          showToast(
+            embeddedCount === successCount
+              ? `已完成 ${successCount} 个来源导入并入库`
+              : `已完成 ${successCount} 个来源导入`,
+            'success'
+          );
+        } else {
+          showToast(`已完成 ${successCount} 个来源导入，${failureCount} 个失败`, 'warning');
+        }
+      } else if (failureCount > 0) {
+        showToast(`上传失败：${failureCount} 个文件未处理成功`, 'error');
+      }
     } finally {
       setFileUploading(false);
     }
@@ -1282,6 +1480,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     setChatMessages(prev => [...prev, userMsg]);
     setInputMsg('');
     setIsChatLoading(true);
+    setChatLoadingStage('正在准备来源...');
 
     try {
       if (selectedIds.size === 0) {
@@ -1308,8 +1507,37 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }));
 
       const settings = getApiSettings(effectiveUser?.id || null);
+      const assistantMessageId = (Date.now() + 1).toString();
+      const assistantTime = new Date().toLocaleTimeString();
+      let streamedContent = '';
+      let streamedDetails: ChatMessage['details'] | undefined;
+      let streamedSourceMapping: ChatMessage['sourceMapping'] | undefined;
+      let streamedSourcePreviewMapping: ChatMessage['sourcePreviewMapping'] | undefined;
+      let streamedSourceReferenceMapping: ChatMessage['sourceReferenceMapping'] | undefined;
 
-      const res = await apiFetch('/api/v1/kb/chat', {
+      const syncAssistantMessage = () => {
+        setChatMessages(prev => prev.map(msg => (
+          msg.id === assistantMessageId
+            ? {
+                ...msg,
+                content: streamedContent,
+                details: streamedDetails,
+                sourceMapping: streamedSourceMapping,
+                sourcePreviewMapping: streamedSourcePreviewMapping,
+                sourceReferenceMapping: streamedSourceReferenceMapping,
+              }
+            : msg
+        )));
+      };
+
+      setChatMessages(prev => [...prev, {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        time: assistantTime,
+      }]);
+
+      const res = await apiFetch('/api/v1/kb/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1326,18 +1554,70 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
 
       if (!res.ok) throw new Error("Chat request failed");
+      if (!res.body) throw new Error("Chat stream not available");
 
-      const data = await res.json();
-      
-      const botMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.answer || "抱歉，我无法回答这个问题。",
-        time: new Date().toLocaleTimeString(),
-        details: data.file_analyses,
-        sourceMapping: data.source_mapping || undefined
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processEvent = (rawLine: string) => {
+        const line = rawLine.trim();
+        if (!line) return;
+        const event = JSON.parse(line);
+        if (event.type === 'meta') {
+          streamedDetails = event.file_analyses || undefined;
+          streamedSourceMapping = event.source_mapping || undefined;
+          streamedSourcePreviewMapping = event.source_preview_mapping || undefined;
+          streamedSourceReferenceMapping = event.source_reference_mapping || undefined;
+          syncAssistantMessage();
+          return;
+        }
+        if (event.type === 'stage') {
+          setChatLoadingStage(event.message || '思考中...');
+          return;
+        }
+        if (event.type === 'delta') {
+          if (!streamedContent) setChatLoadingStage('正在生成回答...');
+          streamedContent += event.delta || '';
+          syncAssistantMessage();
+          return;
+        }
+        if (event.type === 'done') {
+          if (typeof event.answer === 'string' && event.answer.length >= streamedContent.length) {
+            streamedContent = event.answer;
+            syncAssistantMessage();
+          }
+          return;
+        }
+        if (event.type === 'error') {
+          throw new Error(event.message || 'Chat stream failed');
+        }
       };
-      setChatMessages(prev => [...prev, botMsg]);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          processEvent(line);
+        }
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) processEvent(buffer);
+
+      const botMsg: ChatMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: streamedContent || "抱歉，我无法回答这个问题。",
+        time: assistantTime,
+        details: streamedDetails,
+        sourceMapping: streamedSourceMapping,
+        sourcePreviewMapping: streamedSourcePreviewMapping,
+        sourceReferenceMapping: streamedSourceReferenceMapping
+      };
+      setChatMessages(prev => prev.map(msg => msg.id === assistantMessageId ? botMsg : msg));
       persistCurrentConversation([...chatMessages, userMsg, botMsg]);
 
       const cid = conversationIdRef.current;
@@ -1355,23 +1635,29 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     } catch (err) {
       console.error("Chat error:", err);
+      const errorContent = err instanceof Error ? err.message : "发生错误，请稍后重试。";
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "发生错误，请稍后重试。",
+        content: errorContent || "发生错误，请稍后重试。",
         time: new Date().toLocaleTimeString()
       };
-      setChatMessages(prev => [...prev, errorMsg]);
+      setChatMessages(prev => {
+        const emptyAssistant = prev.find(msg => msg.role === 'assistant' && !msg.content.trim());
+        if (!emptyAssistant) return [...prev, errorMsg];
+        return prev.map(msg => msg.id === emptyAssistant.id ? errorMsg : msg);
+      });
       persistCurrentConversation([...chatMessages, userMsg, errorMsg]);
     } finally {
       setIsChatLoading(false);
+      setChatLoadingStage('思考中...');
     }
   };
 
   // Tool handlers (PPT, Mindmap, etc.)
   const handleToolGenerate = async (tool: ToolType) => {
     if (selectedIds.size === 0) {
-      alert('请先选择至少一个文件');
+      showToast('请先选择至少一个文件', 'warning');
       return;
     }
 
@@ -1387,7 +1673,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const apiUrl = settings?.apiUrl?.trim() || '';
       const apiKey = settings?.apiKey?.trim() || '';
       if (!apiUrl || !apiKey) {
-        alert('请先在设置中配置 API URL 和 API Key');
+        showToast('请先在设置中配置 API URL 和 API Key', 'warning');
         setToolLoading(false);
         return;
       }
@@ -1436,13 +1722,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         });
         const validSources = [...validDocFiles, ...linkFiles];
         if (validSources.length === 0) {
-          alert('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD 或网页引入）。');
+          showToast('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD 或网页引入）。', 'warning');
           setToolLoading(false);
           return;
         }
         const docPaths = validSources.map(f => f.url).filter(Boolean) as string[];
         if (docPaths.length !== validSources.length) {
-          alert('无法获取文档/网页路径，请重试。');
+          showToast('无法获取文档/网页路径，请重试。', 'error');
           setToolLoading(false);
           return;
         }
@@ -1644,7 +1930,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
     } catch (err) {
       console.error('Tool generation error:', err);
-      alert('生成失败，请重试');
+      showToast('生成失败，请重试', 'error');
     } finally {
       setToolLoading(false);
     }
@@ -1664,38 +1950,78 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     }
   };
 
-  const renderInline = (text: string, sourceMapping?: Record<string, string>) => {
-    // 1) 先提取行内公式 $...$ 保护起来，避免 escapeHtml 破坏
+  const renderTooltipText = (text: string) => {
+    if (!text) return '';
     const mathSlots: string[] = [];
-    let protected_ = text.replace(/\$([^$\n]+?)\$/g, (_m, tex) => {
+    let processed = text;
+    // 处理 \(...\) 行内公式
+    processed = processed.replace(/\\\((.+?)\\\)/g, (_m, tex) => {
       mathSlots.push(renderKatex(tex, false));
       return `\x00MATH${mathSlots.length - 1}\x00`;
     });
+    // 处理 \[...\] 块级公式
+    processed = processed.replace(/\\\[(.+?)\\\]/g, (_m, tex) => {
+      mathSlots.push(renderKatex(tex, true));
+      return `\x00MATH${mathSlots.length - 1}\x00`;
+    });
+    // 转义HTML
+    processed = escapeHtml(processed);
+    // 还原公式
+    processed = processed.replace(/\x00MATH(\d+)\x00/g, (_m, idx) => mathSlots[Number(idx)]);
+    return processed;
+  };
+
+  const renderInline = (
+    text: string,
+    sourceMapping?: Record<string, string>,
+    sourcePreviewMapping?: Record<string, string>,
+    sourceReferenceMapping?: Record<string, CitationReference>
+  ) => {
+    // 1) 先提取行内公式，支持 $...$ 和 \(...\) 格式
+    const mathSlots: string[] = [];
+    let protected_ = text
+      .replace(/\\\((.+?)\\\)/g, (_m, tex) => {
+        mathSlots.push(renderKatex(tex, false));
+        return `\x00MATH${mathSlots.length - 1}\x00`;
+      })
+      .replace(/\$([^$\n]+?)\$/g, (_m, tex) => {
+        mathSlots.push(renderKatex(tex, false));
+        return `\x00MATH${mathSlots.length - 1}\x00`;
+      });
     // 2) 正常 escapeHtml + markdown 处理
     let html = escapeHtml(protected_);
     html = html.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-gray-100 text-gray-800 font-mono text-xs">$1</code>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-blue-600 hover:text-blue-500 underline">$1</a>');
-    // Highlight numbered citation markers [1], [2], etc. with hover tooltip showing source name
+    // Highlight numbered citation markers [1], [2], etc. with hover tooltip showing file name + chunk preview
     html = html.replace(/\[(\d{1,2})\]/g, (_match, num) => {
-      const sourceName = sourceMapping?.[num] || '';
-      const dataAttr = sourceName ? ` data-source="${escapeHtml(sourceName)}"` : '';
-      return `<sup class="cite-ref"${dataAttr} style="background-color:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-size:0.75em;font-weight:600;margin:0 1px;cursor:pointer;position:relative;">[${num}]</sup>`;
+      const hasSource = sourceReferenceMapping?.[num] || sourceMapping?.[num];
+      return `<sup class="cite-ref" data-cite="${num}"${hasSource ? ' data-source-tooltip="1"' : ''} style="background-color:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-size:0.75em;font-weight:600;margin:0 1px;cursor:pointer;position:relative;">[${num}]</sup>`;
     });
     // 3) 还原公式占位符
     html = html.replace(/\x00MATH(\d+)\x00/g, (_m, idx) => mathSlots[Number(idx)]);
     return html;
   };
 
-  const renderMarkdownToHtml = (content: string, sourceMapping?: Record<string, string>) => {
+  const renderMarkdownToHtml = (
+    content: string,
+    sourceMapping?: Record<string, string>,
+    sourcePreviewMapping?: Record<string, string>,
+    sourceReferenceMapping?: Record<string, CitationReference>
+  ) => {
     if (!content) return '';
-    // 先提取 $$...$$ 块级公式，替换为占位符
+    // 先提取块级公式，支持 $$...$$ 和 \[...\] 格式
     const blockMathSlots: string[] = [];
-    let processed = content.replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
-      blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
-      return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
-    });
+    let processed = content
+      .replace(/\\\[([\s\S]+?)\\\]/g, (_m, tex) => {
+        blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
+        return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
+      })
+      .replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
+        blockMathSlots.push(`<div class="my-3 overflow-x-auto text-center">${renderKatex(tex.trim(), true)}</div>`);
+        return `\n%%BLOCKMATH${blockMathSlots.length - 1}%%\n`;
+      });
     const codeBlockRegex = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
     let lastIndex = 0;
     let html = '';
@@ -1725,7 +2051,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         if (headingMatch) {
           closeLists();
           const level = headingMatch[1].length;
-          const headingText = renderInline(headingMatch[2], sourceMapping);
+          const headingText = renderInline(headingMatch[2], sourceMapping, sourcePreviewMapping, sourceReferenceMapping);
           blockHtml += `<h${level} class="font-semibold text-gray-900 mt-3 mb-2">${headingText}</h${level}>`;
           continue;
         }
@@ -1736,7 +2062,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             blockHtml += '<ul class="list-disc pl-5 space-y-1">';
             inUl = true;
           }
-          blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''), sourceMapping)}</li>`;
+          blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''), sourceMapping, sourcePreviewMapping, sourceReferenceMapping)}</li>`;
           continue;
         }
 
@@ -1746,7 +2072,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             blockHtml += '<ol class="list-decimal pl-5 space-y-1">';
             inOl = true;
           }
-          blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''), sourceMapping)}</li>`;
+          blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''), sourceMapping, sourcePreviewMapping, sourceReferenceMapping)}</li>`;
           continue;
         }
 
@@ -1757,7 +2083,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         }
 
         closeLists();
-        blockHtml += `<p class="my-1">${renderInline(line, sourceMapping)}</p>`;
+        blockHtml += `<p class="my-1">${renderInline(line, sourceMapping, sourcePreviewMapping, sourceReferenceMapping)}</p>`;
       }
 
       closeLists();
@@ -1778,10 +2104,84 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return html;
   };
 
-  const MarkdownContent = ({ content, sourceMapping }: { content: string; sourceMapping?: Record<string, string> }) => (
+  const MarkdownContent = ({
+    content,
+    sourceMapping,
+    sourcePreviewMapping,
+    sourceReferenceMapping,
+  }: {
+    content: string;
+    sourceMapping?: Record<string, string>;
+    sourcePreviewMapping?: Record<string, string>;
+    sourceReferenceMapping?: Record<string, CitationReference>;
+  }) => (
     <div
       className="text-sm leading-relaxed text-gray-700"
-      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content, sourceMapping) }}
+      onClick={(event) => {
+        const target = event.target as HTMLElement | null;
+        const citeEl = target?.closest('.cite-ref[data-cite]') as HTMLElement | null;
+        if (!citeEl) return;
+        const citationNumber = citeEl.dataset.cite;
+        if (!citationNumber) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleCitationClick(citationNumber, sourceReferenceMapping);
+      }}
+      onMouseMove={(event) => {
+        const target = event.target as HTMLElement | null;
+        const citeEl = target?.closest('.cite-ref[data-cite]') as HTMLElement | null;
+        if (!citeEl) {
+          if (hoveredCitation) setHoveredCitation(null);
+          return;
+        }
+        const citationNumber = citeEl.dataset.cite;
+        if (!citationNumber) {
+          if (hoveredCitation) setHoveredCitation(null);
+          return;
+        }
+        const ref = sourceReferenceMapping?.[citationNumber];
+        const title = ref?.fileName || sourceMapping?.[citationNumber] || '';
+        const preview = ref?.preview || sourcePreviewMapping?.[citationNumber] || '';
+        if (!title && !preview) {
+          if (hoveredCitation) setHoveredCitation(null);
+          return;
+        }
+        setHoveredCitation({
+          title,
+          preview,
+          x: event.clientX,
+          y: event.clientY - 18,
+        });
+      }}
+      onMouseLeave={() => setHoveredCitation(null)}
+      onMouseOver={(event) => {
+        const target = event.target as HTMLElement | null;
+        const citeEl = target?.closest('.cite-ref[data-cite]') as HTMLElement | null;
+        if (!citeEl) {
+          setHoveredCitation(null);
+          return;
+        }
+        const citationNumber = citeEl.dataset.cite;
+        if (!citationNumber) {
+          setHoveredCitation(null);
+          return;
+        }
+        const ref = sourceReferenceMapping?.[citationNumber];
+        const title = ref?.fileName || sourceMapping?.[citationNumber] || '';
+        const preview = ref?.preview || sourcePreviewMapping?.[citationNumber] || '';
+        if (!title && !preview) {
+          setHoveredCitation(null);
+          return;
+        }
+        const rect = citeEl.getBoundingClientRect();
+        setHoveredCitation({
+          title,
+          preview,
+          x: rect.left + rect.width / 2,
+          y: rect.top - 12,
+        });
+      }}
+      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content, sourceMapping, sourcePreviewMapping, sourceReferenceMapping) }}
     />
   );
 
@@ -1800,55 +2200,76 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return trimmed;
   };
 
+  const tooltipViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const tooltipLeft = hoveredCitation
+    ? Math.min(Math.max(hoveredCitation.x, 220), tooltipViewportWidth - 220)
+    : 220;
 
   return (
     <>
+      {ToastContainer}
       <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
       {/* Citation tooltip styles */}
       <style>{`
-        .cite-ref[data-source] {
+        .cite-ref[data-source-tooltip] {
           transition: background-color 0.15s ease;
         }
-        .cite-ref[data-source]:hover {
+        .cite-ref[data-source-tooltip]:hover {
           background-color: #bfdbfe !important;
-        }
-        .cite-ref[data-source]:hover::after {
-          content: "📄 " attr(data-source);
-          position: absolute;
-          bottom: calc(100% + 8px);
-          left: 50%;
-          transform: translateX(-50%);
-          background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-          color: #f1f5f9;
-          padding: 8px 14px;
-          border-radius: 8px;
-          font-size: 12px;
-          line-height: 1.4;
-          font-weight: 500;
-          letter-spacing: 0.01em;
-          white-space: nowrap;
-          z-index: 50;
-          pointer-events: none;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.1);
-          animation: citeTooltipIn 0.15s ease-out;
-        }
-        .cite-ref[data-source]:hover::before {
-          content: "";
-          position: absolute;
-          bottom: calc(100% + 2px);
-          left: 50%;
-          transform: translateX(-50%);
-          border: 5px solid transparent;
-          border-top-color: #1e293b;
-          z-index: 50;
-          pointer-events: none;
-          animation: citeTooltipIn 0.15s ease-out;
         }
         @keyframes citeTooltipIn {
           from { opacity: 0; transform: translateX(-50%) translateY(4px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
+      {hoveredCitation && (
+        <div
+          className="fixed z-[80] pointer-events-none"
+          style={{
+            left: `${tooltipLeft}px`,
+            top: `${Math.max(hoveredCitation.y, 24)}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div
+            className="w-[min(640px,calc(100vw-32px))] rounded-xl px-4 py-3 text-left shadow-[0_12px_30px_rgba(15,23,42,0.36)]"
+            style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid #334155',
+            }}
+          >
+            <div
+              className="rounded-lg px-3 py-2 text-[13px] font-bold leading-snug break-words"
+              style={{
+                backgroundColor: '#1e293b',
+                color: '#ffffff',
+              }}
+            >
+              {hoveredCitation.title}
+            </div>
+            {hoveredCitation.preview && (
+              <div
+                className="mt-3 pt-3"
+                style={{
+                  borderTop: '1px solid #334155',
+                }}
+              >
+                <div
+                  className="max-h-[70vh] overflow-y-auto pr-2 text-[14px] leading-6 whitespace-pre-wrap break-words"
+                  style={{
+                    color: '#e2e8f0',
+                    opacity: 1,
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#475569 #1e293b',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: renderTooltipText(hoveredCitation.preview) }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="mx-auto h-0 w-0 border-x-[6px] border-t-[7px] border-x-transparent" style={{ borderTopColor: '#0f172a' }} />
+        </div>
+      )}
       {/* Header */}
       <header className="h-14 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-4">
@@ -1902,36 +2323,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           style={{ width: leftPanelWidth, minWidth: 160, maxWidth: 480 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-ios-gray-700">来源 ({files.length})</h2>
+            <h2 className="text-sm font-semibold text-ios-gray-700">来源 ({sourceListCount})</h2>
             <button className="p-1 hover:bg-ios-gray-200 rounded-ios">
               <MoreVertical size={16} />
             </button>
           </div>
           
-          <div className="flex gap-2 mb-4">
-            <input
-              type="file"
-              id="file-upload"
-              className="hidden"
-              onChange={handleFileUpload}
-              disabled={fileUploading}
-            />
-            <label
-              htmlFor="file-upload"
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-ios-gray-200 rounded-full text-sm font-medium transition-all ${fileUploading ? 'text-ios-gray-400 cursor-not-allowed opacity-60' : 'text-ios-gray-700 hover:shadow-ios-sm cursor-pointer'}`}
-            >
-              {fileUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-              {fileUploading ? '正在引入...' : '上传文件'}
-            </label>
+          <div className="mb-4">
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => setShowIntroduceModal(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-ios-gray-200 rounded-full text-sm font-medium text-ios-gray-700 hover:shadow-ios-sm transition-all hover:bg-ios-gray-50"
+              className={`w-full flex items-center justify-center gap-2 py-3.5 px-4 border rounded-2xl text-sm font-semibold transition-all ${
+                fileUploading
+                  ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-ios-sm'
+                  : 'border-ios-gray-200 bg-white text-ios-gray-700 hover:shadow-ios-sm hover:bg-ios-gray-50'
+              }`}
             >
-              <Search size={16} />
-              引入
+              {fileUploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+              {fileUploading ? '添加来源中...' : '添加来源'}
             </motion.button>
+            <p className="mt-2 px-1 text-xs text-ios-gray-500">
+              {processingUploadCount > 0
+                ? `正在处理 ${processingUploadCount} 个文件，完成后会自动加入来源列表`
+                : '上传文件、网页或粘贴文本到当前笔记本'}
+            </p>
           </div>
 
           {retrievalError && (
@@ -1979,51 +2395,105 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               </div>
 
               <div className="flex-1 overflow-y-auto min-h-0">
-                {files.length === 0 ? (
+                {sourceListCount === 0 ? (
                   <div className="text-center py-8 text-ios-gray-400 text-sm">
-                    暂无文件，请上传
+                    暂无来源，请添加
                   </div>
                 ) : (
-                  files.map((file, fileIdx) => (
-                    <motion.div
-                      key={file.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: fileIdx * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
-                      className="flex items-center gap-3 p-3 bg-white border border-ios-gray-100 rounded-ios-xl mb-2 hover:shadow-ios-sm transition-all cursor-pointer"
-                      onClick={() => openSourceDetail(file)}
-                    >
-                      <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-blue-100 rounded-ios flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-primary">{fileIdx + 1}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-ios-gray-700 line-clamp-2 leading-tight">
-                          {file.name}
+                  <>
+                    {pendingSources.map((item, itemIdx) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: itemIdx * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
+                        className={`flex items-center gap-3 p-3 border rounded-ios-xl mb-2 transition-all ${
+                          item.status === 'error'
+                            ? 'bg-red-50 border-red-200'
+                            : 'bg-white border-blue-100 shadow-[0_8px_24px_rgba(59,130,246,0.08)]'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-ios flex items-center justify-center shrink-0 ${
+                          item.status === 'error'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-blue-50 text-blue-600'
+                        }`}>
+                          {item.status === 'error'
+                            ? <X size={16} />
+                            : <Loader2 size={16} className="animate-spin" />}
                         </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          {(file.isEmbedded || file.kbFileId || vectorStatusByPath[getOutputsPath(file.url)] === 'embedded' || vectorFiles.some((v: any) => getOutputsPath(v?.original_path) === getOutputsPath(file.url))) && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600">
-                              已入库
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-ios-gray-700 line-clamp-2 leading-tight">
+                            {item.name}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              item.status === 'error'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}>
+                              {item.status === 'error' ? '处理失败' : '处理中'}
                             </span>
-                          )}
+                            {item.message && (
+                              <span className="text-[10px] text-red-600 truncate" title={item.message}>
+                                {item.message}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        className="rounded-full text-primary accent-primary"
-                        checked={selectedIds.has(file.id)}
-                        onChange={() => {
-                          setSelectedIds(prev => {
-                            const next = new Set(prev);
-                            if (next.has(file.id)) next.delete(file.id);
-                            else next.add(file.id);
-                            return next;
-                          });
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </motion.div>
-                  ))
+                        {item.status === 'error' && (
+                          <button
+                            type="button"
+                            onClick={() => removePendingSource(item.id)}
+                            className="text-xs text-red-600 hover:text-red-800 shrink-0"
+                          >
+                            移除
+                          </button>
+                        )}
+                      </motion.div>
+                    ))}
+
+                    {files.map((file, fileIdx) => (
+                      <motion.div
+                        key={file.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: (pendingSources.length + fileIdx) * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
+                        className="flex items-center gap-3 p-3 bg-white border border-ios-gray-100 rounded-ios-xl mb-2 hover:shadow-ios-sm transition-all cursor-pointer"
+                        onClick={() => openSourceDetail(file)}
+                      >
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-blue-100 rounded-ios flex items-center justify-center shrink-0">
+                          <span className="text-xs font-bold text-primary">{pendingSources.length + fileIdx + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-ios-gray-700 line-clamp-2 leading-tight">
+                            {file.name}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            {(file.isEmbedded || file.kbFileId || vectorStatusByPath[getOutputsPath(file.url)] === 'embedded' || vectorFiles.some((v: any) => getOutputsPath(v?.original_path) === getOutputsPath(file.url))) && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600">
+                                已入库
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="rounded-full text-primary accent-primary"
+                          checked={selectedIds.has(file.id)}
+                          onChange={() => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(file.id)) next.delete(file.id);
+                              else next.add(file.id);
+                              return next;
+                            });
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </motion.div>
+                    ))}
+                  </>
                 )}
               </div>
             </>
@@ -2031,7 +2501,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             <div className="flex-1 flex flex-col min-h-0">
               <button
                 type="button"
-                onClick={() => setSourceDetailView(null)}
+                onClick={() => { setSourceDetailView(null); setSourceDetailCitationFocus(null); }}
                 className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 mb-2"
               >
                 <ChevronLeft size={18} />
@@ -2051,6 +2521,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 </a>
               )}
               <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-gray-200 rounded-xl p-3">
+                {sourceDetailCitationFocus && (
+                  <div
+                    ref={sourceDetailCitationRef}
+                    className="mb-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2.5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                        引用 [{sourceDetailCitationFocus.sourceNumber}]
+                      </span>
+                      {typeof sourceDetailCitationFocus.chunkIndex === 'number' && (
+                        <span className="text-[11px] text-blue-600">
+                          Chunk #{sourceDetailCitationFocus.chunkIndex + 1}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">
+                      {sourceDetailCitationFocus.fileName}
+                    </p>
+                    {sourceDetailCitationFocus.preview && (
+                      <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                        {sourceDetailCitationFocus.preview}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {sourceDetailLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 size={24} className="animate-spin text-blue-500" />
@@ -2174,7 +2669,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       msg.role === 'assistant' ? 'bg-ios-gray-50 text-ios-gray-700 rounded-2xl rounded-tl-md' : 'bg-primary text-white rounded-2xl rounded-tr-md'
                     }`}>
                       {msg.role === 'assistant' ? (
-                        <MarkdownContent content={msg.content} sourceMapping={msg.sourceMapping} />
+                        <MarkdownContent
+                          content={msg.content}
+                          sourceMapping={msg.sourceMapping}
+                          sourcePreviewMapping={msg.sourcePreviewMapping}
+                          sourceReferenceMapping={msg.sourceReferenceMapping}
+                        />
                       ) : (
                         <span>{msg.content}</span>
                       )}
@@ -2187,7 +2687,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       <Bot size={16} />
                     </div>
                     <div className="bg-ios-gray-50 rounded-2xl rounded-tl-md px-4 py-3 text-sm flex items-center gap-2 text-ios-gray-500 shadow-ios-sm">
-                      <Loader2 size={14} className="animate-spin" /> 思考中...
+                      <Loader2 size={14} className="animate-spin" /> {chatLoadingStage}
                     </div>
                   </div>
                 )}
@@ -2199,7 +2699,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {chatSubView === 'current' && (
             <div className="px-6 pb-6 shrink-0">
               <div className="max-w-[800px] mx-auto relative">
-                <div className="glass rounded-ios-xl border border-white/30 shadow-ios-sm">
+                <div className="glass rounded-ios-xl border border-slate-200/85 bg-white/82 shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-primary/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.12),0_18px_40px_rgba(37,99,235,0.16)]">
                   <input
                     type="text"
                     value={inputMsg}
@@ -2207,10 +2707,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                     onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
                     placeholder={selectedIds.size > 0 ? "开始输入..." : "请先选择文件..."}
                     disabled={selectedIds.size === 0}
-                    className="w-full bg-transparent rounded-ios-xl py-4 pl-6 pr-24 focus:outline-none text-lg disabled:opacity-50"
+                    className="w-full bg-transparent rounded-ios-xl py-4 pl-6 pr-24 text-lg text-slate-800 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <span className="text-xs text-ios-gray-400 font-medium">{selectedIds.size} 个来源</span>
+                    <span className="text-xs text-slate-500 font-medium">{selectedIds.size} 个来源</span>
                     <motion.button
                       whileTap={{ scale: 0.88 }}
                       onClick={handleSendMessage}
@@ -2759,7 +3259,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             setDeepResearchSuccess(null);
             setIntroduceUrlSuccess('');
             setIntroduceTextSuccess('');
-            setIntroduceUploadSuccess('');
           }}
         >
           <motion.div
@@ -2790,7 +3289,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 setDeepResearchSuccess(null);
                 setIntroduceUrlSuccess('');
                 setIntroduceTextSuccess('');
-                setIntroduceUploadSuccess('');
               }}
                 className="p-2 hover:bg-ios-gray-100 rounded-ios text-ios-gray-500 hover:text-ios-gray-700 -mr-2"
               >
@@ -2972,25 +3470,30 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 <div>
                   <p className="text-xs font-medium text-gray-600 mb-2">上传文件</p>
                   <label
-                    className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-100 cursor-pointer transition-colors"
+                    className={`flex flex-col items-center justify-center gap-3 w-full min-h-[148px] py-5 px-4 rounded-2xl border-2 border-dashed transition-colors ${
+                      fileUploading
+                        ? 'border-blue-200 bg-blue-50/70 cursor-wait'
+                        : 'border-gray-200 bg-gray-50/50 hover:bg-gray-100 cursor-pointer'
+                    }`}
                     onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     onDrop={(e) => {
                       e.preventDefault();
                       if (e.dataTransfer.files?.length) {
-                        handleFileUpload(
-                          { target: { files: e.dataTransfer.files } } as any,
-                          {
-                            onSuccess: () => {
-                              setIntroduceUploadSuccess('已上传并加入来源');
-                              setTimeout(() => { setShowIntroduceModal(false); setIntroduceUploadSuccess(''); }, 2000);
-                            }
-                          }
-                        );
+                        uploadFiles(e.dataTransfer.files, { closeModalOnQueue: true });
                       }
                     }}
                   >
-                    <Upload size={18} className="text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">点击选择或拖放文件到此处</span>
+                    <div className="w-12 h-12 rounded-2xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                      {fileUploading ? <Loader2 size={22} className="animate-spin text-blue-600" /> : <Upload size={22} className="text-gray-600" />}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {fileUploading ? '文件处理中，来源列表会实时更新' : '点击选择，或拖入一个或多个文件'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        支持一次添加多个文件，上传后会立刻出现在左侧来源列表
+                      </p>
+                    </div>
                     <input
                       type="file"
                       className="hidden"
@@ -2998,17 +3501,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.mp4,.md"
                       onChange={(e) => {
                         if (e.target.files?.length) {
-                          handleFileUpload(e, {
-                            onSuccess: () => {
-                              setIntroduceUploadSuccess('已上传并加入来源');
-                              setTimeout(() => { setShowIntroduceModal(false); setIntroduceUploadSuccess(''); }, 2000);
-                            }
-                          });
+                          uploadFiles(e.target.files, { closeModalOnQueue: true });
+                          e.target.value = '';
                         }
                       }}
                     />
                   </label>
-                  {introduceUploadSuccess && <p className="text-xs text-green-600 mt-1">{introduceUploadSuccess}</p>}
                   <p className="text-xs text-gray-400 mt-1">PDF、图片、文档、音频等</p>
                 </div>
 
