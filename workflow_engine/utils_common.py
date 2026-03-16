@@ -33,7 +33,14 @@ from PIL import Image
 import pdfplumber
 import uuid
 
-from workflow_engine.toolkits.multimodaltool.mineru_tool import run_aio_batch_two_step_extract, run_aio_two_step_extract
+try:
+    from workflow_engine.toolkits.multimodaltool.mineru_tool import run_aio_batch_two_step_extract, run_aio_two_step_extract
+except Exception as exc:
+    def run_aio_batch_two_step_extract(*args, **kwargs):
+        raise RuntimeError(f"MinerU runtime unavailable: {exc}")
+
+    async def run_aio_two_step_extract(*args, **kwargs):
+        raise RuntimeError(f"MinerU runtime unavailable: {exc}")
 
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -500,7 +507,10 @@ def build_output_directory(image_path: Path) -> Path:
 import asyncio
 from pathlib import Path
 from PIL import Image
-from mineru_vl_utils import MinerUClient
+try:
+    from mineru_vl_utils import MinerUClient
+except Exception:
+    MinerUClient = None
 
 
 # -----------------------------

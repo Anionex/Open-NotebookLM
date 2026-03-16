@@ -38,7 +38,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from fastapi_app.routers import kb, kb_embedding, files, paper2drawio, paper2ppt, auth
+from fastapi_app.routers import kb, kb_embedding, files, auth
+
+try:
+    from fastapi_app.routers import paper2drawio
+except Exception:
+    paper2drawio = None
+
+try:
+    from fastapi_app.routers import paper2ppt
+except Exception:
+    paper2ppt = None
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from fastapi_app.middleware.logging import LoggingMiddleware
 from workflow_engine.utils import get_project_root
@@ -409,8 +419,10 @@ def create_app() -> FastAPI:
     app.include_router(kb.router, prefix="/api/v1", tags=["Knowledge Base"])
     app.include_router(kb_embedding.router, prefix="/api/v1", tags=["Knowledge Base Embedding"])
     app.include_router(files.router, prefix="/api/v1", tags=["Files"])
-    app.include_router(paper2drawio.router, prefix="/api/v1", tags=["Paper2Drawio"])
-    app.include_router(paper2ppt.router, prefix="/api/v1", tags=["Paper2PPT"])
+    if paper2drawio is not None:
+        app.include_router(paper2drawio.router, prefix="/api/v1", tags=["Paper2Drawio"])
+    if paper2ppt is not None:
+        app.include_router(paper2ppt.router, prefix="/api/v1", tags=["Paper2PPT"])
     app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])
 
     # 静态文件：/outputs 下的文件（兼容 URL 中 %40 与 磁盘 @ 两种路径）

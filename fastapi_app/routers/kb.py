@@ -24,7 +24,11 @@ log = get_logger(__name__)
 from fastapi_app.config import settings
 from fastapi_app.schemas import Paper2PPTRequest
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url
-from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
+try:
+    from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
+except Exception as exc:
+    def _init_state_from_request(*args, **kwargs):
+        raise RuntimeError(f"Paper2PPT workflow adapter unavailable: {exc}")
 from fastapi_app.dependencies.auth import get_supabase_admin_client
 from fastapi_app.notebook_paths import NotebookPaths, get_notebook_paths, _sanitize_user_id
 from fastapi_app.source_manager import SourceManager

@@ -15,9 +15,23 @@ import fitz  # PyMuPDF，MinerU 失败时回退用
 from PIL import Image
 
 # Import existing tools
-from workflow_engine.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
-from workflow_engine.toolkits.multimodaltool.req_videos import call_video_understanding_async
-from workflow_engine.toolkits.multimodaltool.req_understanding import call_image_understanding_async
+try:
+    from workflow_engine.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
+except Exception as exc:
+    def run_mineru_pdf_extract(*args, **kwargs):
+        raise RuntimeError(f"MinerU runtime unavailable: {exc}")
+
+try:
+    from workflow_engine.toolkits.multimodaltool.req_videos import call_video_understanding_async
+except Exception as exc:
+    async def call_video_understanding_async(*args, **kwargs):
+        raise RuntimeError(f"Video understanding unavailable: {exc}")
+
+try:
+    from workflow_engine.toolkits.multimodaltool.req_understanding import call_image_understanding_async
+except Exception as exc:
+    async def call_image_understanding_async(*args, **kwargs):
+        raise RuntimeError(f"Image understanding unavailable: {exc}")
 import workflow_engine.utils as utils
 from workflow_engine.logger import get_logger
 

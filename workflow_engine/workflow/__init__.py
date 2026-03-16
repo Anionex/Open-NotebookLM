@@ -2,6 +2,7 @@
 
 import importlib
 from pathlib import Path
+import warnings
 
 from .registry import RuntimeRegistry
 
@@ -16,7 +17,10 @@ for py in _pkg_path.glob("wf_*.py"):
         continue
     # importlib 需要模块的点分路径（dotted-path），例如 workflow_engine.workflow.wf_xxx
     mod_name = f"{__name__}.{py.stem}"
-    importlib.import_module(mod_name)
+    try:
+        importlib.import_module(mod_name)
+    except Exception as exc:
+        warnings.warn(f"Skip workflow module {mod_name}: {exc}")
 
 # 模块导入后，各 wf_*.py 文件内的 @register 装饰器会自动注册工作流到 RuntimeRegistry
 
