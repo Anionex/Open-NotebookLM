@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class TextFitStyle:
-    font_name: str = "Microsoft YaHei"
+    font_name: str = "Arial"
     bold: bool = False
     line_spacing: float = 1.0
     margin_px: int = 0  # internal margin in px (converted to inches using dpi)
