@@ -8,7 +8,6 @@ import {
   Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { getSupabaseClient } from '../lib/supabase';
 import { apiFetch } from '../config/api';
 import { getApiSettings } from '../services/apiSettingsService';
 import { fetchWithCache, invalidateCacheByPrefix } from '../services/clientCache';
@@ -20,11 +19,20 @@ import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
 import { QuizContainer } from '../components/quiz/QuizContainer';
 import { NotionEditor } from '../components/notes/NotionEditor';
+import { useToast } from '../hooks/useToast';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
+
+type PendingSourceItem = {
+  id: string;
+  name: string;
+  sourceType: 'upload';
+  status: 'processing' | 'error';
+  message?: string;
+};
 
 type CitationReference = {
   fileName: string;
@@ -52,17 +60,19 @@ const SOURCE_DETAIL_CACHE_TTL_MS = 15 * 60 * 1000;
 const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void }) => {
   const { user } = useAuthStore();
   const effectiveUser = user || DEFAULT_USER;
+  const { showToast, ToastContainer } = useToast();
   const [activeTool, setActiveTool] = useState<ToolType>('chat');
   
   // Files management
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingSources, setPendingSources] = useState<PendingSourceItem[]>([]);
   
   // Chat state
   const WELCOME_MSG: ChatMessage = {
     id: 'welcome',
     role: 'assistant',
-    content: 'Welcome to OpenNotebookLM! I\'m your intelligent knowledge base assistant.\n\nUpload documents on the left, then chat with me to explore, summarize, and generate insights from your sources — including podcasts, mind maps, presentations, flashcards, and quizzes.',
+    content: '欢迎使用 OpenNotebookLM！我是你的智能知识库助手。\n\n在左侧上传文档，然后与我对话来探索、总结和生成洞察 —— 支持播客、思维导图、PPT、闪卡、测验等多种输出形式。',
     time: new Date().toLocaleTimeString()
   };
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([WELCOME_MSG]);
@@ -70,9 +80,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const conversationIdRef = React.useRef<string | null>(null);
   const [inputMsg, setInputMsg] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatLoadingStage, setChatLoadingStage] = useState('Thinking...');
+  const [chatLoadingStage, setChatLoadingStage] = useState('思考中...');
 
-  // Chat历史：本地持久化
+  // 对话历史：本地持久化
   type ConversationItem = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
   const getConversationsKey = () => {
     const uid = effectiveUser?.id || effectiveUser?.email || '';
@@ -124,16 +134,6 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   // Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Flashcard state
-  const [flashcards, setFlashcards] = useState<any[]>([]);
-  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
-  const [flashcardSetId, setFlashcardSetId] = useState<string>('');
-
-  // Quiz state
-  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
-  const [showQuizContainer, setShowQuizContainer] = useState(false);
-  const [quizId, setQuizId] = useState<string>('');
-
   // Output preview
   const [previewOutput, setPreviewOutput] = useState<{
     id: string;
@@ -182,7 +182,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [introduceTextLoading, setIntroduceTextLoading] = useState(false);
   const [introduceTextError, setIntroduceTextError] = useState('');
   const [introduceTextSuccess, setIntroduceTextSuccess] = useState('');
-  const [introduceUploadSuccess, setIntroduceUploadSuccess] = useState('');
+  const processingUploadCount = pendingSources.filter(
+    item => item.sourceType === 'upload' && item.status === 'processing'
+  ).length;
+  const sourceListCount = files.length + pendingSources.length;
 
   // 来源详情：点击某项后翻转显示解析内容（PDF 等解析为 markdown 展示）
   const [sourceDetailView, setSourceDetailView] = useState<KnowledgeFile | null>(null);
@@ -192,6 +195,20 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [sourceDetailCitationFocus, setSourceDetailCitationFocus] = useState<CitationReference | null>(null);
   const sourceDetailCitationRef = React.useRef<HTMLDivElement | null>(null);
   const [hoveredCitation, setHoveredCitation] = useState<CitationTooltipState | null>(null);
+
+  // Cache refs to avoid redundant API calls
+  const lastFetchedNotebookIdForSources = React.useRef<string | null>(null);
+  const lastFetchedNotebookIdForOutputs = React.useRef<string | null>(null);
+
+  // Flashcard state
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
+  const [flashcardSetId, setFlashcardSetId] = useState<string>('');
+
+  // Quiz state
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
+  const [showQuizContainer, setShowQuizContainer] = useState(false);
+  const [quizId, setQuizId] = useState<string>('');
 
   // Loading state for saved flashcard/quiz sets
   const [loadingSetId, setLoadingSetId] = useState<string | null>(null);
@@ -235,16 +252,16 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Studio tools
   const studioTools: Array<{icon: React.ReactNode, label: string, id: ToolType}> = [
-    { icon: <ImageIcon className="text-orange-500" />, label: 'PPT', id: 'ppt' },
-    { icon: <BrainCircuit className="text-purple-500" />, label: 'Mind Map', id: 'mindmap' },
-    // DrawIO temporarily disabled - will be fixed later
-    // { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO', id: 'drawio' },
-    { icon: <BookOpen className="text-indigo-500" />, label: 'Flashcards', id: 'flashcard' },
-    { icon: <Brain className="text-blue-500" />, label: 'Quiz', id: 'quiz' },
-    { icon: <Mic2 className="text-red-500" />, label: 'Knowledge Podcast', id: 'podcast' },
-    { icon: <FileText className="text-green-500" />, label: 'Note', id: 'note' },
-    // Video narration temporarily disabled
-    // { icon: <VideoIcon className="text-blue-600" />, label: 'Video narration', id: 'video' },
+    { icon: <ImageIcon className="text-orange-500" />, label: 'PPT生成', id: 'ppt' },
+    { icon: <BrainCircuit className="text-purple-500" />, label: '思维导图', id: 'mindmap' },
+    // DrawIO 图表功能暂时隐藏，后续修复
+    // { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO 图表', id: 'drawio' },
+    { icon: <BookOpen className="text-indigo-500" />, label: '闪卡', id: 'flashcard' },
+    { icon: <Brain className="text-blue-500" />, label: '测验', id: 'quiz' },
+    { icon: <Mic2 className="text-red-500" />, label: '知识播客', id: 'podcast' },
+    { icon: <FileText className="text-green-500" />, label: '笔记', id: 'note' },
+    // 视频讲解暂未开放
+    // { icon: <VideoIcon className="text-blue-600" />, label: '视频讲解', id: 'video' },
   ];
 
   // Studio：每个功能卡片各自配置，点卡片上的「…」翻转进该卡片的设置
@@ -256,9 +273,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     ppt: { llmModel: 'deepseek-v3.2', genFigModel: 'gemini-2.5-flash-image', stylePreset: 'modern', stylePrompt: '', language: 'zh', page_count: '10' },
     mindmap: { llmModel: 'deepseek-v3.2', mindmapStyle: 'default' },
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
-    flashcard: { llmModel: 'deepseek-v3.2', language: 'en', cardCount: '20' },
-    quiz: { llmModel: 'deepseek-v3.2', language: 'en', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'qwen-tts', voiceName: 'vivian' },
+    flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
+    quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
+    podcast: { llmModel: 'deepseek-v3.2', ttsType: 'qwen-tts-local', ttsModel: 'qwen-tts', voiceName: 'vivian', podcastMode: 'monologue', podcastLanguage: 'zh' },
     video: { llmModel: 'deepseek-v3.2' },
     note: {},
   };
@@ -305,11 +322,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   /** 产出列表是否已完成首次加载（避免刷新时用空数组覆盖 localStorage） */
   const hasLoadedOutputsRef = React.useRef(false);
 
-  // 持久化当前Chat到历史（仅在有除 welcome 外的消息时）
+  // 持久化当前对话到历史（仅在有除 welcome 外的消息时）
   const persistCurrentConversation = (messages: ChatMessage[]) => {
     const list = messages.filter(m => m.id !== 'welcome');
     if (list.length === 0) return;
-    const title = (list.find(m => m.role === 'user')?.content || 'New Chat').slice(0, 30);
+    const title = (list.find(m => m.role === 'user')?.content || '新对话').slice(0, 30);
     const id = currentConversationId || `conv_${Date.now()}`;
     setCurrentConversationId(id);
     setConversationHistory(prev => {
@@ -366,17 +383,17 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   };
 
   const getOutputTitle = (type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz') => {
-    if (type === 'mindmap') return 'Mind Map';
-    if (type === 'podcast') return 'Podcast';
-    if (type === 'drawio') return 'DrawIO';
-    if (type === 'flashcard') return 'Flashcards';
-    if (type === 'quiz') return 'Quiz';
-    return 'PPT';
+    if (type === 'mindmap') return '思维导图';
+    if (type === 'podcast') return '播客生成';
+    if (type === 'drawio') return 'DrawIO 图表';
+    if (type === 'flashcard') return '闪卡';
+    if (type === 'quiz') return '测验';
+    return 'PPT 生成';
   };
 
   const handleLoadSavedSet = async (item: typeof outputFeed[number]) => {
     if (!item.setId) {
-      alert('Failed to load: this item has no saved set ID. It may have been created before persistence was added.');
+      showToast('加载失败：该条目没有保存的集合 ID，可能是在持久化功能添加之前创建的。', 'error');
       return;
     }
     setLoadingSetId(item.id);
@@ -386,7 +403,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         : `/api/v1/kb/get-quiz-set?notebook_id=${encodeURIComponent(notebook.id)}&set_id=${encodeURIComponent(item.setId)}`;
       const res = await apiFetch(endpoint);
       const data = await res.json();
-      if (!data.success) throw new Error(data.detail || 'Load failed');
+      if (!data.success) throw new Error(data.detail || '加载失败');
       if (item.type === 'flashcard') {
         setFlashcards(data.flashcards || []);
         setFlashcardSetId(data.id || '');
@@ -398,7 +415,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     } catch (err) {
       console.error('Load saved set error:', err);
-      alert('Failed to load. The data may have been deleted.');
+      showToast('加载失败，数据可能已被删除。', 'error');
     } finally {
       setLoadingSetId(null);
     }
@@ -440,19 +457,23 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const res = await apiFetch(`/api/v1/kb/outputs?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
+        console.log('[fetchOutputHistory] Got data from /api/v1/kb/outputs:', data);
         if (data?.success && Array.isArray(data.files)) {
+          console.log('[fetchOutputHistory] Processing', data.files.length, 'files');
           for (const item of data.files) {
             const url = item.download_url || item.url || '';
-            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio') || inferOutputType(item.file_name || url);
-            results.push({
+            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz') || inferOutputType(item.file_name || url);
+            const output = {
               id: item.id || url || `output_${Date.now()}`,
               type,
               title: getOutputTitle(type),
-              sources: 'Past outputs',
+              sources: '历史产出',
               url,
               createdAt: item.created_at ? new Date(item.created_at).toLocaleString() : new Date().toLocaleString(),
               mermaidCode: undefined
-            });
+            };
+            console.log('[fetchOutputHistory] Adding output:', output);
+            results.push(output);
           }
         }
       }
@@ -460,7 +481,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       console.error('Failed to load output history:', err);
     }
 
-    // Fetch flashcard & quiz history from dedicated endpoints
+    // 从专用端点获取闪卡和测验历史
     if (notebook?.id) {
       const nbTitle = notebook?.title || notebook?.name || '';
       const fcParams = new URLSearchParams({ notebook_id: notebook.id, notebook_title: nbTitle });
@@ -477,7 +498,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               id: s.id || `flashcard_${s.set_id}`,
               type: 'flashcard',
               title: getOutputTitle('flashcard'),
-              sources: Array.isArray(s.source_files) ? s.source_files.map((f: string) => f.split('/').pop() || f).join(', ') : 'Past outputs',
+              sources: Array.isArray(s.source_files) ? s.source_files.map((f: string) => f.split('/').pop() || f).join(', ') : '历史产出',
               url: '',
               createdAt: s.created_at ? new Date(s.created_at).toLocaleString() : new Date().toLocaleString(),
               setId: s.set_id,
@@ -493,7 +514,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               id: s.id || `quiz_${s.set_id}`,
               type: 'quiz',
               title: getOutputTitle('quiz'),
-              sources: Array.isArray(s.source_files) ? s.source_files.map((f: string) => f.split('/').pop() || f).join(', ') : 'Past outputs',
+              sources: Array.isArray(s.source_files) ? s.source_files.map((f: string) => f.split('/').pop() || f).join(', ') : '历史产出',
               url: '',
               createdAt: s.created_at ? new Date(s.created_at).toLocaleString() : new Date().toLocaleString(),
               setId: s.set_id,
@@ -503,6 +524,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     }
 
+    console.log('[fetchOutputHistory] Returning results:', results.length, 'items', results);
     return results;
   };
 
@@ -523,7 +545,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const res = await apiFetch(`/api/v1/kb/list?${params.toString()}`);
       if (!res.ok) {
         const msg = await res.text();
-        throw new Error(msg || 'Failed to fetch vector list');
+        throw new Error(msg || '向量列表获取失败');
       }
       const data = await res.json();
       const files = Array.isArray(data?.files) ? data.files : [];
@@ -539,12 +561,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
       setVectorStatusByPath(statusMap);
     } catch (err: any) {
-      setVectorError(err?.message || 'Failed to fetch vector list');
+      setVectorError(err?.message || '向量列表获取失败');
       setVectorFiles([]);
       setVectorStatusByPath({});
     } finally {
       setVectorLoading(false);
     }
+  };
+
+  // Force refresh sources list (reset cache)
+  const refreshVectorList = async () => {
+    lastFetchedNotebookIdForSources.current = null;
+    await fetchVectorList();
+  };
+
+  // Force refresh outputs list (reset cache)
+  const refreshOutputHistory = async () => {
+    lastFetchedNotebookIdForOutputs.current = null;
+    hasLoadedOutputsRef.current = false;
+    const local = loadLocalOutputFeed();
+    const remote = await fetchOutputHistory();
+    console.log('[refreshOutputHistory] local:', local.length, 'remote:', remote.length);
+    const merged = mergeOutputFeeds(remote, local);
+    console.log('[refreshOutputHistory] merged:', merged.length, merged);
+    setOutputFeed(merged);
+    hasLoadedOutputsRef.current = true;
   };
 
   const getFileNameFromPath = (path?: string) => {
@@ -563,28 +604,19 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   };
 
   const markEmbedded = async (file?: KnowledgeFile, storagePath?: string) => {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      if (file?.id) {
-        await supabase.from('knowledge_base_files').update({ is_embedded: true }).eq('id', file.id);
-      } else if (storagePath) {
-        await supabase.from('knowledge_base_files').update({ is_embedded: true }).eq('storage_path', storagePath);
+    const storageKey = `kb_files_${effectiveUser?.id || 'dev'}`;
+    const stored = localStorage.getItem(storageKey);
+    const existingFiles = stored ? JSON.parse(stored) : [];
+    const updated = existingFiles.map((f: KnowledgeFile) => {
+      if (file?.id && f.id === file.id) {
+        return { ...f, isEmbedded: true };
       }
-    } else {
-      const storageKey = `kb_files_${effectiveUser?.id || 'dev'}`;
-      const stored = localStorage.getItem(storageKey);
-      const existingFiles = stored ? JSON.parse(stored) : [];
-      const updated = existingFiles.map((f: KnowledgeFile) => {
-        if (file?.id && f.id === file.id) {
-          return { ...f, isEmbedded: true };
-        }
-        if (storagePath && f.url === storagePath) {
-          return { ...f, isEmbedded: true };
-        }
-        return f;
-      });
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    }
+      if (storagePath && f.url === storagePath) {
+        return { ...f, isEmbedded: true };
+      }
+      return f;
+    });
+    localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
   const handleReembedVector = async (item: any) => {
@@ -596,9 +628,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       let apiUrl = settings?.apiUrl?.trim() || '';
       const apiKey = settings?.apiKey?.trim() || '';
       if (!apiUrl || !apiKey) {
-        const msg = 'Please configure API URL and API Key in Settings first';
+        const msg = '请先在设置中配置 API URL 和 API Key';
         setVectorError(msg);
-        alert(msg);
+        showToast(msg, 'warning');
         return;
       }
       if (!apiUrl.includes('/embeddings')) {
@@ -606,7 +638,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
       const filePath = getOutputsPath(item.original_path);
       if (!filePath) {
-        setVectorError('Could not get file path');
+        setVectorError('无法获取文件路径');
         return;
       }
       const body: Record<string, unknown> = {
@@ -624,7 +656,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         body: JSON.stringify(body)
       });
       if (!res.ok) {
-        let msg = 'Re-embed failed';
+        let msg = '重新入库失败';
         try {
           const body = await res.json();
           msg = body?.detail || body?.message || msg;
@@ -632,15 +664,15 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           msg = await res.text() || msg;
         }
         if (res.status === 401 || (typeof msg === 'string' && msg.includes('401'))) {
-          msg = 'API auth failed (401). Please check API Key in Settings.';
+          msg = 'API 认证失败（401），请到设置中检查 API Key 是否正确。';
         }
         throw new Error(msg);
       }
       await res.json();
-      await fetchVectorList();
+      await refreshVectorList();
       await fetchFiles();
     } catch (err: any) {
-      setVectorError(err?.message || 'Re-embed failed');
+      setVectorError(err?.message || '重新入库失败');
     } finally {
       setVectorActionLoading(prev => ({ ...prev, [key]: false }));
     }
@@ -649,7 +681,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const handleDeleteVector = async (item: any) => {
     const key = item.id || item.original_path;
     if (!key) return;
-    if (!confirm('Delete this vector? Retrieval will no longer return this file.')) {
+    if (!confirm('确认删除该向量吗？删除后检索将不再返回该文件内容。')) {
       return;
     }
     setVectorActionLoading(prev => ({ ...prev, [key]: true }));
@@ -665,12 +697,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
       if (!res.ok) {
         const msg = await res.text();
-        throw new Error(msg || 'Failed to delete vector');
+        throw new Error(msg || '删除向量失败');
       }
       await res.json();
-      await fetchVectorList();
+      await refreshVectorList();
     } catch (err: any) {
-      setVectorError(err?.message || 'Failed to delete vector');
+      setVectorError(err?.message || '删除向量失败');
     } finally {
       setVectorActionLoading(prev => ({ ...prev, [key]: false }));
     }
@@ -682,7 +714,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   }, [effectiveUser?.id, notebook?.id]);
 
   useEffect(() => {
-    if (effectiveUser?.email || effectiveUser?.id) fetchVectorList();
+    const currentNotebookId = notebook?.id || null;
+    if ((effectiveUser?.email || effectiveUser?.id) && lastFetchedNotebookIdForSources.current !== currentNotebookId) {
+      lastFetchedNotebookIdForSources.current = currentNotebookId;
+      fetchVectorList();
+    }
   }, [effectiveUser?.email, effectiveUser?.id, notebook?.id]);
 
   // Load chat: from API when notebook is set, else from localStorage
@@ -712,7 +748,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         const list = msgData?.messages || [];
         if (list.length > 0) {
           const msgs: ChatMessage[] = [
-            { id: 'welcome', role: 'assistant', content: 'Hello! I\'m your knowledge base assistant. Upload files or select sources on the left, then ask your questions here.', time: '' },
+            { id: 'welcome', role: 'assistant', content: '你好！我是你的知识库助手。请上传文件或在左侧来源区域选择文件，然后在此处进行提问。', time: '' },
             ...list.map((m: any, i: number) => ({
               id: m.id || `msg_${i}`,
               role: m.role as 'user' | 'assistant',
@@ -757,15 +793,33 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Load output history (server + local)
   useEffect(() => {
+    console.log('[useEffect outputs] Triggered, notebook?.id:', notebook?.id, 'effectiveUser:', effectiveUser?.id);
+    const currentNotebookId = notebook?.id || null;
+    if (lastFetchedNotebookIdForOutputs.current === currentNotebookId && hasLoadedOutputsRef.current) {
+      console.log('[useEffect outputs] Skip, already fetched for this notebook');
+      return; // Skip if already fetched for this notebook
+    }
+    console.log('[useEffect outputs] Will fetch outputs');
     hasLoadedOutputsRef.current = false;
     let canceled = false;
     const loadOutputs = async () => {
-      const local = loadLocalOutputFeed();
-      const remote = await fetchOutputHistory();
-      if (canceled) return;
-      const merged = mergeOutputFeeds(remote, local);
-      setOutputFeed(merged);
-      hasLoadedOutputsRef.current = true;
+      try {
+        const local = loadLocalOutputFeed();
+        const remote = await fetchOutputHistory();
+        console.log('[loadOutputs] local:', local.length, 'remote:', remote.length);
+        console.log('[loadOutputs] canceled:', canceled);
+        if (canceled) {
+          console.log('[loadOutputs] Canceled, returning early');
+          return;
+        }
+        const merged = mergeOutputFeeds(remote, local);
+        console.log('[loadOutputs] merged:', merged.length, merged);
+        setOutputFeed(merged);
+        lastFetchedNotebookIdForOutputs.current = currentNotebookId;
+        hasLoadedOutputsRef.current = true;
+      } catch (error) {
+        console.error('[loadOutputs] Error:', error);
+      }
     };
     loadOutputs();
     return () => {
@@ -792,7 +846,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       try {
         setPreviewLoading(true);
         const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to load mind map');
+        if (!res.ok) throw new Error('读取思维导图失败');
         const text = await res.text();
         if (!canceled) {
           setPreviewOutput(prev => prev ? { ...prev, mermaidCode: text } : prev);
@@ -866,7 +920,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 email: effectiveUser.email || effectiveUser.id,
               });
               const res = await apiFetch(`/api/v1/kb/files?${params.toString()}`);
-              if (!res.ok) throw new Error('Failed to fetch source list');
+              if (!res.ok) throw new Error('来源列表获取失败');
               const data = await res.json();
               const list = Array.isArray(data?.files) ? data.files : [];
               return list.map((row: any) => ({
@@ -917,6 +971,30 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     setSelectedIds(newSet);
   };
 
+  const upsertFileInList = (file: KnowledgeFile) => {
+    setFiles(prev => [
+      file,
+      ...prev.filter(existing => {
+        if (file.id && existing.id === file.id) return false;
+        if (file.url && existing.url === file.url) return false;
+        return true;
+      }),
+    ]);
+    setSelectedIds(prev => new Set([...prev, file.id]));
+  };
+
+  const removePendingSource = (pendingId: string) => {
+    setPendingSources(prev => prev.filter(item => item.id !== pendingId));
+  };
+
+  const markPendingSourceError = (pendingId: string, message: string) => {
+    setPendingSources(prev => prev.map(item => (
+      item.id === pendingId
+        ? { ...item, status: 'error', message }
+        : item
+    )));
+  };
+
   /** PDF / .md 等可解析为正文并预览 */
   const isPreviewableDoc = (f: KnowledgeFile) => {
     const name = (f.name || '').toLowerCase();
@@ -959,17 +1037,17 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               body: JSON.stringify({ url: file.url })
             });
             if (!res.ok) {
-              return { content: '[Fetch failed]', format: 'text' };
+              return { content: '[抓取失败]', format: 'text' };
             }
             const data = await res.json();
-            return { content: data?.content ?? '[No content]', format: 'text' };
+            return { content: data?.content ?? '[无内容]', format: 'text' };
           },
           { useStaleOnError: true }
         );
         setSourceDetailContent(detail.content);
         setSourceDetailFormat(detail.format);
       } catch {
-        setSourceDetailContent('[Request failed]');
+        setSourceDetailContent('[请求失败]');
         setSourceDetailFormat('text');
       } finally {
         setSourceDetailLoading(false);
@@ -998,11 +1076,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               body: JSON.stringify({ path_or_url: file.url })
             });
             if (!res.ok) {
-              return { content: '[Parse failed]', format: 'text' };
+              return { content: '[解析失败]', format: 'text' };
             }
             const data = await res.json();
             return {
-              content: data?.content ?? '[No content]',
+              content: data?.content ?? '[无内容]',
               format: (data?.format === 'markdown' ? 'markdown' : 'text') as 'text' | 'markdown',
             };
           },
@@ -1011,15 +1089,15 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         setSourceDetailContent(detail.content);
         setSourceDetailFormat(detail.format);
       } catch {
-        setSourceDetailContent('[Request failed]');
+        setSourceDetailContent('[请求失败]');
         setSourceDetailFormat('text');
       } finally {
         setSourceDetailLoading(false);
       }
     } else if (file.url && (file.url.startsWith('http') || file.url.startsWith('/'))) {
-      setSourceDetailContent(`[File preview] ${file.name}\n\nOpen in new tab: ${file.url}`);
+      setSourceDetailContent(`[文件预览] ${file.name}\n\n可在新标签页打开: ${file.url}`);
     } else {
-      setSourceDetailContent(`[No parse preview] ${file.name}`);
+      setSourceDetailContent(`[暂无解析预览] ${file.name}`);
     }
   };
 
@@ -1055,7 +1133,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     const searchEngine = (settings?.searchEngine as 'google' | 'baidu') || 'google';
     const searchApiKey = settings?.searchApiKey?.trim() ?? '';
     if ((searchProvider === 'serpapi' || searchProvider === 'bocha') && !searchApiKey) {
-      setFastResearchError('Please configure Search API Key in Settings (top right) first');
+      setFastResearchError('请先在右上角「设置」中配置搜索 API Key');
       return;
     }
     setFastResearchLoading(true);
@@ -1077,14 +1155,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.detail || data?.message || 'Fast Research request failed');
+        throw new Error(data?.detail || data?.message || 'Fast Research 请求失败');
       }
       const data = await res.json();
       const sources = data?.sources || [];
       setFastResearchSources(sources);
       setFastResearchSelected(new Set(sources.map((_: any, i: number) => i)));
     } catch (err: any) {
-      setFastResearchError(err?.message || 'Search failed');
+      setFastResearchError(err?.message || '搜索失败');
     } finally {
       setFastResearchLoading(false);
     }
@@ -1097,7 +1175,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       .map(({ title, link, snippet }) => ({ title, link, snippet }));
     if (items.length === 0) return;
     if (!notebook?.id || !effectiveUser?.email) {
-      alert('Please select a notebook and sign in first');
+      showToast('请先选择笔记本并登录', 'warning');
       return;
     }
     setImportingSources(true);
@@ -1115,18 +1193,18 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.detail || data?.message || 'Import failed');
+        throw new Error(data?.detail || data?.message || '导入失败');
       }
       const data = await res.json();
       invalidateNotebookSourceCaches();
       await fetchFiles();
-      await fetchVectorList();
+      await refreshVectorList();
       setFastResearchSources([]);
       setFastResearchSelected(new Set());
-      const embeddedMsg = data?.embedded ? `, ${data.embedded} embedded` : '';
-      alert(`Imported ${data?.imported ?? items.length} source(s)${embeddedMsg}`);
+      const embeddedMsg = data?.embedded ? `，已向量化 ${data.embedded} 个` : '';
+      showToast(`已导入 ${data?.imported ?? items.length} 个来源${embeddedMsg}`, 'success');
     } catch (err: any) {
-      alert(err?.message || 'Import failed');
+      showToast(err?.message || '导入失败', 'error');
     } finally {
       setImportingSources(false);
     }
@@ -1135,11 +1213,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const handleImportUrlAsSource = async () => {
     const url = introduceUrl.trim();
     if (!url) {
-      setIntroduceUrlError('Please enter a page URL');
+      setIntroduceUrlError('请输入网页 URL');
       return;
     }
     if (!notebook?.id || !effectiveUser?.email) {
-      setIntroduceUrlError('Please select a notebook first');
+      setIntroduceUrlError('请先选择笔记本');
       return;
     }
     setIntroduceUrlError('');
@@ -1158,7 +1236,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.detail || data?.message || 'Fetch failed');
+        throw new Error(data?.detail || data?.message || '抓取失败');
       }
       const data = await res.json();
       const newFile: KnowledgeFile = {
@@ -1176,10 +1254,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       invalidateNotebookSourceCaches();
       await fetchFiles();
       setIntroduceUrl('');
-      setIntroduceUrlSuccess('Fetched and added as source');
+      setIntroduceUrlSuccess('已抓取并加入来源');
       setTimeout(() => setIntroduceUrlSuccess(''), 3000);
     } catch (err: any) {
-      setIntroduceUrlError(err?.message || 'Fetch failed');
+      setIntroduceUrlError(err?.message || '抓取失败');
     } finally {
       setIntroduceUrlLoading(false);
     }
@@ -1188,11 +1266,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const handleAddTextSource = async () => {
     const content = introduceText.trim();
     if (!content) {
-      setIntroduceTextError('Please enter or paste text');
+      setIntroduceTextError('请输入或粘贴文字');
       return;
     }
     if (!notebook?.id || !effectiveUser?.email) {
-      setIntroduceTextError('Please select a notebook first');
+      setIntroduceTextError('请先选择笔记本');
       return;
     }
     setIntroduceTextError('');
@@ -1206,13 +1284,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           email: effectiveUser.email || effectiveUser.id,
           user_id: effectiveUser.id,
           notebook_title: notebook?.title || notebook?.name || '',
-          title: 'Direct input',
+          title: '直接输入',
           content,
         }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.detail || data?.message || 'Add failed');
+        throw new Error(data?.detail || data?.message || '添加失败');
       }
       const data = await res.json();
       const newFile: KnowledgeFile = {
@@ -1230,10 +1308,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       invalidateNotebookSourceCaches();
       await fetchFiles();
       setIntroduceText('');
-      setIntroduceTextSuccess('Added as source');
+      setIntroduceTextSuccess('已添加为来源');
       setTimeout(() => setIntroduceTextSuccess(''), 3000);
     } catch (err: any) {
-      setIntroduceTextError(err?.message || 'Add failed');
+      setIntroduceTextError(err?.message || '添加失败');
     } finally {
       setIntroduceTextLoading(false);
     }
@@ -1248,15 +1326,15 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     const searchEngine = (settings?.searchEngine as 'google' | 'baidu') || 'google';
     const searchApiKey = settings?.searchApiKey?.trim() ?? '';
     if (!apiUrl || !apiKey) {
-      setDeepResearchError('Please configure API in Settings first');
+      setDeepResearchError('请先在设置中配置 API');
       return;
     }
     if (!searchApiKey) {
-      setDeepResearchError('Please configure Search API Key in Settings first');
+      setDeepResearchError('请先在设置中配置搜索 API Key');
       return;
     }
     if (!notebook?.id || !effectiveUser?.email) {
-      setDeepResearchError('Please select a notebook first');
+      setDeepResearchError('请先选择笔记本');
       return;
     }
     setDeepResearchLoading(true);
@@ -1283,7 +1361,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.detail || data?.message || 'Report generation failed');
+        throw new Error(data?.detail || data?.message || '生成报告失败');
       }
       const data = await res.json();
       if (data.added_as_source && data.added_file) {
@@ -1309,7 +1387,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         pdfUrl: data?.pdf_url || data?.report_url,
       });
     } catch (err: any) {
-      setDeepResearchError(err?.message || 'Generation failed');
+      setDeepResearchError(err?.message || '生成失败');
     } finally {
       setDeepResearchLoading(false);
     }
@@ -1327,49 +1405,102 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return url;
   };
 
-  // Upload handler（不做用户管理时用 effectiveUser）；可选 onSuccess 用于引入弹框内反馈
-  const handleFileUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    options?: { onSuccess?: () => void }
+  const uploadFiles = async (
+    inputFiles: FileList | File[],
+    options?: { closeModalOnQueue?: boolean }
   ) => {
-    if (!e.target.files) return;
+    const uploadQueue = Array.from(inputFiles || []);
+    if (!uploadQueue.length) return;
     if (!notebook?.id) {
-      alert('Please select or create a notebook before uploading');
+      showToast('请先选择或创建一个笔记本再上传文件', 'warning');
       return;
     }
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('email', effectiveUser.email || effectiveUser.id || 'default');
-    formData.append('user_id', effectiveUser.id || 'default');
-    formData.append('notebook_id', notebook.id);
-    formData.append('notebook_title', notebook?.title || notebook?.name || '');
 
+    const queuedSources: PendingSourceItem[] = uploadQueue.map((file, index) => ({
+      id: `pending-upload-${Date.now()}-${index}-${file.name}`,
+      name: file.name,
+      sourceType: 'upload',
+      status: 'processing',
+    }));
+
+    setPendingSources(prev => [...queuedSources, ...prev]);
+    if (options?.closeModalOnQueue) {
+      setShowIntroduceModal(false);
+    }
     setFileUploading(true);
+    showToast(
+      uploadQueue.length > 1
+        ? `已添加 ${uploadQueue.length} 个文件，正在处理`
+        : `已添加 ${uploadQueue[0].name}，正在处理`,
+      'info'
+    );
+
+    let successCount = 0;
+    let failureCount = 0;
+    let embeddedCount = 0;
+
     try {
-      const res = await apiFetch('/api/v1/kb/upload', {
-        method: 'POST',
-        body: formData
-      });
+      for (let i = 0; i < uploadQueue.length; i += 1) {
+        const file = uploadQueue[i];
+        const pendingItem = queuedSources[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('email', effectiveUser.email || effectiveUser.id || 'default');
+        formData.append('user_id', effectiveUser.id || 'default');
+        formData.append('notebook_id', notebook.id);
+        formData.append('notebook_title', notebook?.title || notebook?.name || '');
 
-      if (!res.ok) throw new Error('Upload failed');
+        try {
+          const res = await apiFetch('/api/v1/kb/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(data?.detail || data?.message || `上传 ${file.name} 失败`);
+          }
 
-      const data = await res.json();
-      invalidateNotebookSourceCaches();
-      await fetchFiles();
-      await fetchVectorList();
-      if (data.embedded) {
-        if (options?.onSuccess) options.onSuccess();
-        else alert('Uploaded and embedded successfully!');
-      } else {
-        if (options?.onSuccess) options.onSuccess();
-        else alert('Upload succeeded but auto-embedding failed. You can re-embed from Sources.');
+          const newFile: KnowledgeFile = {
+            id: data.id || data.storage_path || `file-${data.filename || file.name}`,
+            name: data.filename || file.name,
+            type: mapFileType(data.file_type || file.type || file.name.split('.').pop() || ''),
+            size: typeof data.file_size === 'number' ? formatSize(data.file_size) : formatSize(file.size || 0),
+            uploadTime: '',
+            isEmbedded: !!data.embedded,
+            desc: '',
+            url: data.static_url || '',
+          };
+
+          removePendingSource(pendingItem.id);
+          upsertFileInList(newFile);
+          successCount += 1;
+          if (data.embedded) embeddedCount += 1;
+        } catch (err: any) {
+          const msg = err?.message || `上传 ${file.name} 失败`;
+          console.error('Upload error:', err);
+          markPendingSourceError(pendingItem.id, msg);
+          setRetrievalError(msg);
+          failureCount += 1;
+        }
       }
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      const msg = err?.message || 'Upload failed, please retry';
-      setRetrievalError(msg);
-      alert(msg);
+
+      if (successCount > 0) {
+        invalidateNotebookSourceCaches();
+        await fetchFiles();
+        await refreshVectorList();
+        if (failureCount === 0) {
+          showToast(
+            embeddedCount === successCount
+              ? `已完成 ${successCount} 个来源导入并入库`
+              : `已完成 ${successCount} 个来源导入`,
+            'success'
+          );
+        } else {
+          showToast(`已完成 ${successCount} 个来源导入，${failureCount} 个失败`, 'warning');
+        }
+      } else if (failureCount > 0) {
+        showToast(`上传失败：${failureCount} 个文件未处理成功`, 'error');
+      }
     } finally {
       setFileUploading(false);
     }
@@ -1389,14 +1520,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     setChatMessages(prev => [...prev, userMsg]);
     setInputMsg('');
     setIsChatLoading(true);
-    setChatLoadingStage('Preparing sources...');
+    setChatLoadingStage('正在准备来源...');
 
     try {
       if (selectedIds.size === 0) {
         const botMsg: ChatMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: 'Please select at least one source on the left so I can answer based on those materials.',
+          content: '请先在左侧来源列表中勾选至少一个文件，我才能基于这些资料回答您的问题。',
           time: new Date().toLocaleTimeString()
         };
         setChatMessages(prev => [...prev, botMsg]);
@@ -1482,11 +1613,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           return;
         }
         if (event.type === 'stage') {
-          setChatLoadingStage(event.message_en || event.message || 'Thinking...');
+          setChatLoadingStage(event.message || '思考中...');
           return;
         }
         if (event.type === 'delta') {
-          if (!streamedContent) setChatLoadingStage('Generating answer...');
+          if (!streamedContent) setChatLoadingStage('正在生成回答...');
           streamedContent += event.delta || '';
           syncAssistantMessage();
           return;
@@ -1519,7 +1650,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const botMsg: ChatMessage = {
         id: assistantMessageId,
         role: 'assistant',
-        content: streamedContent || "Sorry, I couldn't answer that.",
+        content: streamedContent || "抱歉，我无法回答这个问题。",
         time: assistantTime,
         details: streamedDetails,
         sourceMapping: streamedSourceMapping,
@@ -1544,11 +1675,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     } catch (err) {
       console.error("Chat error:", err);
-      const errorContent = err instanceof Error ? err.message : "An error occurred. Please try again later.";
+      const errorContent = err instanceof Error ? err.message : "发生错误，请稍后重试。";
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: errorContent || "An error occurred. Please try again later.",
+        content: errorContent || "发生错误，请稍后重试。",
         time: new Date().toLocaleTimeString()
       };
       setChatMessages(prev => {
@@ -1559,14 +1690,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       persistCurrentConversation([...chatMessages, userMsg, errorMsg]);
     } finally {
       setIsChatLoading(false);
-      setChatLoadingStage('Thinking...');
+      setChatLoadingStage('思考中...');
     }
   };
 
   // Tool handlers (PPT, Mindmap, etc.)
   const handleToolGenerate = async (tool: ToolType) => {
     if (selectedIds.size === 0) {
-      alert('Please select at least one file');
+      showToast('请先选择至少一个文件', 'warning');
       return;
     }
 
@@ -1582,7 +1713,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const apiUrl = settings?.apiUrl?.trim() || '';
       const apiKey = settings?.apiKey?.trim() || '';
       if (!apiUrl || !apiKey) {
-        alert('Please configure API URL and API Key in Settings first');
+        showToast('请先在设置中配置 API URL 和 API Key', 'warning');
         setToolLoading(false);
         return;
       }
@@ -1631,13 +1762,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         });
         const validSources = [...validDocFiles, ...linkFiles];
         if (validSources.length === 0) {
-          alert('Please select at least 1 document or web source (PDF/PPTX/DOCX/MD or web import).');
+          showToast('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD 或网页引入）。', 'warning');
           setToolLoading(false);
           return;
         }
         const docPaths = validSources.map(f => f.url).filter(Boolean) as string[];
         if (docPaths.length !== validSources.length) {
-          alert('Could not get document/web path. Please retry.');
+          showToast('无法获取文档/网页路径，请重试。', 'error');
           setToolLoading(false);
           return;
         }
@@ -1647,10 +1778,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
         const getStyleDescription = (preset: string): string => {
           const styles: Record<string, string> = {
-            modern: 'Modern minimal, clean lines and whitespace',
-            business: 'Business professional, formal',
-            academic: 'Academic report, clear structure',
-            creative: 'Creative, vivid and colorful',
+            modern: '现代简约风格，使用干净的线条和充足的留白',
+            business: '商务专业风格，稳重大气，适合企业演示',
+            academic: '学术报告风格，清晰的层次结构，适合论文汇报',
+            creative: '创意设计风格，活泼生动，色彩丰富',
           };
           return styles[preset] || styles.modern;
         };
@@ -1673,18 +1804,15 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         };
       } else if (tool === 'podcast') {
         const cfg = getStudioConfig('podcast');
-        // Qwen TTS only supports monologue mode
-        const ttsModel = (cfg.ttsModel || 'local-fireredtts').toLowerCase();
-        const isQwenTTS = ttsModel.includes('qwen');
         bodyData = {
           ...baseBody,
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
-          tts_model: cfg.ttsModel || 'local-fireredtts',
+          tts_model: cfg.ttsModel || 'qwen-tts',
           voice_name: cfg.voiceName || 'vivian',
-          podcast_mode: isQwenTTS ? 'monologue' : 'dialog',
-          podcast_length: 'standard',
-          language: cfg.podcastLanguage || 'en'
+          voice_name_b: cfg.voiceNameB || 'uncle_fu',
+          podcast_mode: cfg.podcastMode || 'monologue',
+          language: cfg.podcastLanguage || 'zh'
         };
       } else if (tool === 'mindmap') {
         const cfg = getStudioConfig('mindmap');
@@ -1710,7 +1838,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           ...baseBody,
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
-          language: cfg.language || 'en',
+          language: cfg.language || 'zh',
           card_count: Math.max(5, Math.min(50, parseInt(String(cfg.cardCount || '20'), 10) || 20)),
         };
       } else if (tool === 'quiz') {
@@ -1719,7 +1847,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           ...baseBody,
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
-          language: cfg.language || 'en',
+          language: cfg.language || 'zh',
           question_count: Math.max(5, Math.min(30, parseInt(String(cfg.questionCount || '10'), 10) || 10)),
         };
       } else {
@@ -1752,8 +1880,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {
             id: data.output_file_id || `ppt_${Date.now()}`,
             type: 'ppt',
-            title: 'PPT',
-            sources: selectedNames.length ? selectedNames.join(', ') : `${selectedIds.size} source(s)`,
+            title: 'PPT 生成',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
             url: downloadUrl,
             previewUrl: pdfUrl,
             createdAt: now,
@@ -1766,8 +1894,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         const outputItem = {
           id: data.output_file_id || `mindmap_${Date.now()}`,
           type: 'mindmap' as const,
-          title: 'Mind Map',
-          sources: selectedNames.length ? selectedNames.join(', ') : `${selectedIds.size} source(s)`,
+          title: '思维导图',
+          sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
           url,
           createdAt: now,
           mermaidCode
@@ -1781,8 +1909,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {
             id: data.output_file_id || `podcast_${Date.now()}`,
             type: 'podcast',
-            title: 'Podcast',
-            sources: selectedNames.length ? selectedNames.join(', ') : `${selectedIds.size} source(s)`,
+            title: '播客生成',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
             url,
             createdAt: now,
           },
@@ -1794,8 +1922,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {
             id: data.output_file_id || `drawio_${Date.now()}`,
             type: 'drawio',
-            title: 'DrawIO',
-            sources: selectedNames.length ? selectedNames.join(', ') : `${selectedIds.size} source(s)`,
+            title: 'DrawIO 图表',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
             url,
             createdAt: now,
           },
@@ -1810,8 +1938,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {
             id: data.flashcard_set_id || `flashcard_${Date.now()}`,
             type: 'flashcard',
-            title: 'Flashcards',
-            sources: selectedNames.length ? selectedNames.join(', ') : `${selectedIds.size} source(s)`,
+            title: '闪卡',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
             url: '',
             createdAt: now,
             setId: fcSetId || String(Date.now()),
@@ -1827,8 +1955,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {
             id: data.quiz_id || `quiz_${Date.now()}`,
             type: 'quiz',
-            title: 'Quiz',
-            sources: selectedNames.length ? selectedNames.join(', ') : `${selectedIds.size} source(s)`,
+            title: '测验',
+            sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
             url: '',
             createdAt: now,
             setId: qzSetId || String(Date.now()),
@@ -1839,7 +1967,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
     } catch (err) {
       console.error('Tool generation error:', err);
-      alert('Generation failed. Please retry');
+      showToast('生成失败，请重试', 'error');
     } finally {
       setToolLoading(false);
     }
@@ -2116,6 +2244,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   return (
     <>
+      {ToastContainer}
       <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
       {/* Citation tooltip styles */}
       <style>{`
@@ -2191,11 +2320,27 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
 
         <div className="flex items-center gap-2">
+          {/* 右上方添加笔记 - 暂未使用，先注释
+          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors">
+            <Plus size={16} />
+            创建笔记本
+          </button>
+          */}
+          {/* 右侧上方分析和分享 - 暂未使用，先注释
+          <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded-full text-sm font-medium transition-colors">
+            <BarChart2 size={16} />
+            分析
+          </button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded-full text-sm font-medium transition-colors">
+            <Share2 size={16} />
+            分享
+          </button>
+          */}
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setShowSettingsModal(true)}
             className="p-2 hover:bg-white/50 rounded-ios transition-colors"
-            title="API settings"
+            title="API 设置"
           >
             <Settings size={20} className="text-ios-gray-500" />
           </motion.button>
@@ -2215,49 +2360,44 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           style={{ width: leftPanelWidth, minWidth: 160, maxWidth: 480 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-ios-gray-700">Sources ({files.length})</h2>
+            <h2 className="text-sm font-semibold text-ios-gray-700">来源 ({sourceListCount})</h2>
             <button className="p-1 hover:bg-ios-gray-200 rounded-ios">
               <MoreVertical size={16} />
             </button>
           </div>
           
-          <div className="flex gap-2 mb-4">
-            <input
-              type="file"
-              id="file-upload"
-              className="hidden"
-              onChange={handleFileUpload}
-              disabled={fileUploading}
-            />
-            <label
-              htmlFor="file-upload"
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-ios-gray-200 rounded-full text-sm font-medium transition-all ${fileUploading ? 'text-ios-gray-400 cursor-not-allowed opacity-60' : 'text-ios-gray-700 hover:shadow-ios-sm cursor-pointer'}`}
-            >
-              {fileUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-              {fileUploading ? 'Importing...' : 'Upload files'}
-            </label>
+          <div className="mb-4">
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => setShowIntroduceModal(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-ios-gray-200 rounded-full text-sm font-medium text-ios-gray-700 hover:shadow-ios-sm transition-all hover:bg-ios-gray-50"
+              className={`w-full flex items-center justify-center gap-2 py-3.5 px-4 border rounded-2xl text-sm font-semibold transition-all ${
+                fileUploading
+                  ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-ios-sm'
+                  : 'border-ios-gray-200 bg-white text-ios-gray-700 hover:shadow-ios-sm hover:bg-ios-gray-50'
+              }`}
             >
-              <Search size={16} />
-              Add sources
+              {fileUploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+              {fileUploading ? '添加来源中...' : '添加来源'}
             </motion.button>
+            <p className="mt-2 px-1 text-xs text-ios-gray-500">
+              {processingUploadCount > 0
+                ? `正在处理 ${processingUploadCount} 个文件，完成后会自动加入来源列表`
+                : '上传文件、网页或粘贴文本到当前笔记本'}
+            </p>
           </div>
 
           {retrievalError && (
             <div className="mb-3 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg space-y-1.5">
               <p className="text-xs text-red-700 line-clamp-2">{retrievalError}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                {(retrievalError.includes('API') || retrievalError.includes('configure') || retrievalError.includes('Failed to generate embeddings')) && (
+                {(retrievalError.includes('API') || retrievalError.includes('配置') || retrievalError.includes('生成向量失败')) && (
                   <button
                     type="button"
                     onClick={() => { setRetrievalError(''); setShowSettingsModal(true); }}
                     className="text-xs font-medium text-red-600 hover:text-red-800 underline"
                   >
-                    Settings
+                    去设置
                   </button>
                 )}
                 <button
@@ -2265,7 +2405,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                   onClick={() => setRetrievalError('')}
                   className="text-xs text-red-500 hover:text-red-700"
                 >
-                  Close
+                  关闭
                 </button>
               </div>
             </div>
@@ -2275,7 +2415,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             <>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-ios-gray-500 uppercase tracking-wider">
-                  {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'All sources'}
+                  {selectedIds.size > 0 ? `已选 ${selectedIds.size} 个` : '全部来源'}
                 </span>
                 <input
                   type="checkbox"
@@ -2292,51 +2432,105 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               </div>
 
               <div className="flex-1 overflow-y-auto min-h-0">
-                {files.length === 0 ? (
+                {sourceListCount === 0 ? (
                   <div className="text-center py-8 text-ios-gray-400 text-sm">
-                    No files. Please upload.
+                    暂无来源，请添加
                   </div>
                 ) : (
-                  files.map((file, fileIdx) => (
-                    <motion.div
-                      key={file.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: fileIdx * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
-                      className="flex items-center gap-3 p-3 bg-white border border-ios-gray-100 rounded-ios-xl mb-2 hover:shadow-ios-sm transition-all cursor-pointer"
-                      onClick={() => openSourceDetail(file)}
-                    >
-                      <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-blue-100 rounded-ios flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-primary">{fileIdx + 1}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-ios-gray-700 line-clamp-2 leading-tight">
-                          {file.name}
+                  <>
+                    {pendingSources.map((item, itemIdx) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: itemIdx * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
+                        className={`flex items-center gap-3 p-3 border rounded-ios-xl mb-2 transition-all ${
+                          item.status === 'error'
+                            ? 'bg-red-50 border-red-200'
+                            : 'bg-white border-blue-100 shadow-[0_8px_24px_rgba(59,130,246,0.08)]'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-ios flex items-center justify-center shrink-0 ${
+                          item.status === 'error'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-blue-50 text-blue-600'
+                        }`}>
+                          {item.status === 'error'
+                            ? <X size={16} />
+                            : <Loader2 size={16} className="animate-spin" />}
                         </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          {(file.isEmbedded || file.kbFileId || vectorStatusByPath[getOutputsPath(file.url)] === 'embedded' || vectorFiles.some((v: any) => getOutputsPath(v?.original_path) === getOutputsPath(file.url))) && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600">
-                              Indexed
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-ios-gray-700 line-clamp-2 leading-tight">
+                            {item.name}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              item.status === 'error'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}>
+                              {item.status === 'error' ? '处理失败' : '处理中'}
                             </span>
-                          )}
+                            {item.message && (
+                              <span className="text-[10px] text-red-600 truncate" title={item.message}>
+                                {item.message}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        className="rounded-full text-primary accent-primary"
-                        checked={selectedIds.has(file.id)}
-                        onChange={() => {
-                          setSelectedIds(prev => {
-                            const next = new Set(prev);
-                            if (next.has(file.id)) next.delete(file.id);
-                            else next.add(file.id);
-                            return next;
-                          });
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </motion.div>
-                  ))
+                        {item.status === 'error' && (
+                          <button
+                            type="button"
+                            onClick={() => removePendingSource(item.id)}
+                            className="text-xs text-red-600 hover:text-red-800 shrink-0"
+                          >
+                            移除
+                          </button>
+                        )}
+                      </motion.div>
+                    ))}
+
+                    {files.map((file, fileIdx) => (
+                      <motion.div
+                        key={file.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: (pendingSources.length + fileIdx) * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
+                        className="flex items-center gap-3 p-3 bg-white border border-ios-gray-100 rounded-ios-xl mb-2 hover:shadow-ios-sm transition-all cursor-pointer"
+                        onClick={() => openSourceDetail(file)}
+                      >
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-blue-100 rounded-ios flex items-center justify-center shrink-0">
+                          <span className="text-xs font-bold text-primary">{pendingSources.length + fileIdx + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-ios-gray-700 line-clamp-2 leading-tight">
+                            {file.name}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            {(file.isEmbedded || file.kbFileId || vectorStatusByPath[getOutputsPath(file.url)] === 'embedded' || vectorFiles.some((v: any) => getOutputsPath(v?.original_path) === getOutputsPath(file.url))) && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600">
+                                已入库
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="rounded-full text-primary accent-primary"
+                          checked={selectedIds.has(file.id)}
+                          onChange={() => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(file.id)) next.delete(file.id);
+                              else next.add(file.id);
+                              return next;
+                            });
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </motion.div>
+                    ))}
+                  </>
                 )}
               </div>
             </>
@@ -2348,7 +2542,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 mb-2"
               >
                 <ChevronLeft size={18} />
-                Back
+                返回
               </button>
               <div className="text-xs font-medium text-gray-700 truncate mb-1" title={sourceDetailView.name}>
                 {sourceDetailView.name}
@@ -2357,10 +2551,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 <a
                   href={sourceDetailView.url}
                   target="_blank"
-rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline mb-2 block truncate"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline mb-2 block truncate"
                 >
-                  Open in new tab
+                  可在新标签页打开
                 </a>
               )}
               <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-gray-200 rounded-xl p-3">
@@ -2371,7 +2565,7 @@ rel="noopener noreferrer"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-                        Citation [{sourceDetailCitationFocus.sourceNumber}]
+                        引用 [{sourceDetailCitationFocus.sourceNumber}]
                       </span>
                       {typeof sourceDetailCitationFocus.chunkIndex === 'number' && (
                         <span className="text-[11px] text-blue-600">
@@ -2392,7 +2586,7 @@ rel="noopener noreferrer"
                 {sourceDetailLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 size={24} className="animate-spin text-blue-500" />
-                    <span className="ml-2 text-sm text-gray-500">Parsing…</span>
+                    <span className="ml-2 text-sm text-gray-500">解析中…</span>
                   </div>
                 ) : sourceDetailFormat === 'markdown' && sourceDetailContent ? (
                   <div className="prose prose-sm max-w-none text-gray-700 prose-p:text-xs prose-headings:text-sm prose-pre:text-xs">
@@ -2400,7 +2594,7 @@ rel="noopener noreferrer"
                   </div>
                 ) : (
                   <pre className="whitespace-pre-wrap text-xs text-gray-700 font-sans leading-relaxed break-words">
-                    {sourceDetailContent || '[No content]'}
+                    {sourceDetailContent || '[无内容]'}
                   </pre>
                 )}
               </div>
@@ -2436,7 +2630,7 @@ rel="noopener noreferrer"
         ) : (
         <main className="flex-1 flex flex-col relative bg-white min-w-[300px] overflow-hidden">
           <div className="flex items-center justify-between px-6 py-3 border-b border-ios-gray-100 shrink-0">
-            <span className="text-sm font-medium text-ios-gray-900">Chat</span>
+            <span className="text-sm font-medium text-ios-gray-900">对话</span>
             <div className="flex items-center gap-2">
               <motion.button
                 whileTap={{ scale: 0.95 }}
@@ -2445,7 +2639,7 @@ rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-ios-gray-100 rounded-ios text-sm font-medium text-ios-gray-700 transition-colors"
               >
                 <Plus size={16} />
-                New Chat
+                新的对话
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.95 }}
@@ -2454,7 +2648,7 @@ rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-ios-gray-100 rounded-ios text-sm font-medium text-ios-gray-700 transition-colors"
               >
                 <MessageSquare size={16} />
-                Chat history
+                对话历史
               </motion.button>
             </div>
           </div>
@@ -2463,18 +2657,18 @@ rel="noopener noreferrer"
             {chatSubView === 'history' && (
               <div className="max-w-[800px] mx-auto w-full">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-500">Chat history (click to restore)</h3>
+                  <h3 className="text-sm font-semibold text-gray-500">对话历史（点击可回滚到该对话）</h3>
                   <button
                     type="button"
                     onClick={() => setChatSubView('current')}
                     className="text-sm text-blue-600 hover:underline"
                   >
-                    Back to current Chat
+                    返回当前对话
                   </button>
                 </div>
                 <ul className="space-y-2">
                   {conversationHistory.length === 0 ? (
-                    <li className="text-sm text-gray-400 py-4">No chat history yet</li>
+                    <li className="text-sm text-gray-400 py-4">暂无历史对话</li>
                   ) : (
                     conversationHistory.map(item => (
                       <li key={item.id}>
@@ -2485,7 +2679,7 @@ rel="noopener noreferrer"
                         >
                           <span className="text-sm font-medium text-gray-800 line-clamp-1">{item.title}</span>
                           <span className="text-xs text-gray-400 mt-1 block">
-                            {new Date(item.updatedAt).toLocaleString()} · {item.messages.length}  messages
+                            {new Date(item.updatedAt).toLocaleString()} · {item.messages.length} 条消息
                           </span>
                         </button>
                       </li>
@@ -2548,12 +2742,12 @@ rel="noopener noreferrer"
                     value={inputMsg}
                     onChange={e => setInputMsg(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                    placeholder={selectedIds.size > 0 ? "Type here..." : "Select files first..."}
+                    placeholder={selectedIds.size > 0 ? "开始输入..." : "请先选择文件..."}
                     disabled={selectedIds.size === 0}
                     className="w-full bg-transparent rounded-ios-xl py-4 pl-6 pr-24 text-lg text-slate-800 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <span className="text-xs text-slate-500 font-medium">{selectedIds.size} sources</span>
+                    <span className="text-xs text-slate-500 font-medium">{selectedIds.size} 个来源</span>
                     <motion.button
                       whileTap={{ scale: 0.88 }}
                       onClick={handleSendMessage}
@@ -2566,7 +2760,7 @@ rel="noopener noreferrer"
                 </div>
               </div>
               <p className="text-center text-[10px] text-ios-gray-400 mt-4">
-                Answers may not be fully accurate. Please verify important content.
+                NotebookLM 提供的内容未必准确，因此请仔细核查回答内容。
               </p>
             </div>
           )}
@@ -2606,16 +2800,16 @@ rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 mb-4"
               >
                 <ChevronLeft size={18} />
-                Back
+                返回
               </button>
               <h3 className="text-sm font-semibold text-gray-800 mb-3">
-                {studioSettingsTool === 'ppt' && 'PPT'}
-                {studioSettingsTool === 'mindmap' && 'Mind Map'}
-                {studioSettingsTool === 'drawio' && 'DrawIO'}
-                {studioSettingsTool === 'podcast' && 'Knowledge Podcast'}
-                {studioSettingsTool === 'flashcard' && 'Flashcards'}
-                {studioSettingsTool === 'quiz' && 'Quiz'}
-                {/* {studioSettingsTool === 'video' && 'Video narration'} */}
+                {studioSettingsTool === 'ppt' && 'PPT 生成'}
+                {studioSettingsTool === 'mindmap' && '思维导图'}
+                {studioSettingsTool === 'drawio' && 'DrawIO 图表'}
+                {studioSettingsTool === 'podcast' && '知识播客'}
+                {studioSettingsTool === 'flashcard' && '闪卡'}
+                {studioSettingsTool === 'quiz' && '测验'}
+                {/* {studioSettingsTool === 'video' && '视频讲解'} */}
               </h3>
               <div className="space-y-4">
                 {studioSettingsTool === 'ppt' && (() => {
@@ -2623,14 +2817,14 @@ rel="noopener noreferrer"
                   return (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Language</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
                         <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('ppt', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="zh">Chinese</option>
+                          <option value="zh">中文</option>
                           <option value="en">English</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Slides (pages)</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">生成页数</label>
                         <input
                           type="number"
                           min={1}
@@ -2653,31 +2847,32 @@ rel="noopener noreferrer"
                           placeholder="1–50"
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">1–50 pages, integer</p>
+                        <p className="text-xs text-gray-400 mt-0.5">1–50 页，整数</p>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
                         <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('ppt', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Image model (VLM)</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">生图模型 (VLM)</label>
                         <select value={c.genFigModel || 'gemini-2.5-flash-image'} onChange={(e) => setStudioConfigForTool('ppt', { genFigModel: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                           <option value="gemini-2.5-flash-image">2.5 Pro</option>
                           <option value="gemini-3-pro-image-preview">3.0 Pro</option>
+                          <option value="nano-banana-2">Nano Banana 2</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Style preset</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">风格预设</label>
                         <select value={c.stylePreset || 'modern'} onChange={(e) => setStudioConfigForTool('ppt', { stylePreset: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="modern">Modern</option>
-                          <option value="business">Business</option>
-                          <option value="academic">Academic</option>
-                          <option value="creative">Creative</option>
+                          <option value="modern">现代简约</option>
+                          <option value="business">商务专业</option>
+                          <option value="academic">学术报告</option>
+                          <option value="creative">创意设计</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Style prompt (optional)</label>
-                        <textarea value={c.stylePrompt || ''} onChange={(e) => setStudioConfigForTool('ppt', { stylePrompt: e.target.value })} placeholder="Leave empty for preset" rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">风格化 Prompt（可选）</label>
+                        <textarea value={c.stylePrompt || ''} onChange={(e) => setStudioConfigForTool('ppt', { stylePrompt: e.target.value })} placeholder="留空用预设" rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none" />
                       </div>
                     </>
                   );
@@ -2687,13 +2882,13 @@ rel="noopener noreferrer"
                   return (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
                         <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('mindmap', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Mind map style</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">思维导图风格</label>
                         <select value={c.mindmapStyle || 'default'} onChange={(e) => setStudioConfigForTool('mindmap', { mindmapStyle: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="default">Default</option>
+                          <option value="default">默认</option>
                         </select>
                       </div>
                     </>
@@ -2704,32 +2899,32 @@ rel="noopener noreferrer"
                   return (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
                         <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('drawio', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Diagram type</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">图表类型</label>
                         <select value={c.diagramType || 'auto'} onChange={(e) => setStudioConfigForTool('drawio', { diagramType: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="auto">Auto</option>
-                          <option value="flowchart">Flowchart</option>
-                          <option value="architecture">Architecture</option>
-                          <option value="sequence">Sequence</option>
-                          <option value="mindmap">Mind map</option>
-                          <option value="er">ER diagram</option>
+                          <option value="auto">自动</option>
+                          <option value="flowchart">流程图</option>
+                          <option value="architecture">架构图</option>
+                          <option value="sequence">时序图</option>
+                          <option value="mindmap">思维导图</option>
+                          <option value="er">ER 图</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Diagram style</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">图表风格</label>
                         <select value={c.diagramStyle || 'default'} onChange={(e) => setStudioConfigForTool('drawio', { diagramStyle: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="default">Default</option>
-                          <option value="minimal">Minimal</option>
-                          <option value="sketch">Sketch</option>
+                          <option value="default">默认</option>
+                          <option value="minimal">简约</option>
+                          <option value="sketch">手绘</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Language</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
                         <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('drawio', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="zh">Chinese</option>
+                          <option value="zh">中文</option>
                           <option value="en">English</option>
                         </select>
                       </div>
@@ -2738,39 +2933,123 @@ rel="noopener noreferrer"
                 })()}
                 {studioSettingsTool === 'podcast' && (() => {
                   const c = getStudioConfig('podcast');
-                  const speakers = [
-                    { value: 'vivian', label: 'Vivian - Bright, slightly edgy young female voice (Chinese)' },
-                    { value: 'serena', label: 'Serena - Warm, gentle young female voice (Chinese)' },
-                    { value: 'uncle_fu', label: 'Uncle Fu - Seasoned male voice, low and mellow (Chinese)' },
-                    { value: 'dylan', label: 'Dylan - Youthful Beijing male voice, clear and natural (Beijing Dialect)' },
-                    { value: 'eric', label: 'Eric - Lively Chengdu male voice, slightly husky (Sichuan Dialect)' },
-                    { value: 'ryan', label: 'Ryan - Dynamic male voice with strong rhythm (English)' },
-                    { value: 'aiden', label: 'Aiden - Sunny American male voice, clear midrange (English)' },
-                    { value: 'ono_anna', label: 'Ono Anna - Playful Japanese female voice, light and nimble (Japanese)' },
-                    { value: 'sohee', label: 'Sohee - Warm Korean female voice, rich emotion (Korean)' }
+                  const ttsType = c.ttsType || 'qwen-tts-local';
+                  const isQwen = ttsType === 'qwen-tts-local';
+                  const isGemini = ttsType === 'gemini-tts-online';
+                  const podcastMode = c.podcastMode || 'monologue';
+
+                  const qwenVoices = [
+                    { value: 'vivian', label: 'Vivian - 明亮年轻女声' },
+                    { value: 'serena', label: 'Serena - 温暖温柔女声' },
+                    { value: 'uncle_fu', label: 'Uncle Fu - 成熟低沉男声' },
+                    { value: 'dylan', label: 'Dylan - 清晰自然男声' },
+                    { value: 'eric', label: 'Eric - 活泼略沙哑男声' },
+                    { value: 'ryan', label: 'Ryan - 充满活力男声（英文）' },
+                    { value: 'aiden', label: 'Aiden - 阳光清晰男声（英文）' },
+                    { value: 'ono_anna', label: 'Ono Anna - 俏皮女声（日文）' },
+                    { value: 'sohee', label: 'Sohee - 温暖女声（韩文）' }
                   ];
+
+                  const geminiVoices = [
+                    { value: 'Puck', label: 'Puck - Upbeat' },
+                    { value: 'Charon', label: 'Charon - Informative' },
+                    { value: 'Kore', label: 'Kore - Firm' },
+                    { value: 'Fenrir', label: 'Fenrir - Excitable' },
+                    { value: 'Aoede', label: 'Aoede - Breezy' },
+                    { value: 'Enceladus', label: 'Enceladus - Breathy' },
+                    { value: 'Iapetus', label: 'Iapetus - Clear' },
+                    { value: 'Algieba', label: 'Algieba - Smooth' },
+                    { value: 'Despina', label: 'Despina - Smooth' },
+                    { value: 'Algenib', label: 'Algenib - Gravelly' },
+                    { value: 'Rasalgethi', label: 'Rasalgethi - Informative' },
+                    { value: 'Achernar', label: 'Achernar - Soft' },
+                    { value: 'Alnilam', label: 'Alnilam - Firm' },
+                    { value: 'Schedar', label: 'Schedar - Even' },
+                    { value: 'Gacrux', label: 'Gacrux - Mature' },
+                    { value: 'Pulcherrima', label: 'Pulcherrima - Forward' },
+                    { value: 'Achird', label: 'Achird - Friendly' },
+                    { value: 'Zubenelgenubi', label: 'Zubenelgenubi - Casual' },
+                    { value: 'Vindemiatrix', label: 'Vindemiatrix - Gentle' },
+                    { value: 'Sadachbia', label: 'Sadachbia - Lively' },
+                    { value: 'Sadaltager', label: 'Sadaltager - Knowledgeable' },
+                    { value: 'Sulafat', label: 'Sulafat - Warm' }
+                  ];
+
+                  const voices = isQwen ? qwenVoices : geminiVoices;
+                  const defaultVoice = isQwen ? 'vivian' : 'Puck';
+                  const defaultVoiceB = isQwen ? 'uncle_fu' : 'Charon';
+
                   return (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
-                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('podcast', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
+                        <input type="text" value={c.llmModel || 'deepseek-v3.2'} onChange={(e) => setStudioConfigForTool('podcast', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">TTS model</label>
-                        <input type="text" value={c.ttsModel || 'qwen-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="qwen-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-                        <p className="text-xs text-gray-400 mt-0.5">e.g., qwen-tts, local-fireredtts, cosyvoice-tts</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Podcast Language</label>
-                        <select value={c.podcastLanguage || 'en'} onChange={(e) => setStudioConfigForTool('podcast', { podcastLanguage: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          <option value="zh">中文</option>
-                          <option value="en">English</option>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">TTS 类型</label>
+                        <select
+                          value={ttsType}
+                          onChange={(e) => {
+                            const newType = e.target.value;
+                            const updates: any = { ttsType: newType };
+                            if (newType === 'qwen-tts-local') {
+                              updates.ttsModel = 'qwen-tts';
+                              updates.podcastMode = 'monologue';
+                              updates.voiceName = 'vivian';
+                            } else {
+                              updates.ttsModel = 'gemini-2.5-flash-tts';
+                              updates.voiceName = 'Puck';
+                              updates.voiceNameB = 'Charon';
+                            }
+                            setStudioConfigForTool('podcast', updates);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="qwen-tts-local">本地 Qwen TTS（仅单人）</option>
+                          <option value="gemini-tts-online">在线 Gemini TTS（需 apiyi 平台）</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Voice Speaker</label>
-                        <select value={c.voiceName || 'vivian'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          {speakers.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        <label className="block text-xs font-medium text-gray-500 mb-1">播客模式</label>
+                        <select
+                          value={podcastMode}
+                          onChange={(e) => setStudioConfigForTool('podcast', { podcastMode: e.target.value })}
+                          disabled={isQwen}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        >
+                          <option value="monologue">单人播客</option>
+                          <option value="dialog">双人对话</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          {podcastMode === 'dialog' ? '说话人 A 音色' : '说话人音色'}
+                        </label>
+                        <select
+                          value={c.voiceName || defaultVoice}
+                          onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        >
+                          {voices.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                        </select>
+                      </div>
+                      {podcastMode === 'dialog' && isGemini && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">说话人 B 音色</label>
+                          <select
+                            value={c.voiceNameB || defaultVoiceB}
+                            onChange={(e) => setStudioConfigForTool('podcast', { voiceNameB: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          >
+                            {voices.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">播客语言</label>
+                        <select value={c.podcastLanguage || 'zh'} onChange={(e) => setStudioConfigForTool('podcast', { podcastLanguage: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="zh">中文</option>
+                          <option value="en">English</option>
                         </select>
                       </div>
 </>
@@ -2781,14 +3060,14 @@ rel="noopener noreferrer"
                   return (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Language</label>
-                        <select value={c.language || 'en'} onChange={(e) => setStudioConfigForTool('flashcard', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
+                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('flashcard', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="zh">中文</option>
                           <option value="en">English</option>
-                          <option value="zh">Chinese</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Number of cards</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">卡片数量</label>
                         <input
                           type="number"
                           min={5}
@@ -2807,10 +3086,10 @@ rel="noopener noreferrer"
                           placeholder="5–50"
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">5–50 cards</p>
+                        <p className="text-xs text-gray-400 mt-0.5">5–50 张卡片</p>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
                         <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('flashcard', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                     </>
@@ -2821,14 +3100,14 @@ rel="noopener noreferrer"
                   return (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Language</label>
-                        <select value={c.language || 'en'} onChange={(e) => setStudioConfigForTool('quiz', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
+                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('quiz', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="zh">中文</option>
                           <option value="en">English</option>
-                          <option value="zh">Chinese</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Number of questions</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">题目数量</label>
                         <input
                           type="number"
                           min={5}
@@ -2847,21 +3126,21 @@ rel="noopener noreferrer"
                           placeholder="5–30"
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">5–30 questions</p>
+                        <p className="text-xs text-gray-400 mt-0.5">5–30 道题</p>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
                         <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('quiz', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                     </>
                   );
                 })()}
-                {/* Video narration temporarily disabled
+                {/* 视频讲解暂未开放
                 {studioSettingsTool === 'video' && (() => {
                   const c = getStudioConfig('video');
                   return (
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
                       <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('video', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                     </div>
                   );
@@ -2869,7 +3148,7 @@ rel="noopener noreferrer"
                 */}
               </div>
               <button type="button" onClick={() => { setStudioPanelView('tools'); setStudioSettingsTool(null); }} className="mt-4 w-full py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600">
-                Save & back
+                保存并返回
               </button>
             </div>
           ) : (
@@ -2896,7 +3175,7 @@ rel="noopener noreferrer"
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setStudioSettingsTool(tool.id as StudioToolId); setStudioPanelView('settings'); }}
                     className="absolute top-2 right-2 min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-ios-gray-200 rounded-ios transition-colors"
-                    title="Tool settings"
+                    title="该功能设置"
                   >
                     <MoreVertical size={16} className="text-ios-gray-500" />
                   </motion.button>
@@ -2914,12 +3193,12 @@ rel="noopener noreferrer"
                 {toolLoading ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Generating…
+                    生成中…
                   </>
                 ) : (
                   <>
                     <Sparkles size={16} />
-                    Generate
+                    生成
                   </>
                 )}
               </motion.button>
@@ -2933,22 +3212,22 @@ rel="noopener noreferrer"
                   <Zap size={12} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-500" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-gray-800">Generating...</p>
-                  <p className="text-xs text-gray-500 mt-1">Based on {selectedIds.size} sources</p>
+                  <p className="text-sm font-medium text-gray-800">正在生成中...</p>
+                  <p className="text-xs text-gray-500 mt-1">基于 {selectedIds.size} 个来源</p>
                 </div>
               </div>
             )}
 
             {toolOutput && activeTool === 'mindmap' && toolOutput.mindmap_code && (
               <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <MermaidPreview mermaidCode={toolOutput.mindmap_code} title="Mind Map" />
+                <MermaidPreview mermaidCode={toolOutput.mindmap_code} title="思维导图" />
               </div>
             )}
 
             {toolOutput && activeTool === 'ppt' && (
               <div className="bg-green-50/30 p-4 rounded-2xl border border-green-100/50">
                 <div className="text-center">
-                  <p className="text-sm font-medium text-gray-800 mb-2">PPT generated</p>
+                  <p className="text-sm font-medium text-gray-800 mb-2">PPT 生成完成</p>
                 {getPptDownloadUrl(toolOutput) && (
                     <a 
                       href={getPptDownloadUrl(toolOutput)} 
@@ -2957,7 +3236,7 @@ rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
                     >
                       <FileText size={16} />
-                      Download PPT
+                      下载 PPT
                     </a>
                   )}
                 </div>
@@ -2967,7 +3246,7 @@ rel="noopener noreferrer"
             {toolOutput && activeTool === 'podcast' && (
               <div className="bg-purple-50/30 p-4 rounded-2xl border border-purple-100/50">
                 <div className="text-center">
-                  <p className="text-sm font-medium text-gray-800 mb-2">Podcast generated</p>
+                  <p className="text-sm font-medium text-gray-800 mb-2">播客生成完成</p>
                   {(toolOutput.audio_path || toolOutput.audio_url) && (
                     <audio controls className="w-full mt-3" src={toolOutput.audio_path || toolOutput.audio_url} />
                   )}
@@ -2977,7 +3256,7 @@ rel="noopener noreferrer"
 
             {toolOutput && activeTool === 'drawio' && toolOutput.xml_content && (
               <div className="bg-teal-50/30 p-4 rounded-2xl border border-teal-100/50">
-                <p className="text-sm font-medium text-gray-800">DrawIO diagram generated and added to outputs below. Click to preview.</p>
+                <p className="text-sm font-medium text-gray-800">DrawIO 图表已生成，已加入下方产出内容，点击可预览。</p>
                 {toolOutput.file_path && (
                   <a
                     href={toolOutput.file_path}
@@ -2986,7 +3265,7 @@ rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 mt-2 text-sm text-teal-600 hover:text-teal-700"
                   >
                     <FileText size={14} />
-                    Download .drawio
+                    下载 .drawio
                   </a>
                 )}
               </div>
@@ -2997,8 +3276,8 @@ rel="noopener noreferrer"
           {outputFeed.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-ios-gray-700">Outputs</h3>
-                <span className="text-xs text-ios-gray-400">Latest {outputFeed.length} items</span>
+                <h3 className="text-sm font-semibold text-ios-gray-700">产出内容</h3>
+                <span className="text-xs text-ios-gray-400">最近 {outputFeed.length} 条</span>
               </div>
               <div className="space-y-3">
                 {outputFeed.map((item, feedIdx) => (
@@ -3026,7 +3305,7 @@ rel="noopener noreferrer"
                       <div className="text-[10px] text-ios-gray-400">{item.createdAt}</div>
                     </div>
                     <div className="mt-1 text-xs text-ios-gray-500 line-clamp-1">
-                      Sources: {item.sources}
+                      来源：{item.sources}
                     </div>
                     <div className="mt-2 flex items-center gap-2">
                       {(item.type === 'flashcard' || item.type === 'quiz') ? (
@@ -3038,7 +3317,7 @@ rel="noopener noreferrer"
                           disabled={loadingSetId === item.id}
                           className="text-xs px-2.5 py-1 rounded-full bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors disabled:opacity-50"
                         >
-                          {loadingSetId === item.id ? 'Loading...' : item.type === 'flashcard' ? 'Study' : 'Take Quiz'}
+                          {loadingSetId === item.id ? '加载中...' : item.type === 'flashcard' ? '学习' : '做测验'}
                         </button>
                       ) : item.url ? (
                         <>
@@ -3049,7 +3328,7 @@ rel="noopener noreferrer"
                             }}
                             className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                           >
-                            Preview
+                            预览
                           </button>
                           <a
                             href={item.url}
@@ -3058,11 +3337,11 @@ rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                           >
-                            Download
+                            下载
                           </a>
                         </>
                       ) : (
-                        <span className="text-xs text-ios-gray-400">No download link</span>
+                        <span className="text-xs text-ios-gray-400">暂无下载链接</span>
                       )}
                     </div>
                   </motion.div>
@@ -3073,11 +3352,11 @@ rel="noopener noreferrer"
           </div>
           )}
 
-          {/* Add note - 暂未使用，先注释
+          {/* 添加笔记 - 暂未使用，先注释
           <div className="p-4 border-t shrink-0">
             <button className="w-full flex items-center justify-center gap-2 py-3 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors shadow-lg">
               <Plus size={18} />
-              Add note
+              添加笔记
             </button>
           </div>
           */}
@@ -3101,7 +3380,6 @@ rel="noopener noreferrer"
             setDeepResearchSuccess(null);
             setIntroduceUrlSuccess('');
             setIntroduceTextSuccess('');
-            setIntroduceUploadSuccess('');
           }}
         >
           <motion.div
@@ -3123,7 +3401,7 @@ rel="noopener noreferrer"
             </div>
             <div className="flex items-center justify-between px-6 py-4 border-b border-ios-gray-100 shrink-0">
               <h2 className="text-base font-semibold text-ios-gray-900 text-center flex-1">
-                Add sources: upload, URL, or paste text
+                添加来源：上传文件、粘贴网址或文本
               </h2>
               <button
                 type="button"
@@ -3132,7 +3410,6 @@ rel="noopener noreferrer"
                 setDeepResearchSuccess(null);
                 setIntroduceUrlSuccess('');
                 setIntroduceTextSuccess('');
-                setIntroduceUploadSuccess('');
               }}
                 className="p-2 hover:bg-ios-gray-100 rounded-ios text-ios-gray-500 hover:text-ios-gray-700 -mr-2"
               >
@@ -3146,16 +3423,16 @@ rel="noopener noreferrer"
                 const s = getApiSettings(effectiveUser?.id || null);
                 const prov = (s?.searchProvider as string) || 'serper';
                 const eng = (s?.searchEngine as string) || 'google';
-                const label = prov === 'serper' ? 'Serper (Google)' : prov === 'bocha' ? 'Bocha' : `SerpAPI (${eng === 'baidu' ? 'Baidu' : 'Google'})`;
+                const label = prov === 'serper' ? 'Serper (Google)' : prov === 'bocha' ? '博查' : `SerpAPI (${eng === 'baidu' ? '百度' : 'Google'})`;
                 return (
                   <div className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-lg bg-gray-50 border border-gray-100">
-                    <span className="text-xs text-gray-600">Current search provider: {label}</span>
+                    <span className="text-xs text-gray-600">当前搜索来源：{label}</span>
                     <button
                       type="button"
                       onClick={() => { setShowIntroduceModal(false); setShowSettingsModal(true); }}
                       className="text-xs font-medium text-blue-600 hover:text-blue-800"
                     >
-                      Settings
+                      去设置
                     </button>
                   </div>
                 );
@@ -3170,7 +3447,7 @@ rel="noopener noreferrer"
                     introduceOption === 'search' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
-                  Search & add
+                  Search 引入
                 </button>
                 <button
                   type="button"
@@ -3192,7 +3469,7 @@ rel="noopener noreferrer"
                         type="text"
                         value={fastResearchQuery}
                         onChange={e => { setFastResearchQuery(e.target.value); setFastResearchError(''); }}
-                        placeholder="Enter query, e.g. latest advances in reinforcement learning"
+                        placeholder="输入查询，如：强化学习的最新进展"
                         className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
                       />
                     </div>
@@ -3205,11 +3482,11 @@ rel="noopener noreferrer"
                       {fastResearchLoading ? <Loader2 size={20} className="animate-spin" /> : <ChevronRight size={20} />}
                     </button>
                   </div>
-                  {fastResearchLoading && <p className="text-xs text-gray-500">Discovering sources…</p>}
+                  {fastResearchLoading && <p className="text-xs text-gray-500">正在发现其他来源…</p>}
                   {fastResearchError && <p className="text-xs text-red-500">{fastResearchError}</p>}
                   {fastResearchSources.length > 0 && (
                     <div className="space-y-3 pt-1">
-                      <p className="text-sm font-medium text-green-700">Fast Research completed!</p>
+                      <p className="text-sm font-medium text-green-700">Fast Research 已完成！</p>
                       <div className="space-y-2 max-h-[200px] overflow-y-auto">
                         {fastResearchSources.map((s, i) => (
                           <div key={i} className="flex items-start gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
@@ -3238,7 +3515,7 @@ rel="noopener noreferrer"
                             onChange={e => setFastResearchSelected(e.target.checked ? new Set(fastResearchSources.map((_, i) => i)) : new Set())}
                             className="rounded text-blue-500"
                           />
-                          Select all sources
+                          选择所有来源
                         </label>
                         <button
                           type="button"
@@ -3247,7 +3524,7 @@ rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
                         >
                           {importingSources ? <Loader2 size={14} className="animate-spin" /> : null}
-                          + Import
+                          + 导入
                         </button>
                       </div>
                     </div>
@@ -3258,7 +3535,7 @@ rel="noopener noreferrer"
                   {deepResearchSuccess ? (
                     <div className="rounded-xl bg-green-50 border border-green-200 p-5 text-center space-y-4">
                       <p className="text-sm font-medium text-green-800">
-                        Report “{deepResearchSuccess.topic}” generated and added to sources.
+                        《{deepResearchSuccess.topic}》报告已生成，已加入来源。
                       </p>
                       <div className="flex items-center justify-center gap-3 flex-wrap">
                         {deepResearchSuccess.pdfUrl && (
@@ -3269,7 +3546,7 @@ rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm"
                           >
                             <Download size={16} />
-                            Download report
+                            下载报告
                           </a>
                         )}
                         <button
@@ -3277,19 +3554,19 @@ rel="noopener noreferrer"
                           onClick={() => { setDeepResearchSuccess(null); setShowIntroduceModal(false); }}
                           className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
                         >
-                          OK
+                          好的
                         </button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm text-gray-600">Search by topic and generate a PDF report, then add to sources.</p>
+                      <p className="text-sm text-gray-600">根据主题搜索并生成 PDF 报告，自动加入来源。</p>
                       <div className="flex gap-2">
                         <input
                           type="text"
                           value={deepResearchTopic}
                           onChange={e => { setDeepResearchTopic(e.target.value); setDeepResearchError(''); }}
-                          placeholder="Enter research topic to generate report and add to sources"
+                          placeholder="输入研究主题，生成报告并加入来源"
                           className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500"
                         />
                         <button
@@ -3299,7 +3576,7 @@ rel="noopener noreferrer"
                           className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 disabled:opacity-50 shrink-0 flex items-center gap-2"
                         >
                           {deepResearchLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                          Generate report
+                          生成报告
                         </button>
                       </div>
                       {deepResearchError && <p className="text-xs text-red-500">{deepResearchError}</p>}
@@ -3312,27 +3589,32 @@ rel="noopener noreferrer"
               <div className="border-t border-gray-100 pt-5 space-y-4">
                 {/* 1. 上传文件：点击即选文件 */}
                 <div>
-                  <p className="text-xs font-medium text-gray-600 mb-2">Upload file</p>
+                  <p className="text-xs font-medium text-gray-600 mb-2">上传文件</p>
                   <label
-                    className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-100 cursor-pointer transition-colors"
+                    className={`flex flex-col items-center justify-center gap-3 w-full min-h-[148px] py-5 px-4 rounded-2xl border-2 border-dashed transition-colors ${
+                      fileUploading
+                        ? 'border-blue-200 bg-blue-50/70 cursor-wait'
+                        : 'border-gray-200 bg-gray-50/50 hover:bg-gray-100 cursor-pointer'
+                    }`}
                     onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     onDrop={(e) => {
                       e.preventDefault();
                       if (e.dataTransfer.files?.length) {
-                        handleFileUpload(
-                          { target: { files: e.dataTransfer.files } } as any,
-                          {
-                            onSuccess: () => {
-                              setIntroduceUploadSuccess('Uploaded and added to sources');
-                              setTimeout(() => { setShowIntroduceModal(false); setIntroduceUploadSuccess(''); }, 2000);
-                            }
-                          }
-                        );
+                        uploadFiles(e.dataTransfer.files, { closeModalOnQueue: true });
                       }
                     }}
                   >
-                    <Upload size={18} className="text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">Click to select or drag and drop files here</span>
+                    <div className="w-12 h-12 rounded-2xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                      {fileUploading ? <Loader2 size={22} className="animate-spin text-blue-600" /> : <Upload size={22} className="text-gray-600" />}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {fileUploading ? '文件处理中，来源列表会实时更新' : '点击选择，或拖入一个或多个文件'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        支持一次添加多个文件，上传后会立刻出现在左侧来源列表
+                      </p>
+                    </div>
                     <input
                       type="file"
                       className="hidden"
@@ -3340,23 +3622,18 @@ rel="noopener noreferrer"
                       accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.mp4,.md"
                       onChange={(e) => {
                         if (e.target.files?.length) {
-                          handleFileUpload(e, {
-                            onSuccess: () => {
-                              setIntroduceUploadSuccess('Uploaded and added to sources');
-                              setTimeout(() => { setShowIntroduceModal(false); setIntroduceUploadSuccess(''); }, 2000);
-                            }
-                          });
+                          uploadFiles(e.target.files, { closeModalOnQueue: true });
+                          e.target.value = '';
                         }
                       }}
                     />
                   </label>
-                  {introduceUploadSuccess && <p className="text-xs font-medium text-green-800 mt-1">{introduceUploadSuccess}</p>}
-                  <p className="text-xs text-gray-400 mt-1">PDF, images, documents, audio, etc.</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF、图片、文档、音频等</p>
                 </div>
 
                 {/* 2. 网站：输入 URL，抓取网页正文后引入 */}
                 <div>
-                  <p className="text-xs font-medium text-gray-600 mb-2">Website</p>
+                  <p className="text-xs font-medium text-gray-600 mb-2">网站</p>
                   <div className="flex gap-2">
                     <input
                       type="url"
@@ -3372,26 +3649,26 @@ rel="noopener noreferrer"
                       className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 shrink-0 flex items-center gap-2"
                     >
                       {introduceUrlLoading ? <Loader2 size={16} className="animate-spin" /> : <Link2 size={16} />}
-                      Fetch & add
+                      抓取并引入
                     </button>
                   </div>
                   {introduceUrlError && <p className="text-xs text-red-500 mt-1">{introduceUrlError}</p>}
-                  {introduceUrlSuccess && <p className="text-xs font-medium text-green-800 mt-1">{introduceUrlSuccess}</p>}
-                  <p className="text-xs text-gray-400 mt-1">Fetch page content (strip HTML) and add as source</p>
+                  {introduceUrlSuccess && <p className="text-xs text-green-600 mt-1">{introduceUrlSuccess}</p>}
+                  <p className="text-xs text-gray-400 mt-1">抓取网页正文（自动去除 HTML 标签）后加入来源</p>
                 </div>
 
-                {/* 3. Direct input: paste text */}
+                {/* 3. 直接输入：文本框粘贴文字 */}
                 <div>
-                  <p className="text-xs font-medium text-gray-600 mb-2">Direct input</p>
+                  <p className="text-xs font-medium text-gray-600 mb-2">直接输入</p>
                   <textarea
                     value={introduceText}
                     onChange={(e) => { setIntroduceText(e.target.value); setIntroduceTextError(''); setIntroduceTextSuccess(''); }}
-                    placeholder="Paste or type text…"
+                    placeholder="粘贴或输入文字…"
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-400">Will be added as .md source to notebook</span>
+                    <span className="text-xs text-gray-400">将作为 .md 来源加入笔记本</span>
                     <button
                       type="button"
                       onClick={handleAddTextSource}
@@ -3399,11 +3676,11 @@ rel="noopener noreferrer"
                       className="px-4 py-2 rounded-xl bg-gray-800 text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-50 flex items-center gap-2"
                     >
                       {introduceTextLoading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-                      Add as source
+                      添加为来源
                     </button>
                   </div>
                   {introduceTextError && <p className="text-xs text-red-500 mt-1">{introduceTextError}</p>}
-                  {introduceTextSuccess && <p className="text-xs font-medium text-green-800 mt-1">{introduceTextSuccess}</p>}
+                  {introduceTextSuccess && <p className="text-xs text-green-600 mt-1">{introduceTextSuccess}</p>}
                 </div>
               </div>
             </div>
@@ -3439,7 +3716,7 @@ rel="noopener noreferrer"
             <div className="flex items-center justify-between px-4 py-3 border-b border-ios-gray-100 bg-white shrink-0">
               <div>
                 <h2 className="text-lg font-semibold text-ios-gray-800">{previewOutput.title}</h2>
-                <p className="text-xs text-ios-gray-500 mt-1">Sources: {previewOutput.sources}</p>
+                <p className="text-xs text-ios-gray-500 mt-1">来源：{previewOutput.sources}</p>
               </div>
               <div className="flex items-center gap-2">
                 {previewOutput.url && (
@@ -3449,7 +3726,7 @@ rel="noopener noreferrer"
                     rel="noreferrer"
                     className="px-4 py-2 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-ios transition-colors"
                   >
-                    Download
+                    下载
                   </a>
                 )}
                 <motion.button
@@ -3472,7 +3749,7 @@ rel="noopener noreferrer"
                     if (!sameOriginPdf) {
                       return (
                         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500 p-6">
-                          <p>No PDF preview. Click below to download.</p>
+                          <p>暂无 PDF 预览，请点击下方下载查看。</p>
                           {previewOutput.url && (
                             <a
                               href={getSameOriginUrl(previewOutput.url)}
@@ -3480,7 +3757,7 @@ rel="noopener noreferrer"
                               rel="noreferrer"
                               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                             >
-                              Download file
+                              下载文件
                             </a>
                           )}
                         </div>
@@ -3493,14 +3770,14 @@ rel="noopener noreferrer"
                         className="w-full flex-1 min-h-0"
                       >
                         <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-                          <p>PDF preview failed to load</p>
+                          <p>PDF 预览加载失败</p>
                           <a
                             href={sameOriginPdf}
                             target="_blank"
                             rel="noreferrer"
                             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                           >
-                            Open in new tab
+                            在新标签页打开
                           </a>
                         </div>
                       </object>
@@ -3517,7 +3794,7 @@ rel="noopener noreferrer"
                         <Mic2 className="text-white" size={32} />
                       </div>
                       <div>
-                        <h3 className="text-xl font-semibold text-gray-900">Knowledge Podcast</h3>
+                        <h3 className="text-xl font-semibold text-gray-900">知识播客</h3>
                         <p className="text-sm text-gray-500">{previewOutput.createdAt}</p>
                       </div>
                     </div>
@@ -3527,10 +3804,10 @@ rel="noopener noreferrer"
                       className="w-full"
                       src={previewOutput.url}
                     >
-                      Your browser does not support audio playback
+                      您的浏览器不支持音频播放
                     </audio>
                     <p className="text-xs text-gray-400 mt-4 text-center">
-                      You can download the audio file to play locally
+                      提示：可以下载音频文件到本地播放
                     </p>
                   </div>
                 </div>
@@ -3541,7 +3818,7 @@ rel="noopener noreferrer"
                   <div className="w-full h-full bg-white rounded-xl shadow-lg p-6">
                     <MermaidPreview 
                       mermaidCode={previewOutput.mermaidCode} 
-                      title="Mind map preview" 
+                      title="思维导图预览" 
                     />
                   </div>
                 </div>
@@ -3558,11 +3835,11 @@ rel="noopener noreferrer"
                     </div>
                   ) : previewLoading ? (
                     <div className="flex items-center justify-center flex-1 text-gray-500 text-sm">
-                      Loading diagram…
+                      正在加载图表…
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm text-gray-600 mb-3">Cannot load inline. Please download to edit.</p>
+                      <p className="text-sm text-gray-600 mb-3">无法内嵌加载，请下载后编辑。</p>
                       <a
                         href={previewOutput.url}
                         target="_blank"
@@ -3570,7 +3847,7 @@ rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 text-sm"
                       >
                         <FileText size={16} />
-                        Download .drawio file
+                        下载 .drawio 文件
                       </a>
                     </div>
                   )}
@@ -3578,13 +3855,13 @@ rel="noopener noreferrer"
               )}
               {previewOutput.type === 'mindmap' && !previewOutput.mermaidCode && (
                 <div className="flex items-center justify-center h-full text-gray-400">
-                  {previewLoading ? 'Loading mind map...' : 'No preview'}
+                  {previewLoading ? '正在加载思维导图内容...' : '暂无预览内容'}
                 </div>
               )}
 
               {!previewOutput.url && !previewOutput.mermaidCode && previewOutput.type !== 'mindmap' && (
                 <div className="flex items-center justify-center h-full text-gray-400">
-                  No preview
+                  暂无预览内容
                 </div>
               )}
             </div>
