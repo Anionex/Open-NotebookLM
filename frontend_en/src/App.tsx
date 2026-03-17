@@ -4,7 +4,7 @@ import Dashboard from './pages/Dashboard';
 import NotebookView from './pages/NotebookView';
 import AuthPage from './pages/AuthPage';
 import { useAuthStore } from './stores/authStore';
-import { initSupabase, getSupabaseClient } from './lib/supabase';
+import { initSupabase, refreshSession } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 const pageVariants = {
@@ -30,7 +30,7 @@ function App() {
   const [dashboardRefresh, setDashboardRefresh] = useState(0);
   const [direction, setDirection] = useState(0);
   const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
-  const { user, loading, setSession } = useAuthStore();
+  const { user, loading, setUser } = useAuthStore();
 
   // Initialize Supabase from backend config
   useEffect(() => {
@@ -41,27 +41,12 @@ function App() {
   useEffect(() => {
     if (supabaseConfigured === null) return;
     if (!supabaseConfigured) {
-      setSession(null);
+      setUser(null);
       return;
     }
 
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [setSession, supabaseConfigured]);
+    refreshSession().then(setUser);
+  }, [setUser, supabaseConfigured]);
 
   useEffect(() => {
     if (!user) {

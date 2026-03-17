@@ -1,65 +1,161 @@
 /**
- * Supabase client singleton for frontend.
- * Configuration is fetched from backend API.
+ * Auth client - all requests go through backend proxy.
+ * No direct Supabase connection from frontend.
  */
 
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { API_BASE_URL } from "../config/api";
 
-let supabaseClient: SupabaseClient | null = null;
-let initPromise: Promise<boolean> | null = null;
+interface User {
+  id: string;
+  email: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  user?: User;
+  message?: string;
+}
+
+let currentUser: User | null = null;
+let authConfigured = false;
 
 /**
- * Initialize Supabase client from backend config.
- * Returns true if configured, false otherwise.
+ * Initialize auth - check if backend has auth configured
  */
 export async function initSupabase(): Promise<boolean> {
-  if (initPromise) {
-    return initPromise;
-  }
+  try {
+    const url = `${API_BASE_URL}/api/v1/auth/config`;
+    console.info('[Auth] 正在获取配置:', url);
 
-  initPromise = (async () => {
-    try {
-      const response = await fetch('/api/v1/auth/config');
-      const data = await response.json();
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
 
-      if (data.supabaseConfigured && data.supabaseUrl && data.supabaseAnonKey) {
-        supabaseClient = createClient(data.supabaseUrl, data.supabaseAnonKey, {
-          auth: {
-            autoRefreshToken: true,
-            persistSession: true,
-            detectSessionInUrl: true,
-          },
-        });
-        console.info('[Supabase] Configured and initialized');
-        return true;
-      } else {
-        console.info('[Supabase] Not configured, using trial mode');
-        return false;
-      }
-    } catch (error) {
-      console.error('[Supabase] Initialization failed:', error);
+    if (!response.ok) {
+      console.error('[Auth] 配置请求失败:', response.status);
       return false;
     }
-  })();
 
-  return initPromise;
-}
+    const data = await response.json();
+    authConfigured = data.supabaseConfigured;
+    console.info('[Auth] 配置响应:', { configured: authConfigured, mode: data.authMode });
 
-/**
- * Get Supabase client (must call initSupabase first).
- */
-export function getSupabaseClient(): SupabaseClient | null {
-  return supabaseClient;
-}
-
-/**
- * Legacy export for compatibility.
- */
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(target, prop) {
-    if (!supabaseClient) {
-      throw new Error('[Supabase] Client not initialized. Call initSupabase() first.');
+    // 如果配置了认证，尝试获取当前会话
+    if (authConfigured) {
+      await refreshSession();
     }
-    return (supabaseClient as any)[prop];
+
+    return authConfigured;
+  } catch (error) {
+    console.error('[Auth] 初始化失败:', error);
+    return false;
   }
-});
+}
+
+/**
+ * Login with email and password
+ */
+export async function signIn(email: string, password: string): Promise<AuthResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+    if (data.success && data.user) {
+      currentUser = data.user;
+    }
+    return data;
+  } catch (error) {
+    console.error('[Auth] Login failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sign up with email and password
+ */
+export async function signUp(email: string, password: string): Promise<AuthResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+    if (data.success && data.user) {
+      currentUser = data.user;
+    }
+    return data;
+  } catch (error) {
+    console.error('[Auth] Signup failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Refresh session
+ */
+export async function refreshSession(): Promise<User | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/session`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      currentUser = null;
+      return null;
+    }
+
+    if (!response.ok) {
+      console.error('[Auth] Session refresh failed:', response.status);
+      currentUser = null;
+      return null;
+    }
+
+    const data = await response.json();
+    currentUser = data.user || null;
+    return currentUser;
+  } catch (error) {
+    console.error('[Auth] Session refresh failed:', error);
+    currentUser = null;
+    return null;
+  }
+}
+
+/**
+ * Sign out
+ */
+export async function signOut(): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    currentUser = null;
+  } catch (error) {
+    console.error('[Auth] Logout failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get current user
+ */
+export function getCurrentUser(): User | null {
+  return currentUser;
+}
+
+/**
+ * Check if auth is configured
+ */
+export function isAuthConfigured(): boolean {
+  return authConfigured;
+}
