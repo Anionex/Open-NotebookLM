@@ -11,6 +11,9 @@ from workflow_engine.toolkits.multimodaltool.req_img import _post_raw
 
 log = get_logger(__name__)
 
+# 全局模型缓存
+_qwen_native_model = None
+
 def split_tts_text(content: str, limit: int) -> List[str]:
     if limit is None or limit <= 0:
         return [content]
@@ -81,6 +84,10 @@ def save_audio_chunks_to_wav(
     if not audio_chunks:
         raise ValueError("No audio chunks to save")
 
+    log.info(f"[TTS] 保存音频: {len(audio_chunks)} 个chunks")
+    for idx, chunk in enumerate(audio_chunks):
+        log.info(f"[TTS] Chunk {idx+1}: {len(chunk)} bytes")
+
     wav_chunks: List[bytes] = []
     wav_params: Optional[tuple[int, int, int]] = None
     all_chunks_are_wav = True
@@ -88,21 +95,24 @@ def save_audio_chunks_to_wav(
     for idx, chunk in enumerate(audio_chunks, start=1):
         wav_payload = _read_wav_frames(chunk)
         if wav_payload is None:
+            log.warning(f"[TTS] Chunk {idx} 无法解析为WAV格式")
             all_chunks_are_wav = False
-            break
+            continue
 
         channels, sampwidth, framerate, frames = wav_payload
         current_params = (channels, sampwidth, framerate)
         if wav_params is None:
             wav_params = current_params
+            log.info(f"[TTS] WAV参数: channels={channels}, sampwidth={sampwidth}, framerate={framerate}")
         elif wav_params != current_params:
             raise ValueError(
                 f"Inconsistent WAV params across chunks: expected {wav_params}, got {current_params} at chunk {idx}"
             )
         wav_chunks.append(frames)
+        log.info(f"[TTS] Chunk {idx} 解析成功，音频帧: {len(frames)} bytes")
 
     with wave.open(save_path, "wb") as wav_file:
-        if all_chunks_are_wav and wav_params is not None:
+        if wav_chunks and wav_params is not None:
             wav_file.setnchannels(wav_params[0])
             wav_file.setsampwidth(wav_params[1])
             wav_file.setframerate(wav_params[2])
@@ -135,7 +145,12 @@ async def generate_speech_bytes_async(
                 local_tts_api_url = os.getenv("LOCAL_TTS_API_URL", "http://127.0.0.1:26211/v1").rstrip("/")
                 local_tts_model = os.getenv("LOCAL_TTS_MODEL", model or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
                 has_chinese = bool(re.search(r"[\u4e00-\u9fff]", text))
-                language = kwargs.get("language") or ("Chinese" if has_chinese else "English")
+                lang_input = kwargs.get("language") or ("Chinese" if has_chinese else "English")
+                # Map language codes to vLLM-Omni expected format
+                lang_map = {"zh": "Chinese", "en": "English", "fr": "French", "de": "German",
+                           "it": "Italian", "ja": "Japanese", "ko": "Korean", "pt": "Portuguese",
+                           "ru": "Russian", "es": "Spanish"}
+                language = lang_map.get(lang_input, lang_input)
                 instructions = kwargs.get("instructions") or (
                     "用自然、亲切的播客主播语气讲述，语速适中，富有感染力"
                     if has_chinese else
@@ -162,7 +177,69 @@ async def generate_speech_bytes_async(
                     )
                     log.info(f"[TTS] local status={resp.status_code}")
                     resp.raise_for_status()
-                    return resp.content
+                    audio_data = resp.content
+                    log.info(f"[TTS] Qwen返回音频数据大小: {len(audio_data)} bytes")
+                    log.info(f"[TTS] Content-Type: {resp.headers.get('content-type', 'unknown')}")
+                    if len(audio_data) < 500:
+                        log.warning(f"[TTS] 音频数据过小，可能有问题。前200字节: {audio_data[:200]}")
+                        try:
+                            import json
+                            error_json = json.loads(audio_data)
+                            log.error(f"[TTS] vLLM返回JSON错误: {error_json}")
+                            raise ValueError(f"vLLM-Omni返回错误: {error_json}")
+                        except json.JSONDecodeError:
+                            pass
+                    return audio_data
+            elif tts_engine == "qwen-native":
+                # 直接使用qwen-tts包加载模型，不通过vLLM
+                import torch
+                import io
+                import soundfile as sf
+                from qwen_tts import Qwen3TTSModel
+
+                log.info(f"[TTS] 使用原生 Qwen3-TTS（非 vLLM）")
+
+                # 获取模型配置
+                local_tts_model = os.getenv("LOCAL_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
+                tts_cuda = os.getenv("LOCAL_TTS_CUDA_VISIBLE_DEVICES", "0")
+
+                # 语言和指令
+                has_chinese = bool(re.search(r"[\u4e00-\u9fff]", text))
+                lang_input = kwargs.get("language") or ("Chinese" if has_chinese else "English")
+                lang_map = {"zh": "Chinese", "en": "English", "fr": "French", "de": "German",
+                           "it": "Italian", "ja": "Japanese", "ko": "Korean", "pt": "Portuguese",
+                           "ru": "Russian", "es": "Spanish"}
+                language = lang_map.get(lang_input, lang_input)
+                instructions = kwargs.get("instructions") or (
+                    "用自然、亲切的播客主播语气讲述，语速适中，富有感染力"
+                    if has_chinese else
+                    "Speak in a natural, friendly podcast host tone with moderate pace and engaging delivery"
+                )
+
+                # 加载模型（全局缓存）
+                global _qwen_native_model
+                if _qwen_native_model is None:
+                    log.info(f"[TTS] 加载模型 {local_tts_model} 到 cuda:{tts_cuda}")
+                    _qwen_native_model = Qwen3TTSModel.from_pretrained(
+                        local_tts_model,
+                        device_map=f"cuda:{tts_cuda}",
+                        dtype=torch.bfloat16,
+                    )
+
+                # 生成音频
+                wavs, sr = _qwen_native_model.generate_custom_voice(
+                    text=text,
+                    language=language,
+                    speaker=voice_name,
+                    instruct=instructions,
+                )
+
+                # 转换为WAV bytes
+                buffer = io.BytesIO()
+                sf.write(buffer, wavs[0], sr, format='WAV')
+                audio_bytes = buffer.getvalue()
+                log.info(f"[TTS] 原生Qwen生成音频: {len(audio_bytes)} bytes")
+                return audio_bytes
             elif tts_engine == "firered":
                 import sys
                 from pathlib import Path
@@ -171,13 +248,15 @@ async def generate_speech_bytes_async(
                 log.info(f"[TTS] 使用本地 FireRedTTS2（非 vLLM）")
                 if is_available():
                     import asyncio
-                    audio_bytes = await asyncio.to_thread(generate_speech, text, voice_name)
+                    # FireRedTTS requires [S1]/[S2] speaker tags
+                    formatted_text = f"[S1]{text}"
+                    audio_bytes = await asyncio.to_thread(generate_speech, formatted_text, voice_name)
                     return audio_bytes
             else:
                 log.warning(f"[TTS] 未知引擎 {tts_engine}，回退到 API")
                 raise ValueError(f"Unknown TTS engine: {tts_engine}")
         except Exception as e:
-            log.warning(f"[TTS] 本地 TTS 失败: {e}，回退到 API")
+            log.warning(f"[TTS] 本地 TTS 失败: {type(e).__name__}: {str(e) or repr(e)}，回退到 API")
 
     # 回退到 API-based TTS
     provider = get_provider(api_url, model)

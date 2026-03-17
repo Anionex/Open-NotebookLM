@@ -8,7 +8,6 @@ import {
   Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { getSupabaseClient } from '../lib/supabase';
 import { apiFetch } from '../config/api';
 import { getApiSettings } from '../services/apiSettingsService';
 import { fetchWithCache, invalidateCacheByPrefix } from '../services/clientCache';
@@ -197,6 +196,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const sourceDetailCitationRef = React.useRef<HTMLDivElement | null>(null);
   const [hoveredCitation, setHoveredCitation] = useState<CitationTooltipState | null>(null);
 
+  // Cache refs to avoid redundant API calls
+  const lastFetchedNotebookIdForSources = React.useRef<string | null>(null);
+  const lastFetchedNotebookIdForOutputs = React.useRef<string | null>(null);
+
   // Flashcard state
   const [flashcards, setFlashcards] = useState<any[]>([]);
   const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
@@ -272,7 +275,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
     flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
     quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'qwen-tts', voiceName: 'vivian' },
+    podcast: { llmModel: 'deepseek-v3.2', ttsType: 'qwen-tts-local', ttsModel: 'qwen-tts', voiceName: 'vivian', podcastMode: 'monologue', podcastLanguage: 'zh' },
     video: { llmModel: 'deepseek-v3.2' },
     note: {},
   };
@@ -454,11 +457,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const res = await apiFetch(`/api/v1/kb/outputs?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
+        console.log('[fetchOutputHistory] Got data from /api/v1/kb/outputs:', data);
         if (data?.success && Array.isArray(data.files)) {
+          console.log('[fetchOutputHistory] Processing', data.files.length, 'files');
           for (const item of data.files) {
             const url = item.download_url || item.url || '';
-            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio') || inferOutputType(item.file_name || url);
-            results.push({
+            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz') || inferOutputType(item.file_name || url);
+            const output = {
               id: item.id || url || `output_${Date.now()}`,
               type,
               title: getOutputTitle(type),
@@ -466,7 +471,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               url,
               createdAt: item.created_at ? new Date(item.created_at).toLocaleString() : new Date().toLocaleString(),
               mermaidCode: undefined
-            });
+            };
+            console.log('[fetchOutputHistory] Adding output:', output);
+            results.push(output);
           }
         }
       }
@@ -517,6 +524,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       }
     }
 
+    console.log('[fetchOutputHistory] Returning results:', results.length, 'items', results);
     return results;
   };
 
@@ -561,6 +569,25 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     }
   };
 
+  // Force refresh sources list (reset cache)
+  const refreshVectorList = async () => {
+    lastFetchedNotebookIdForSources.current = null;
+    await fetchVectorList();
+  };
+
+  // Force refresh outputs list (reset cache)
+  const refreshOutputHistory = async () => {
+    lastFetchedNotebookIdForOutputs.current = null;
+    hasLoadedOutputsRef.current = false;
+    const local = loadLocalOutputFeed();
+    const remote = await fetchOutputHistory();
+    console.log('[refreshOutputHistory] local:', local.length, 'remote:', remote.length);
+    const merged = mergeOutputFeeds(remote, local);
+    console.log('[refreshOutputHistory] merged:', merged.length, merged);
+    setOutputFeed(merged);
+    hasLoadedOutputsRef.current = true;
+  };
+
   const getFileNameFromPath = (path?: string) => {
     if (!path) return '';
     const parts = path.split('/');
@@ -577,28 +604,19 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   };
 
   const markEmbedded = async (file?: KnowledgeFile, storagePath?: string) => {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      if (file?.id) {
-        await supabase.from('knowledge_base_files').update({ is_embedded: true }).eq('id', file.id);
-      } else if (storagePath) {
-        await supabase.from('knowledge_base_files').update({ is_embedded: true }).eq('storage_path', storagePath);
+    const storageKey = `kb_files_${effectiveUser?.id || 'dev'}`;
+    const stored = localStorage.getItem(storageKey);
+    const existingFiles = stored ? JSON.parse(stored) : [];
+    const updated = existingFiles.map((f: KnowledgeFile) => {
+      if (file?.id && f.id === file.id) {
+        return { ...f, isEmbedded: true };
       }
-    } else {
-      const storageKey = `kb_files_${effectiveUser?.id || 'dev'}`;
-      const stored = localStorage.getItem(storageKey);
-      const existingFiles = stored ? JSON.parse(stored) : [];
-      const updated = existingFiles.map((f: KnowledgeFile) => {
-        if (file?.id && f.id === file.id) {
-          return { ...f, isEmbedded: true };
-        }
-        if (storagePath && f.url === storagePath) {
-          return { ...f, isEmbedded: true };
-        }
-        return f;
-      });
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    }
+      if (storagePath && f.url === storagePath) {
+        return { ...f, isEmbedded: true };
+      }
+      return f;
+    });
+    localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
   const handleReembedVector = async (item: any) => {
@@ -651,7 +669,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         throw new Error(msg);
       }
       await res.json();
-      await fetchVectorList();
+      await refreshVectorList();
       await fetchFiles();
     } catch (err: any) {
       setVectorError(err?.message || '重新入库失败');
@@ -682,7 +700,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         throw new Error(msg || '删除向量失败');
       }
       await res.json();
-      await fetchVectorList();
+      await refreshVectorList();
     } catch (err: any) {
       setVectorError(err?.message || '删除向量失败');
     } finally {
@@ -696,7 +714,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   }, [effectiveUser?.id, notebook?.id]);
 
   useEffect(() => {
-    if (effectiveUser?.email || effectiveUser?.id) fetchVectorList();
+    const currentNotebookId = notebook?.id || null;
+    if ((effectiveUser?.email || effectiveUser?.id) && lastFetchedNotebookIdForSources.current !== currentNotebookId) {
+      lastFetchedNotebookIdForSources.current = currentNotebookId;
+      fetchVectorList();
+    }
   }, [effectiveUser?.email, effectiveUser?.id, notebook?.id]);
 
   // Load chat: from API when notebook is set, else from localStorage
@@ -771,15 +793,33 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Load output history (server + local)
   useEffect(() => {
+    console.log('[useEffect outputs] Triggered, notebook?.id:', notebook?.id, 'effectiveUser:', effectiveUser?.id);
+    const currentNotebookId = notebook?.id || null;
+    if (lastFetchedNotebookIdForOutputs.current === currentNotebookId && hasLoadedOutputsRef.current) {
+      console.log('[useEffect outputs] Skip, already fetched for this notebook');
+      return; // Skip if already fetched for this notebook
+    }
+    console.log('[useEffect outputs] Will fetch outputs');
     hasLoadedOutputsRef.current = false;
     let canceled = false;
     const loadOutputs = async () => {
-      const local = loadLocalOutputFeed();
-      const remote = await fetchOutputHistory();
-      if (canceled) return;
-      const merged = mergeOutputFeeds(remote, local);
-      setOutputFeed(merged);
-      hasLoadedOutputsRef.current = true;
+      try {
+        const local = loadLocalOutputFeed();
+        const remote = await fetchOutputHistory();
+        console.log('[loadOutputs] local:', local.length, 'remote:', remote.length);
+        console.log('[loadOutputs] canceled:', canceled);
+        if (canceled) {
+          console.log('[loadOutputs] Canceled, returning early');
+          return;
+        }
+        const merged = mergeOutputFeeds(remote, local);
+        console.log('[loadOutputs] merged:', merged.length, merged);
+        setOutputFeed(merged);
+        lastFetchedNotebookIdForOutputs.current = currentNotebookId;
+        hasLoadedOutputsRef.current = true;
+      } catch (error) {
+        console.error('[loadOutputs] Error:', error);
+      }
     };
     loadOutputs();
     return () => {
@@ -1158,7 +1198,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const data = await res.json();
       invalidateNotebookSourceCaches();
       await fetchFiles();
-      await fetchVectorList();
+      await refreshVectorList();
       setFastResearchSources([]);
       setFastResearchSelected(new Set());
       const embeddedMsg = data?.embedded ? `，已向量化 ${data.embedded} 个` : '';
@@ -1447,7 +1487,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       if (successCount > 0) {
         invalidateNotebookSourceCaches();
         await fetchFiles();
-        await fetchVectorList();
+        await refreshVectorList();
         if (failureCount === 0) {
           showToast(
             embeddedCount === successCount
@@ -1764,17 +1804,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         };
       } else if (tool === 'podcast') {
         const cfg = getStudioConfig('podcast');
-        // Qwen TTS 只支持单人叙述，自动切换模式
-        const ttsModel = (cfg.ttsModel || 'local-fireredtts').toLowerCase();
-        const isQwenTTS = ttsModel.includes('qwen');
         bodyData = {
           ...baseBody,
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
-          tts_model: cfg.ttsModel || 'local-fireredtts',
+          tts_model: cfg.ttsModel || 'qwen-tts',
           voice_name: cfg.voiceName || 'vivian',
-          podcast_mode: isQwenTTS ? 'monologue' : 'dialog',
-          podcast_length: 'standard',
+          voice_name_b: cfg.voiceNameB || 'uncle_fu',
+          podcast_mode: cfg.podcastMode || 'monologue',
           language: cfg.podcastLanguage || 'zh'
         };
       } else if (tool === 'mindmap') {
@@ -2896,39 +2933,123 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 })()}
                 {studioSettingsTool === 'podcast' && (() => {
                   const c = getStudioConfig('podcast');
-                  const speakers = [
-                    { value: 'vivian', label: 'Vivian - 明亮、略带锐利的年轻女声（中文）' },
-                    { value: 'serena', label: 'Serena - 温暖、温柔的年轻女声（中文）' },
-                    { value: 'uncle_fu', label: 'Uncle Fu - 成熟男声，低沉圆润（中文）' },
-                    { value: 'dylan', label: 'Dylan - 年轻的北京男声，清晰自然（北京方言）' },
-                    { value: 'eric', label: 'Eric - 活泼的成都男声，略带沙哑（四川方言）' },
-                    { value: 'ryan', label: 'Ryan - 充满活力的男声，节奏感强（英文）' },
-                    { value: 'aiden', label: 'Aiden - 阳光的美国男声，中音清晰（英文）' },
-                    { value: 'ono_anna', label: 'Ono Anna - 俏皮的日本女声，轻盈灵动（日文）' },
-                    { value: 'sohee', label: 'Sohee - 温暖的韩国女声，情感丰富（韩文）' }
+                  const ttsType = c.ttsType || 'qwen-tts-local';
+                  const isQwen = ttsType === 'qwen-tts-local';
+                  const isGemini = ttsType === 'gemini-tts-online';
+                  const podcastMode = c.podcastMode || 'monologue';
+
+                  const qwenVoices = [
+                    { value: 'vivian', label: 'Vivian - 明亮年轻女声' },
+                    { value: 'serena', label: 'Serena - 温暖温柔女声' },
+                    { value: 'uncle_fu', label: 'Uncle Fu - 成熟低沉男声' },
+                    { value: 'dylan', label: 'Dylan - 清晰自然男声' },
+                    { value: 'eric', label: 'Eric - 活泼略沙哑男声' },
+                    { value: 'ryan', label: 'Ryan - 充满活力男声（英文）' },
+                    { value: 'aiden', label: 'Aiden - 阳光清晰男声（英文）' },
+                    { value: 'ono_anna', label: 'Ono Anna - 俏皮女声（日文）' },
+                    { value: 'sohee', label: 'Sohee - 温暖女声（韩文）' }
                   ];
+
+                  const geminiVoices = [
+                    { value: 'Puck', label: 'Puck - Upbeat' },
+                    { value: 'Charon', label: 'Charon - Informative' },
+                    { value: 'Kore', label: 'Kore - Firm' },
+                    { value: 'Fenrir', label: 'Fenrir - Excitable' },
+                    { value: 'Aoede', label: 'Aoede - Breezy' },
+                    { value: 'Enceladus', label: 'Enceladus - Breathy' },
+                    { value: 'Iapetus', label: 'Iapetus - Clear' },
+                    { value: 'Algieba', label: 'Algieba - Smooth' },
+                    { value: 'Despina', label: 'Despina - Smooth' },
+                    { value: 'Algenib', label: 'Algenib - Gravelly' },
+                    { value: 'Rasalgethi', label: 'Rasalgethi - Informative' },
+                    { value: 'Achernar', label: 'Achernar - Soft' },
+                    { value: 'Alnilam', label: 'Alnilam - Firm' },
+                    { value: 'Schedar', label: 'Schedar - Even' },
+                    { value: 'Gacrux', label: 'Gacrux - Mature' },
+                    { value: 'Pulcherrima', label: 'Pulcherrima - Forward' },
+                    { value: 'Achird', label: 'Achird - Friendly' },
+                    { value: 'Zubenelgenubi', label: 'Zubenelgenubi - Casual' },
+                    { value: 'Vindemiatrix', label: 'Vindemiatrix - Gentle' },
+                    { value: 'Sadachbia', label: 'Sadachbia - Lively' },
+                    { value: 'Sadaltager', label: 'Sadaltager - Knowledgeable' },
+                    { value: 'Sulafat', label: 'Sulafat - Warm' }
+                  ];
+
+                  const voices = isQwen ? qwenVoices : geminiVoices;
+                  const defaultVoice = isQwen ? 'vivian' : 'Puck';
+                  const defaultVoiceB = isQwen ? 'uncle_fu' : 'Charon';
+
                   return (
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
-                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('podcast', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <input type="text" value={c.llmModel || 'deepseek-v3.2'} onChange={(e) => setStudioConfigForTool('podcast', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">TTS 模型</label>
-                        <input type="text" value={c.ttsModel || 'qwen-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="qwen-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-                        <p className="text-xs text-gray-400 mt-0.5">例如: qwen-tts, local-fireredtts, cosyvoice-tts</p>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">TTS 类型</label>
+                        <select
+                          value={ttsType}
+                          onChange={(e) => {
+                            const newType = e.target.value;
+                            const updates: any = { ttsType: newType };
+                            if (newType === 'qwen-tts-local') {
+                              updates.ttsModel = 'qwen-tts';
+                              updates.podcastMode = 'monologue';
+                              updates.voiceName = 'vivian';
+                            } else {
+                              updates.ttsModel = 'gemini-2.5-flash-tts';
+                              updates.voiceName = 'Puck';
+                              updates.voiceNameB = 'Charon';
+                            }
+                            setStudioConfigForTool('podcast', updates);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="qwen-tts-local">本地 Qwen TTS（仅单人）</option>
+                          <option value="gemini-tts-online">在线 Gemini TTS（需 apiyi 平台）</option>
+                        </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">播客模式</label>
+                        <select
+                          value={podcastMode}
+                          onChange={(e) => setStudioConfigForTool('podcast', { podcastMode: e.target.value })}
+                          disabled={isQwen}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        >
+                          <option value="monologue">单人播客</option>
+                          <option value="dialog">双人对话</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          {podcastMode === 'dialog' ? '说话人 A 音色' : '说话人音色'}
+                        </label>
+                        <select
+                          value={c.voiceName || defaultVoice}
+                          onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        >
+                          {voices.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                        </select>
+                      </div>
+                      {podcastMode === 'dialog' && isGemini && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">说话人 B 音色</label>
+                          <select
+                            value={c.voiceNameB || defaultVoiceB}
+                            onChange={(e) => setStudioConfigForTool('podcast', { voiceNameB: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          >
+                            {voices.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">播客语言</label>
                         <select value={c.podcastLanguage || 'zh'} onChange={(e) => setStudioConfigForTool('podcast', { podcastLanguage: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                           <option value="zh">中文</option>
                           <option value="en">English</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">说话人音色</label>
-                        <select value={c.voiceName || 'vivian'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                          {speakers.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </div>
 </>
