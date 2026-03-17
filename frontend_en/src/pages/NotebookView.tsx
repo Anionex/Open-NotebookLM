@@ -234,7 +234,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
     flashcard: { llmModel: 'deepseek-v3.2', language: 'en', cardCount: '20' },
     quiz: { llmModel: 'deepseek-v3.2', language: 'en', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'qwen-tts', voiceName: 'vivian' },
+    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore' },
     video: { llmModel: 'deepseek-v3.2' },
     note: {},
   };
@@ -1491,7 +1491,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
           tts_model: cfg.ttsModel || 'local-fireredtts',
-          voice_name: cfg.voiceName || 'vivian',
+          voice_name: cfg.voiceName || 'Kore',
           podcast_mode: isQwenTTS ? 'monologue' : 'dialog',
           podcast_length: 'standard',
           language: cfg.podcastLanguage || 'en'
@@ -2403,15 +2403,14 @@ rel="noopener noreferrer"
                 {studioSettingsTool === 'podcast' && (() => {
                   const c = getStudioConfig('podcast');
                   const speakers = [
-                    { value: 'vivian', label: 'Vivian - Bright, slightly edgy young female voice (Chinese)' },
-                    { value: 'serena', label: 'Serena - Warm, gentle young female voice (Chinese)' },
-                    { value: 'uncle_fu', label: 'Uncle Fu - Seasoned male voice, low and mellow (Chinese)' },
-                    { value: 'dylan', label: 'Dylan - Youthful Beijing male voice, clear and natural (Beijing Dialect)' },
-                    { value: 'eric', label: 'Eric - Lively Chengdu male voice, slightly husky (Sichuan Dialect)' },
-                    { value: 'ryan', label: 'Ryan - Dynamic male voice with strong rhythm (English)' },
-                    { value: 'aiden', label: 'Aiden - Sunny American male voice, clear midrange (English)' },
-                    { value: 'ono_anna', label: 'Ono Anna - Playful Japanese female voice, light and nimble (Japanese)' },
-                    { value: 'sohee', label: 'Sohee - Warm Korean female voice, rich emotion (Korean)' }
+                    { value: 'Kore', label: 'Kore - Steady female voice (Recommended)' },
+                    { value: 'Puck', label: 'Puck - Lively male voice' },
+                    { value: 'Aoede', label: 'Aoede - Soft female voice' },
+                    { value: 'Charon', label: 'Charon - Deep male voice' },
+                    { value: 'Fenrir', label: 'Fenrir - Powerful male voice' },
+                    { value: 'Zephyr', label: 'Zephyr - Gentle female voice' },
+                    { value: 'Orbit', label: 'Orbit - Neutral voice' },
+                    { value: 'Orus', label: 'Orus - Clear male voice' },
                   ];
                   return (
                     <>
@@ -2421,8 +2420,8 @@ rel="noopener noreferrer"
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">TTS model</label>
-                        <input type="text" value={c.ttsModel || 'qwen-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="qwen-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-                        <p className="text-xs text-gray-400 mt-0.5">e.g., qwen-tts, local-fireredtts, cosyvoice-tts</p>
+                        <input type="text" value={c.ttsModel || 'gemini-2.5-pro-preview-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="gemini-2.5-pro-preview-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <p className="text-xs text-gray-400 mt-0.5">e.g., gemini-2.5-pro-preview-tts, gemini-2.5-flash-preview-tts</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Podcast Language</label>
@@ -2433,7 +2432,7 @@ rel="noopener noreferrer"
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Voice Speaker</label>
-                        <select value={c.voiceName || 'vivian'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.voiceName || 'Kore'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                           {speakers.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </div>

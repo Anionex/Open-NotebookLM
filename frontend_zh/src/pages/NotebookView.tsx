@@ -231,7 +231,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
     flashcard: { llmModel: 'deepseek-v3.2', language: 'zh', cardCount: '20' },
     quiz: { llmModel: 'deepseek-v3.2', language: 'zh', questionCount: '10' },
-    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'qwen-tts', voiceName: 'vivian' },
+    podcast: { llmModel: 'deepseek-v3.2', ttsModel: 'gemini-2.5-pro-preview-tts', voiceName: 'Kore' },
     video: { llmModel: 'deepseek-v3.2' },
     note: {},
   };
@@ -1489,7 +1489,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           file_paths: selectedFileUrls,
           model: cfg.llmModel || 'deepseek-v3.2',
           tts_model: cfg.ttsModel || 'local-fireredtts',
-          voice_name: cfg.voiceName || 'vivian',
+          voice_name: cfg.voiceName || 'Kore',
           podcast_mode: isQwenTTS ? 'monologue' : 'dialog',
           podcast_length: 'standard',
           language: cfg.podcastLanguage || 'zh'
@@ -2408,15 +2408,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 {studioSettingsTool === 'podcast' && (() => {
                   const c = getStudioConfig('podcast');
                   const speakers = [
-                    { value: 'vivian', label: 'Vivian - 明亮、略带锐利的年轻女声（中文）' },
-                    { value: 'serena', label: 'Serena - 温暖、温柔的年轻女声（中文）' },
-                    { value: 'uncle_fu', label: 'Uncle Fu - 成熟男声，低沉圆润（中文）' },
-                    { value: 'dylan', label: 'Dylan - 年轻的北京男声，清晰自然（北京方言）' },
-                    { value: 'eric', label: 'Eric - 活泼的成都男声，略带沙哑（四川方言）' },
-                    { value: 'ryan', label: 'Ryan - 充满活力的男声，节奏感强（英文）' },
-                    { value: 'aiden', label: 'Aiden - 阳光的美国男声，中音清晰（英文）' },
-                    { value: 'ono_anna', label: 'Ono Anna - 俏皮的日本女声，轻盈灵动（日文）' },
-                    { value: 'sohee', label: 'Sohee - 温暖的韩国女声，情感丰富（韩文）' }
+                    { value: 'Kore', label: 'Kore - 沉稳女声（推荐）' },
+                    { value: 'Puck', label: 'Puck - 活泼男声' },
+                    { value: 'Aoede', label: 'Aoede - 柔和女声' },
+                    { value: 'Charon', label: 'Charon - 低沉男声' },
+                    { value: 'Fenrir', label: 'Fenrir - 有力男声' },
+                    { value: 'Zephyr', label: 'Zephyr - 轻柔女声' },
+                    { value: 'Orbit', label: 'Orbit - 中性声音' },
+                    { value: 'Orus', label: 'Orus - 清晰男声' },
                   ];
                   return (
                     <>
@@ -2426,8 +2425,8 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">TTS 模型</label>
-                        <input type="text" value={c.ttsModel || 'qwen-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="qwen-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-                        <p className="text-xs text-gray-400 mt-0.5">例如: qwen-tts, local-fireredtts, cosyvoice-tts</p>
+                        <input type="text" value={c.ttsModel || 'gemini-2.5-pro-preview-tts'} onChange={(e) => setStudioConfigForTool('podcast', { ttsModel: e.target.value })} placeholder="gemini-2.5-pro-preview-tts" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <p className="text-xs text-gray-400 mt-0.5">例如: gemini-2.5-pro-preview-tts, gemini-2.5-flash-preview-tts</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">播客语言</label>
@@ -2438,7 +2437,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">说话人音色</label>
-                        <select value={c.voiceName || 'vivian'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.voiceName || 'Kore'} onChange={(e) => setStudioConfigForTool('podcast', { voiceName: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                           {speakers.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </div>

@@ -55,8 +55,8 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 
     def _start_(state: KBPodcastState) -> KBPodcastState:
         # Ensure request fields
-        if not state.request.files:
-            state.request.files = []
+        if not state.request.file_ids:
+            state.request.file_ids = []
 
         # Initialize output directory
         if not state.result_path:
@@ -79,7 +79,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
         """
         Parse all files and extract content
         """
-        files = state.request.files
+        files = state.request.file_ids
         if not files:
             state.file_contents = []
             return state

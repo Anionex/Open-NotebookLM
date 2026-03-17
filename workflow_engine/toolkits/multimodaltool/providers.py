@@ -823,3 +823,9 @@ def get_provider(api_url: str, model: str) -> AIProviderStrategy:
         if strategy.match(api_url, model):
             return strategy
     return OpenAICompatGeminiProvider()
+
+def get_provider(api_url: str, model: str) -> AIProviderStrategy:
+    for strategy in STRATEGIES:
+        if strategy.match(api_url, model):
+            return strategy
+    return OpenAICompatGeminiProvider()
