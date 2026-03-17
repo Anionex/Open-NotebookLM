@@ -14,7 +14,9 @@ from typing import Iterable, List, Optional
 try:
     from dotenv import load_dotenv
     _root = Path(__file__).resolve().parent.parent
+    # 先加载 .env，再加载 .env.local（override=True 让 .env.local 覆盖 .env）
     load_dotenv(_root / "fastapi_app" / ".env")
+    load_dotenv(_root / "fastapi_app" / ".env.local", override=True)
 except ImportError:
     pass
 
@@ -58,7 +60,7 @@ def _resolve_command(env_name: str, default_binary: str) -> str:
     return shutil.which(default_binary) or default_binary
 
 
-def _resolve_gpu_memory_utilization(env_name: str, default: str = "0.3") -> str:
+def _resolve_gpu_memory_utilization(env_name: str, default: str = "0.95") -> str:
     value = os.getenv(env_name, "").strip() or os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "").strip()
     if not value:
         return default
@@ -335,6 +337,7 @@ async def _lifespan(app: FastAPI):
                     reserved_ports.add(tts_port)
                 tts_cuda = _select_cuda_visible_devices("LOCAL_TTS_CUDA_VISIBLE_DEVICES", reserved_gpus)
                 tts_env = _build_child_env(project_root, tts_cuda)
+                tts_env["HF_HUB_OFFLINE"] = "1"
                 if tts_cuda:
                     log.info("本地 Qwen3-TTS vLLM-Omni 使用 GPU=%s", tts_cuda)
                 stage_config_path = _resolve_stage_config_path()
@@ -342,13 +345,15 @@ async def _lifespan(app: FastAPI):
                 tts_cmd = [
                     tts_command,
                     "serve",
-                    resolved_tts_model,
+                    LOCAL_TTS_MODEL,  # vLLM-Omni needs repo ID, not local path
                     "--host", "127.0.0.1",
                     "--port", str(tts_port),
                     "--trust-remote-code",
                     "--omni",
                     "--stage-configs-path", stage_config_path,
                     "--gpu-memory-utilization", tts_gpu_util,
+                    "--enforce-eager",
+                    "--chat-template", "{% for message in messages %}{{ message['content'] }}{% endfor %}",
                 ]
                 proc = _spawn_process_with_candidates(
                     [tts_cmd],
@@ -361,9 +366,62 @@ async def _lifespan(app: FastAPI):
                 managed_procs.append(proc)
                 log.info("本地 Qwen3-TTS vLLM-Omni 已就绪 @ %s", tts_base_url)
             os.environ["LOCAL_TTS_API_URL"] = tts_base_url
-            os.environ["LOCAL_TTS_MODEL"] = resolved_tts_model
         else:
             log.warning("TTS_ENGINE=%s 当前未切到 vLLM-Omni，仍将走原有本地/远程回退逻辑", tts_engine)
+
+    # 本地 MinerU 改为 vLLM 服务，后端启动时等待 ready
+    use_local_mineru = os.getenv("USE_LOCAL_MINERU", "0").strip().lower() in ("1", "true", "yes")
+    if use_local_mineru:
+        mineru_port = int(os.getenv("LOCAL_MINERU_PORT", "26215"))
+        mineru_model = os.getenv("LOCAL_MINERU_MODEL", "opendatalab/MinerU2.5-2509-1.2B")
+        mineru_command = os.getenv("LOCAL_MINERU_CMD", "vllm").strip() or "vllm"
+        resolved_mineru_model = _resolve_cached_model_path(mineru_model)
+
+        mineru_base_url = f"http://127.0.0.1:{mineru_port}/v1"
+        mineru_ready_url = f"{mineru_base_url}/models"
+        if _http_ready(mineru_ready_url):
+            log.info("本地 MinerU vLLM 已在运行，复用 @ %s", mineru_base_url)
+            reserved_ports.add(mineru_port)
+        else:
+            if _port_in_use(mineru_port):
+                mineru_port = _pick_service_port(mineru_port, reserved_ports)
+                mineru_base_url = f"http://127.0.0.1:{mineru_port}/v1"
+                mineru_ready_url = f"{mineru_base_url}/models"
+                log.warning("本地 MinerU 默认端口被占用，改用端口 %s", mineru_port)
+            else:
+                reserved_ports.add(mineru_port)
+            mineru_cuda = _select_cuda_visible_devices("LOCAL_MINERU_CUDA_VISIBLE_DEVICES", reserved_gpus)
+            mineru_env = _build_child_env(project_root, mineru_cuda)
+            if mineru_cuda:
+                log.info("本地 MinerU vLLM 使用 GPU=%s", mineru_cuda)
+            mineru_gpu_util = _resolve_gpu_memory_utilization("LOCAL_MINERU_GPU_MEMORY_UTILIZATION", "0.5")
+            mineru_max_seqs = os.getenv("LOCAL_MINERU_MAX_NUM_SEQS", "64").strip()
+
+            mineru_cmd = [
+                mineru_command,
+                "serve",
+                resolved_mineru_model,
+                "--host", "127.0.0.1",
+                "--port", str(mineru_port),
+                "--served-model-name", "mineru",
+                "--logits-processors", "mineru_vl_utils:MinerULogitsProcessor",
+                "--gpu-memory-utilization", mineru_gpu_util,
+                "--max-num-seqs", mineru_max_seqs,
+                "--trust-remote-code",
+                "--enforce-eager",
+            ]
+            proc = _spawn_process_with_candidates(
+                [mineru_cmd],
+                cwd=project_root,
+                ready_url=mineru_ready_url,
+                label="本地 MinerU vLLM",
+                timeout_s=300.0,
+                extra_env=mineru_env,
+            )
+            managed_procs.append(proc)
+            log.info("本地 MinerU vLLM 已就绪 @ %s", mineru_base_url)
+        os.environ["LOCAL_MINERU_API_URL"] = mineru_base_url
+        os.environ["LOCAL_MINERU_MODEL"] = resolved_mineru_model
 
     yield
     for proc in managed_procs:

@@ -1,25 +1,46 @@
 #!/bin/bash
 
-# 快速启动脚本 - 后台启动所有服务并显示访问信息
+# 快速启动脚本 - 后台启动所有服务
+# GPU 配置直接在下方修改，留空则使用 .env 中的配置
+
+# GPU 配置（留空使用 .env 默认配置）
+TTS_GPU="6"           # 例如: "6"
+EMBEDDING_GPU="7"     # 例如: "7"
+MINERU_GPU="6"        # 例如: "6"
 
 CPOLAR_TUNNEL_NAME="opennotebook"
 CPOLAR_PUBLIC_URL="https://opennotebook.nas.cpolar.cn"
 
-cd /data/users/szl/opennotebook/opennotebookLM
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "$PROJECT_ROOT"
 
-# 清理端口占用
-echo "清理端口占用..."
+# 如果指定了 GPU，创建 .env.local 覆盖配置
+if [[ -n "$TTS_GPU" ]] || [[ -n "$EMBEDDING_GPU" ]] || [[ -n "$MINERU_GPU" ]]; then
+    ENV_LOCAL="$PROJECT_ROOT/fastapi_app/.env.local"
+    echo "# Auto-generated GPU configuration" > "$ENV_LOCAL"
+    [[ -n "$TTS_GPU" ]] && echo -e "USE_LOCAL_TTS=1\nLOCAL_TTS_CUDA_VISIBLE_DEVICES=$TTS_GPU" >> "$ENV_LOCAL"
+    [[ -n "$EMBEDDING_GPU" ]] && echo -e "USE_LOCAL_EMBEDDING=1\nLOCAL_EMBEDDING_CUDA_VISIBLE_DEVICES=$EMBEDDING_GPU" >> "$ENV_LOCAL"
+    [[ -n "$MINERU_GPU" ]] && echo -e "USE_LOCAL_MINERU=1\nLOCAL_MINERU_CUDA_VISIBLE_DEVICES=$MINERU_GPU" >> "$ENV_LOCAL"
+else
+    rm -f "$PROJECT_ROOT/fastapi_app/.env.local"
+fi
+
+# 清理端口占用和进程
+echo "清理端口占用和进程..."
 lsof -ti:8213 | xargs kill -9 2>/dev/null
 lsof -ti:3001 | xargs kill -9 2>/dev/null
 pkill -9 -f "uvicorn fastapi_app.main:app" 2>/dev/null
 pkill -9 -f "vite.*--port 3001" 2>/dev/null
-pkill -9 -f "cpolar http 3001" 2>/dev/null
-pkill -9 -f "cpolar start ${CPOLAR_TUNNEL_NAME}" 2>/dev/null
-sleep 1
+pkill -9 -f "cpolar start opennotebook" 2>/dev/null
+sleep 2
+
+# 创建日志目录
+mkdir -p logs
 
 # 后台启动后端
 echo "启动后端服务..."
-nohup uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8213 --reload > logs/backend.log 2>&1 &
+nohup uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8213 > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 
 # 后台启动前端
@@ -31,12 +52,20 @@ cd ..
 
 # 后台启动 cpolar
 echo "启动 cpolar 隧道..."
-nohup cpolar start "${CPOLAR_TUNNEL_NAME}" -processMode single > logs/cpolar.log 2>&1 &
+nohup cpolar start "${CPOLAR_TUNNEL_NAME}" > logs/cpolar.log 2>&1 &
 CPOLAR_PID=$!
 
 # 等待服务启动
 echo "等待服务启动..."
-sleep 12
+sleep 5
+
+# 验证 cpolar 进程
+if ! ps -p $CPOLAR_PID > /dev/null 2>&1; then
+    echo "警告: cpolar 进程启动失败，请检查 logs/cpolar.log"
+fi
+
+# 额外等待 cpolar 隧道建立
+sleep 10
 
 PUBLIC_URL="$CPOLAR_PUBLIC_URL"
 
@@ -64,5 +93,9 @@ echo "  Backend: logs/backend.log"
 echo "  Frontend: logs/frontend.log"
 echo "  Cpolar: logs/cpolar.log"
 echo ""
+if [[ -f "$PROJECT_ROOT/fastapi_app/.env.local" ]]; then
+    echo "GPU 配置: fastapi_app/.env.local"
+    echo ""
+fi
 echo "停止服务: ./scripts/stop.sh"
 echo ""

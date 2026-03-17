@@ -36,6 +36,7 @@ EXCLUDED_PATHS = {
 # Path prefixes that don't require API key
 EXCLUDED_PREFIXES = (
     "/outputs/",  # Static files
+    "/api/v1/auth/",  # Auth endpoints
 )
 
 
