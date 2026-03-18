@@ -6,9 +6,22 @@ from fastapi import APIRouter, HTTPException, Response, Request
 from typing import Dict, Any
 from pydantic import BaseModel
 from fastapi_app.dependencies.auth import get_supabase_client
+from fastapi_app.notebook_paths import _sanitize_user_id
+from workflow_engine.utils import get_project_root
 import logging
 
 log = logging.getLogger(__name__)
+
+
+def ensure_user_directory(user_email: str) -> None:
+    """确保用户目录存在"""
+    try:
+        safe_user_id = _sanitize_user_id(user_email)
+        user_dir = get_project_root() / "outputs" / safe_user_id
+        user_dir.mkdir(parents=True, exist_ok=True)
+        log.info(f"User directory ensured: {user_dir}")
+    except Exception as e:
+        log.error(f"Failed to create user directory: {e}")
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -25,6 +38,15 @@ class SignupRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class VerifyOtpRequest(BaseModel):
+    email: str
+    token: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: str
 
 
 @router.get("/config")
@@ -61,6 +83,9 @@ async def login(request: LoginRequest, response: Response) -> Dict[str, Any]:
         log.info(f"Login result: {result}")
 
         if result.session:
+            # 确保用户目录存在
+            ensure_user_directory(request.email)
+
             # 设置 HTTP-only cookie
             response.set_cookie(
                 key="sb-access-token",
@@ -107,6 +132,9 @@ async def signup(request: SignupRequest, response: Response) -> Dict[str, Any]:
         })
 
         if result.session:
+            # 确保用户目录存在
+            ensure_user_directory(request.email)
+
             response.set_cookie(
                 key="sb-access-token",
                 value=result.session.access_token,
@@ -135,7 +163,13 @@ async def signup(request: SignupRequest, response: Response) -> Dict[str, Any]:
             return {"success": True, "message": "Check your email for confirmation"}
     except Exception as e:
         log.error(f"Signup error: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        if "rate limit" in error_msg.lower():
+            raise HTTPException(
+                status_code=429,
+                detail="注册请求过于频繁，请稍后再试（Rate limit exceeded, please try again later）"
+            )
+        raise HTTPException(status_code=400, detail=error_msg)
 
 
 @router.post("/refresh")
@@ -189,6 +223,73 @@ async def logout(response: Response) -> Dict[str, Any]:
     response.delete_cookie("sb-access-token")
     response.delete_cookie("sb-refresh-token")
     return {"success": True}
+
+
+@router.post("/verify")
+async def verify_otp(request: VerifyOtpRequest, response: Response) -> Dict[str, Any]:
+    """Verify OTP token"""
+    supabase = get_supabase_client()
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Auth not configured")
+
+    try:
+        result = supabase.auth.verify_otp({
+            "email": request.email,
+            "token": request.token,
+            "type": "email"
+        })
+
+        if result.session:
+            # 确保用户目录存在
+            ensure_user_directory(request.email)
+
+            response.set_cookie(
+                key="sb-access-token",
+                value=result.session.access_token,
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                max_age=result.session.expires_in
+            )
+            response.set_cookie(
+                key="sb-refresh-token",
+                value=result.session.refresh_token,
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                max_age=60 * 60 * 24 * 30
+            )
+
+            return {
+                "success": True,
+                "user": {
+                    "id": result.user.id,
+                    "email": result.user.email
+                }
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Verification failed")
+    except Exception as e:
+        log.error(f"Verify OTP error: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/resend")
+async def resend_otp(request: ResendOtpRequest) -> Dict[str, Any]:
+    """Resend OTP token"""
+    supabase = get_supabase_client()
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Auth not configured")
+
+    try:
+        supabase.auth.resend({
+            "type": "signup",
+            "email": request.email
+        })
+        return {"success": True, "message": "Verification email resent"}
+    except Exception as e:
+        log.error(f"Resend OTP error: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/session")

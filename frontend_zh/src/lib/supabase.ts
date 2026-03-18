@@ -131,6 +131,48 @@ export async function refreshSession(): Promise<User | null> {
 }
 
 /**
+ * Verify OTP token
+ */
+export async function verifyOtp(email: string, token: string): Promise<AuthResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, token }),
+    });
+
+    const data = await response.json();
+    if (data.success && data.user) {
+      currentUser = data.user;
+    }
+    return data;
+  } catch (error) {
+    console.error('[Auth] Verify OTP failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Resend OTP token
+ */
+export async function resendOtp(email: string): Promise<AuthResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/resend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+
+    return await response.json();
+  } catch (error) {
+    console.error('[Auth] Resend OTP failed:', error);
+    throw error;
+  }
+}
+
+/**
  * Sign out
  */
 export async function signOut(): Promise<void> {
