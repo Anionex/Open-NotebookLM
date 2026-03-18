@@ -1,9 +1,10 @@
 /**
  * Supabase client singleton for frontend.
- * Configuration is fetched from backend API.
+ *
+ * PKU intranet deployment disables frontend auth unconditionally.
  */
 
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<boolean> | null = null;
@@ -17,30 +18,8 @@ export async function initSupabase(): Promise<boolean> {
     return initPromise;
   }
 
-  initPromise = (async () => {
-    try {
-      const response = await fetch('/api/v1/auth/config');
-      const data = await response.json();
-
-      if (data.supabaseConfigured && data.supabaseUrl && data.supabaseAnonKey) {
-        supabaseClient = createClient(data.supabaseUrl, data.supabaseAnonKey, {
-          auth: {
-            autoRefreshToken: true,
-            persistSession: true,
-            detectSessionInUrl: true,
-          },
-        });
-        console.info('[Supabase] Configured and initialized');
-        return true;
-      } else {
-        console.info('[Supabase] Not configured, using trial mode');
-        return false;
-      }
-    } catch (error) {
-      console.error('[Supabase] Initialization failed:', error);
-      return false;
-    }
-  })();
+  initPromise = Promise.resolve(false);
+  console.info('[Supabase] PKU platform mode enabled, frontend auth is disabled');
 
   return initPromise;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Plus, User, Loader2, BookOpen, Key, CheckCircle2, LogOut, Info } from 'lucide-react';
+import { Settings, Plus, User, Loader2, BookOpen, Key, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { apiFetch } from '../config/api';
 import { API_URL_OPTIONS, DEFAULT_LLM_API_URL } from '../config/api';
@@ -24,7 +24,7 @@ export interface Notebook {
 const NOTEBOOK_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: { onOpenNotebook: (n: Notebook) => void; refreshTrigger?: number; supabaseConfigured: boolean | null }) => {
-  const { user, signOut } = useAuthStore();
+  const { user } = useAuthStore();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -160,72 +160,41 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-8">
-      {/* Glass Header */}
-      <header className="sticky top-0 z-30 glass rounded-b-ios-xl -mx-6 px-6 py-4 mb-12 border-b border-white/30">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <img src="/logo_small.png" alt="Logo" className="h-8 w-auto object-contain" />
-            <h1 className="text-2xl font-semibold text-ios-gray-900">OpenNotebookLM</h1>
+    <div className="portal-shell py-6 sm:py-8">
+      <header className="glass sticky top-4 z-30 mb-8 rounded-ios-2xl px-5 py-4 shadow-ios-lg sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-ios bg-primary/10 ring-1 ring-primary/10">
+              <img src="/logo_small.png" alt="Logo" className="h-8 w-auto object-contain" />
+            </div>
+            <div>
+              <p className="portal-kicker">Research Notebook</p>
+              <h1 className="text-2xl font-semibold text-ios-gray-900">OpenNotebookLM</h1>
+              <p className="text-sm text-ios-gray-500">统一笔记入口、对话与来源工作台的前端壳层。</p>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden rounded-full border border-white/70 bg-white/60 px-3 py-1.5 text-sm text-ios-gray-700 shadow-ios-sm md:block">
-              {user?.email || user?.id}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="portal-badge hidden md:inline-flex">
+              {user?.email || user?.id || 'PKU Intranet'}
             </div>
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => setConfigOpen((o) => !o)}
-              className="text-ios-gray-600 hover:text-ios-gray-900 flex items-center gap-2 px-3 py-2 rounded-ios hover:bg-white/50 transition-colors"
+              className="portal-button-secondary px-4 py-2.5"
             >
               <Settings size={20} />
               <span className="text-sm font-medium">API 配置</span>
             </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              type="button"
-              onClick={() => void signOut()}
-              className="text-ios-gray-600 hover:text-ios-gray-900 flex items-center gap-2 px-3 py-2 rounded-ios hover:bg-white/50 transition-colors"
-            >
-              <LogOut size={18} />
-              <span className="text-sm font-medium">退出</span>
-            </motion.button>
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center text-white shadow-ios-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent-blue text-white shadow-ios-sm">
               <User size={18} />
             </div>
           </div>
         </div>
       </header>
 
-      {/* Supabase 配置提示 - 仅在未配置时显示 */}
-      {!supabaseConfigured && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 rounded-ios-xl border border-blue-200 bg-blue-50 p-4 shadow-ios-sm"
-        >
-          <div className="flex items-start gap-3">
-            <Info size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-blue-900 mb-1">试用模式</h3>
-              <p className="text-sm text-blue-700 mb-2">
-                您正在使用 OpenNotebookLM 的试用模式。配置 Supabase 以启用用户认证和多用户支持。
-              </p>
-              <a
-                href="https://supabase.com/docs/guides/auth"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
-              >
-                了解如何配置 Supabase →
-              </a>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
       {configOpen && (
-        <section className="mb-8 p-6 bg-white rounded-ios-xl border border-ios-gray-100 shadow-ios">
+        <section className="portal-card mb-8 p-6">
           <h3 className="text-lg font-semibold text-ios-gray-900 mb-4 flex items-center gap-2">
             <Key size={20} />
             首页配置（进入笔记本后直接使用）
@@ -238,7 +207,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                 <select
                   value={apiUrl}
                   onChange={(e) => setApiUrl(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-ios-gray-200 rounded-ios text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  className="portal-input py-2.5"
                 >
                   {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
                     <option key={url} value={url}>{url}</option>
@@ -252,7 +221,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="sk-..."
-                  className="w-full px-3 py-2.5 border border-ios-gray-200 rounded-ios text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  className="portal-input py-2.5"
                 />
               </div>
             </div>
@@ -263,7 +232,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                 <select
                   value={searchProvider}
                   onChange={(e) => setSearchProvider(e.target.value as SearchProvider)}
-                  className="w-full px-3 py-2.5 border border-ios-gray-200 rounded-ios text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  className="portal-input py-2.5"
                 >
                   <option value="serper">Serper (Google，环境变量)</option>
                   <option value="serpapi">SerpAPI (Google/百度)</option>
@@ -278,7 +247,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                     value={searchApiKey}
                     onChange={(e) => setSearchApiKey(e.target.value)}
                     placeholder={searchProvider === 'bocha' ? '博查 API Key' : 'SerpAPI Key'}
-                    className="w-full px-3 py-2.5 border border-ios-gray-200 rounded-ios text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    className="portal-input py-2.5"
                   />
                 </div>
               )}
@@ -288,7 +257,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                   <select
                     value={searchEngine}
                     onChange={(e) => setSearchEngine(e.target.value as SearchEngine)}
-                    className="w-full px-3 py-2.5 border border-ios-gray-200 rounded-ios text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    className="portal-input py-2.5"
                   >
                     <option value="google">Google</option>
                     <option value="baidu">百度</option>
@@ -303,7 +272,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
               type="button"
               onClick={handleSaveConfig}
               disabled={configSaving}
-              className="px-5 py-2.5 bg-primary text-white rounded-ios hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 text-sm font-medium shadow-ios-sm transition-colors"
+              className="portal-button-primary px-5 py-2.5 disabled:opacity-50"
             >
               {configSaving ? <Loader2 size={16} className="animate-spin" /> : configSaved ? <CheckCircle2 size={16} /> : <Key size={16} />}
               {configSaving ? '保存中...' : configSaved ? '已保存' : '保存配置'}
@@ -317,7 +286,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
           <h2 className="text-xl font-semibold text-ios-gray-900">笔记本</h2>
         </div>
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-ios-gray-500">
+          <div className="portal-card flex items-center justify-center py-12 text-ios-gray-500">
             <Loader2 className="w-6 h-6 animate-spin mr-2" />
             加载中...
           </div>
@@ -327,7 +296,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
             <motion.div
               whileHover={{ scale: 1.02, y: -4 }}
               whileTap={{ scale: 0.98 }}
-              className="cursor-pointer bg-white rounded-ios-xl border-2 border-dashed border-ios-gray-200 aspect-[4/3] flex flex-col items-center justify-center gap-4 hover:border-primary/40 transition-colors shadow-ios-sm"
+              className="portal-panel-muted cursor-pointer border-2 border-dashed border-ios-gray-200/90 aspect-[4/3] flex flex-col items-center justify-center gap-4 transition-colors hover:border-primary/40"
               onClick={() => setCreateModalOpen(true)}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-primary/10 to-primary/20 rounded-full flex items-center justify-center">
@@ -342,7 +311,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                 key={nb.id}
                 whileHover={{ scale: 1.02, y: -4 }}
                 whileTap={{ scale: 0.98 }}
-                className="cursor-pointer bg-white rounded-ios-xl p-6 shadow-ios hover:shadow-ios-lg transition-shadow aspect-[4/3] flex flex-col justify-between"
+              className="portal-card-soft cursor-pointer p-6 transition-shadow aspect-[4/3] flex flex-col justify-between hover:shadow-ios-lg"
                 onClick={() => onOpenNotebook(nb)}
               >
                 <div className="flex justify-between items-start">
@@ -380,7 +349,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="relative bg-white rounded-t-ios-2xl sm:rounded-ios-2xl p-6 w-full max-w-md shadow-ios-xl"
+              className="portal-card relative w-full max-w-md rounded-t-ios-2xl p-6 sm:rounded-ios-2xl"
               onClick={e => e.stopPropagation()}
             >
               {/* iOS Drag Indicator */}
@@ -390,7 +359,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
               <h3 className="text-lg font-semibold text-ios-gray-900 mb-4">新建笔记本</h3>
               <input
                 type="text"
-                className="w-full border border-ios-gray-200 rounded-ios px-4 py-3 mb-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                className="portal-input mb-3"
                 placeholder="笔记本名称"
                 value={newNotebookName}
                 onChange={e => setNewNotebookName(e.target.value)}
@@ -399,7 +368,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
               <div className="flex justify-end gap-2">
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  className="px-5 py-2.5 text-ios-gray-600 hover:bg-ios-gray-100 rounded-ios font-medium text-sm transition-colors"
+                  className="portal-button-secondary px-5 py-2.5"
                   onClick={() => !creating && setCreateModalOpen(false)}
                   disabled={creating}
                 >
@@ -407,7 +376,7 @@ const Dashboard = ({ onOpenNotebook, refreshTrigger = 0, supabaseConfigured }: {
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  className="px-5 py-2.5 bg-primary text-white rounded-ios hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-medium text-sm shadow-ios-sm transition-colors"
+                  className="portal-button-primary px-5 py-2.5 disabled:opacity-50"
                   onClick={handleCreateNotebook}
                   disabled={creating || !newNotebookName.trim()}
                 >

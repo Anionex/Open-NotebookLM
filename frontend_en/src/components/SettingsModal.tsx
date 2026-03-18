@@ -59,91 +59,85 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/35 px-4 backdrop-blur-md" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
+        className="w-full max-w-lg overflow-hidden rounded-ios-2xl border border-white/75 bg-white/88 shadow-ios-xl backdrop-blur-ios"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">API Settings</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
-          >
+        <div className="flex items-start justify-between border-b border-ios-gray-100/80 px-6 py-5">
+          <div>
+            <p className="portal-kicker">Notebook Runtime</p>
+            <h2 className="mt-2 text-2xl">API Settings</h2>
+            <p className="mt-2 text-sm text-ios-gray-500">
+              Configure chat, search, and generation runtime values. These changes stay in local browser storage only.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-ios p-2 text-ios-gray-500 transition hover:bg-ios-gray-100 hover:text-ios-gray-700">
             <X size={20} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <p className="text-sm text-gray-500">
-            Configure LLM API URL and key for chat, mind map, PPT generation, etc. Sent to backend with each request.
-          </p>
-
+        <div className="space-y-5 px-6 py-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">API URL</label>
-            <select
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            >
+            <label className="mb-2 block text-sm font-medium text-ios-gray-700">API URL</label>
+            <select value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} className="portal-input">
               {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
                 <option key={url} value={url}>{url}</option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-400">OpenAI-compatible endpoint, e.g. api.openai.com/v1 or self-hosted</p>
+            <p className="mt-2 text-xs text-ios-gray-400">OpenAI-compatible endpoint such as `api.openai.com/v1` or your self-hosted gateway.</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">API Key</label>
+            <label className="mb-2 block text-sm font-medium text-ios-gray-700">API Key</label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="sk-..."
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="portal-input"
             />
-            <p className="mt-1 text-xs text-gray-400">Key for LLM calls, stored only in this browser</p>
+            <p className="mt-2 text-xs text-ios-gray-400">Stored only in this browser and never written back to server config.</p>
             {!apiKey.trim() && (
-              <p className="mt-1.5 text-xs text-amber-600">Enter and save API Key, or &quot;Generate embeddings&quot; will be disabled</p>
+              <p className="mt-2 text-xs text-warning-600">Fill and save the API key or generation and embedding-related features will be limited.</p>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Search provider</label>
-            <select
-              value={searchProvider}
-              onChange={(e) => setSearchProvider(e.target.value as SearchProvider)}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="serper">Serper (Google)</option>
-              <option value="serpapi">SerpAPI (Google/Baidu)</option>
-              <option value="bocha">Bocha</option>
-            </select>
-          </div>
-          {(searchProvider === 'serper' || searchProvider === 'serpapi' || searchProvider === 'bocha') && (
+          <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Search API Key</label>
-              <input
-                type="password"
-                value={searchApiKey}
-                onChange={(e) => setSearchApiKey(e.target.value)}
-                placeholder={searchProvider === 'bocha' ? 'Bocha API Key' : searchProvider === 'serper' ? 'Serper API Key' : 'SerpAPI Key'}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <label className="mb-2 block text-sm font-medium text-ios-gray-700">Search provider</label>
+              <select
+                value={searchProvider}
+                onChange={(e) => setSearchProvider(e.target.value as SearchProvider)}
+                className="portal-input"
+              >
+                <option value="serper">Serper (Google)</option>
+                <option value="serpapi">SerpAPI (Google / Baidu)</option>
+                <option value="bocha">Bocha</option>
+              </select>
             </div>
-          )}
+
+            {(searchProvider === 'serper' || searchProvider === 'serpapi' || searchProvider === 'bocha') && (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-ios-gray-700">Search API Key</label>
+                <input
+                  type="password"
+                  value={searchApiKey}
+                  onChange={(e) => setSearchApiKey(e.target.value)}
+                  placeholder={searchProvider === 'bocha' ? 'Bocha API Key' : searchProvider === 'serper' ? 'Serper API Key' : 'SerpAPI Key'}
+                  className="portal-input"
+                />
+              </div>
+            )}
+          </div>
+
           {searchProvider === 'serpapi' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Search engine</label>
+              <label className="mb-2 block text-sm font-medium text-ios-gray-700">Search engine</label>
               <select
                 value={searchEngine}
                 onChange={(e) => setSearchEngine(e.target.value as SearchEngine)}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="portal-input"
               >
                 <option value="google">Google</option>
                 <option value="baidu">Baidu</option>
@@ -151,27 +145,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
             </div>
           )}
 
-          <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-500" />
-            <p>
-              API settings are stored only in this browser and are not sent to the server. Use in a secure environment.
-            </p>
+          <div className="rounded-ios-xl border border-warning-500/20 bg-warning-50 px-4 py-3 text-xs text-warning-600">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              <p>These settings are stored only in the current browser on this device. Use them in a trusted environment.</p>
+            </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-          >
+        <div className="flex justify-end gap-3 border-t border-ios-gray-100/80 px-6 py-4">
+          <button onClick={onClose} className="portal-button-secondary px-4 py-2.5">
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors"
-          >
+          <button onClick={handleSave} disabled={saving} className="portal-button-primary px-4 py-2.5 disabled:opacity-60">
             {saving ? (
               <>
                 <Loader2 size={16} className="animate-spin" />

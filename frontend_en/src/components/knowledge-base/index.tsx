@@ -280,9 +280,9 @@ const KnowledgeBase = () => {
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'doc': return <FileText size={20} className="text-blue-400" />;
-      case 'image': return <Image size={20} className="text-purple-400" />;
-      case 'video': return <Video size={20} className="text-pink-400" />;
+      case 'doc': return <FileText size={20} className="text-primary" />;
+      case 'image': return <Image size={20} className="text-amber-600" />;
+      case 'video': return <Video size={20} className="text-primary-500" />;
       case 'link': return <LinkIcon size={20} className="text-green-400" />;
       case 'audio': return <Headphones size={20} className="text-green-400" />;
       default: return <FileText size={20} className="text-gray-400" />;
@@ -290,7 +290,7 @@ const KnowledgeBase = () => {
   };
 
   return (
-    <div className="w-full h-full flex bg-[#02020a] text-gray-200 overflow-hidden font-sans relative">
+    <div className="w-full h-full flex bg-[linear-gradient(180deg,#f8f1eb_0%,#f3f0ee_100%)] text-ios-gray-900 overflow-hidden font-sans relative">
       
       {/* 1. Sidebar */}
       <Sidebar 
@@ -301,10 +301,10 @@ const KnowledgeBase = () => {
       />
 
       {/* 2. Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-[#050512] to-[#0a0a1a] relative z-10">
+      <div className="flex-1 flex flex-col min-w-0 bg-transparent relative z-10">
         {/* Header */}
-        <div className="h-16 border-b border-white/5 flex items-center px-8 justify-between backdrop-blur-sm bg-[#050512]/50 sticky top-0 z-10">
-          <h2 className="text-lg font-medium text-white">
+        <div className="h-16 border-b border-primary/10 flex items-center px-8 justify-between backdrop-blur-sm bg-white/55 sticky top-0 z-10">
+          <h2 className="text-lg font-medium text-ios-gray-900">
             {activeSection === 'library' && 'My library'}
             {activeSection === 'upload' && 'Upload'}
             {activeSection === 'output' && 'Outputs'}
@@ -312,7 +312,7 @@ const KnowledgeBase = () => {
           </h2>
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && activeSection === 'library' && (
-               <button onClick={() => setSelectedIds(new Set())} className="text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+               <button onClick={() => setSelectedIds(new Set())} className="text-xs px-3 py-1.5 rounded-ios border border-primary/10 hover:bg-primary/5 transition-colors text-ios-gray-700">
                  Deselect ({selectedIds.size})
                </button>
             )}
@@ -380,13 +380,13 @@ const KnowledgeBase = () => {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-lg font-medium text-white">File details</h3>
+              <h3 className="text-lg font-medium text-ios-gray-900">File details</h3>
               <button 
                 onClick={() => {
                   setPreviewFile(null);
                   setPreviewSource(null);
                 }}
-                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                className="p-2 hover:bg-primary/5 rounded-lg text-ios-gray-400 hover:text-primary transition-colors"
               >
                 <X size={20} />
               </button>
@@ -395,39 +395,39 @@ const KnowledgeBase = () => {
             <div className="flex-1 overflow-y-auto">
               <div className="flex flex-col items-center text-center mb-8">
                 {previewFile.type === 'image' && previewFile.url ? (
-                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 mb-4 group relative">
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-white/70 border border-primary/10 mb-4 group relative">
                     <img src={previewFile.url} alt={previewFile.name} className="w-full h-full object-contain" />
                   </div>
                 ) : (
-                  <div className="w-24 h-24 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
+                  <div className="w-24 h-24 bg-white/75 rounded-2xl flex items-center justify-center mb-4 border border-primary/10">
                     {getIcon(previewFile.type)}
                   </div>
                 )}
-                <h3 className="text-xl font-medium text-white break-all mb-2">{previewFile.name}</h3>
-                <p className="text-sm text-gray-400 flex items-center gap-2">
-                  <span className="bg-white/10 px-2 py-0.5 rounded text-xs">{previewFile.type.toUpperCase()}</span>
+                <h3 className="text-xl font-medium text-ios-gray-900 break-all mb-2">{previewFile.name}</h3>
+                <p className="text-sm text-ios-gray-500 flex items-center gap-2">
+                  <span className="bg-primary/8 text-primary px-2 py-0.5 rounded text-xs">{previewFile.type.toUpperCase()}</span>
                   <span>{previewFile.size}</span>
                 </p>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                    <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                  <h4 className="text-sm font-medium text-ios-gray-700 mb-3 flex items-center gap-2">
+                    <div className="w-1 h-4 bg-primary rounded-full"></div>
                     Basic info
                   </h4>
-                  <div className="bg-white/5 rounded-xl p-4 space-y-3">
+                  <div className="bg-white/70 rounded-xl p-4 space-y-3 border border-primary/10">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Upload time</span>
-                      <span className="text-gray-300">{previewFile.uploadTime}</span>
+                      <span className="text-ios-gray-500">Upload time</span>
+                      <span className="text-ios-gray-800">{previewFile.uploadTime}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">File ID</span>
-                      <span className="text-gray-300 font-mono text-xs">{previewFile.id.slice(0, 12)}...</span>
+                      <span className="text-ios-gray-500">File ID</span>
+                      <span className="text-ios-gray-800 font-mono text-xs">{previewFile.id.slice(0, 12)}...</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Storage path</span>
-                      <a href={previewFile.url} target="_blank" className="text-purple-400 hover:text-purple-300 truncate max-w-[200px] hover:underline" rel="noreferrer">
+                      <span className="text-ios-gray-500">Storage path</span>
+                      <a href={previewFile.url} target="_blank" className="text-primary hover:text-primary-700 truncate max-w-[200px] hover:underline" rel="noreferrer">
                         View source
                       </a>
                     </div>
@@ -436,11 +436,11 @@ const KnowledgeBase = () => {
 
                 {previewFile.type === 'audio' && previewFile.url && (
                   <div>
-                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                      <div className="w-1 h-4 bg-green-500 rounded-full"></div>
+                    <h4 className="text-sm font-medium text-ios-gray-700 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-amber-500 rounded-full"></div>
                       Play preview
                     </h4>
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="bg-white/70 rounded-xl p-4 border border-primary/10">
                       <audio
                         className="w-full"
                         controls
@@ -454,15 +454,15 @@ const KnowledgeBase = () => {
 
                 {previewFile.type === 'doc' && (
                   <div>
-                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                      <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                    <h4 className="text-sm font-medium text-ios-gray-700 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-primary rounded-full"></div>
                       {isMindmapFile(previewFile) ? 'Mind map preview & edit' : 'File preview'}
                     </h4>
 
                     {isMindmapFile(previewFile) ? (
-                      <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-4">
+                      <div className="bg-white/70 rounded-xl p-4 border border-primary/10 space-y-4">
                         {mindmapLoading ? (
-                          <div className="text-sm text-gray-400">Loading mind map...</div>
+                          <div className="text-sm text-ios-gray-500">Loading mind map...</div>
                         ) : mindmapError ? (
                           <div className="text-sm text-red-400">{mindmapError}</div>
                         ) : (
@@ -477,33 +477,33 @@ const KnowledgeBase = () => {
                               <button
                                 onClick={handleSaveMindmap}
                                 disabled={mindmapSaving}
-                                className="px-3 py-1.5 text-xs rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 hover:bg-primary/16 text-primary border border-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                               >
                                 {mindmapSaving ? 'Saving...' : 'Save'}
                               </button>
                               {mindmapStatus && (
-                                <span className="text-xs text-green-400">{mindmapStatus}</span>
+                                <span className="text-xs text-emerald-600">{mindmapStatus}</span>
                               )}
                             </div>
 
                             <textarea
                               value={mindmapDraft}
                               onChange={(e) => setMindmapDraft(e.target.value)}
-                              className="w-full min-h-[180px] bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-gray-200 font-mono outline-none focus:border-cyan-500"
+                              className="w-full min-h-[180px] bg-white border border-primary/12 rounded-lg p-3 text-xs text-ios-gray-800 font-mono outline-none focus:border-primary"
                             />
 
                             {mindmapPreviewCode ? (
                               <MermaidPreview mermaidCode={mindmapPreviewCode} title="Mind map preview" />
                             ) : (
-                              <div className="text-xs text-gray-500">No preview</div>
+                              <div className="text-xs text-ios-gray-500">No preview</div>
                             )}
                           </>
                         )}
                       </div>
                     ) : (
-                      <div className="bg-white/5 rounded-xl p-8 text-center border border-dashed border-white/10">
-                        <FileText size={40} className="text-gray-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-500">Document preview not supported. Please download to view.</p>
+                      <div className="bg-white/70 rounded-xl p-8 text-center border border-dashed border-primary/12">
+                        <FileText size={40} className="text-ios-gray-400 mx-auto mb-3" />
+                        <p className="text-sm text-ios-gray-500">Document preview is not supported yet. Please download to view.</p>
                       </div>
                     )}
                   </div>
@@ -516,7 +516,7 @@ const KnowledgeBase = () => {
                 href={previewFile.url} 
                 target="_blank" 
                 rel="noreferrer"
-                className="flex-1 py-3 bg-white text-black hover:bg-gray-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-white/10"
+                className="flex-1 py-3 bg-primary text-white hover:bg-primary-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/15"
               >
                 <Eye size={18} />
                 Open file

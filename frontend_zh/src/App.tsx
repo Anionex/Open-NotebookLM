@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Dashboard from './pages/Dashboard';
 import NotebookView from './pages/NotebookView';
-import AuthPage from './pages/AuthPage';
 import { useAuthStore } from './stores/authStore';
-import { initSupabase, getSupabaseClient } from './lib/supabase';
+import { initSupabase } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 const pageVariants = {
@@ -40,27 +39,7 @@ function App() {
   // Initialize auth session
   useEffect(() => {
     if (supabaseConfigured === null) return;
-    if (!supabaseConfigured) {
-      setSession(null);
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    setSession(null);
   }, [setSession, supabaseConfigured]);
 
   useEffect(() => {
@@ -72,18 +51,18 @@ function App() {
 
   if (loading || supabaseConfigured === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f2f2f7]">
-        <Loader2 size={28} className="animate-spin text-slate-500" />
+      <div className="portal-page relative flex items-center justify-center overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-16 top-0 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
+          <div className="absolute right-0 top-10 h-80 w-80 rounded-full bg-accent-blue/12 blur-3xl" />
+        </div>
+        <div className="portal-card relative flex items-center gap-3 px-6 py-4">
+          <Loader2 size={24} className="animate-spin text-primary" />
+          <span className="text-sm font-medium text-ios-gray-700">正在初始化 OpenNotebookLM...</span>
+        </div>
       </div>
     );
   }
-
-  // If Supabase is configured but user is not logged in, show auth page
-  if (supabaseConfigured && !user) {
-    return <AuthPage />;
-  }
-
-  // If Supabase is not configured, allow trial mode (no auth required)
 
   const handleOpenNotebook = (notebook: any) => {
     setSelectedNotebook(notebook);
@@ -99,35 +78,44 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f2f2f7]">
-      <AnimatePresence mode="wait" custom={direction}>
-        {currentView === 'dashboard' ? (
-          <motion.div
-            key="dashboard"
-            custom={direction}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-          >
-            <Dashboard onOpenNotebook={handleOpenNotebook} refreshTrigger={dashboardRefresh} supabaseConfigured={supabaseConfigured} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="notebook"
-            custom={direction}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-          >
-            <NotebookView
-              notebook={selectedNotebook}
-              onBack={handleBackToDashboard}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="portal-page relative overflow-hidden">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-20 top-0 h-80 w-80 rounded-full bg-primary/12 blur-3xl" />
+        <div className="absolute right-[-3rem] top-16 h-96 w-96 rounded-full bg-accent-blue/12 blur-3xl" />
+        <div className="absolute bottom-[-4rem] left-1/3 h-80 w-80 rounded-full bg-accent-gold/10 blur-3xl" />
+      </div>
+      <div className="relative min-h-screen">
+        <AnimatePresence mode="wait" custom={direction}>
+          {currentView === 'dashboard' ? (
+            <motion.div
+              key="dashboard"
+              custom={direction}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="min-h-screen"
+            >
+              <Dashboard onOpenNotebook={handleOpenNotebook} refreshTrigger={dashboardRefresh} supabaseConfigured={supabaseConfigured} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="notebook"
+              custom={direction}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="min-h-screen"
+            >
+              <NotebookView
+                notebook={selectedNotebook}
+                onBack={handleBackToDashboard}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

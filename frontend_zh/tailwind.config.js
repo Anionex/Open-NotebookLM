@@ -1,176 +1,96 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
-      /**
-       * Editorial Workspace Color System
-       * Warm neutrals + vibrant coral accent
-       */
       colors: {
-        // Neutral palette (warm blacks and off-whites)
-        neutral: {
-          50: '#FAFAF9',
-          100: '#F5F5F4',
-          200: '#E7E5E4',
-          300: '#D6D3D1',
-          400: '#A8A29E',
-          500: '#78716C',
-          600: '#57534E',
-          700: '#44403C',
-          800: '#292524',
-          900: '#1C1917',
+        primary: {
+          DEFAULT: '#8d243c',
+          50: '#faf2f4',
+          100: '#f4e3e7',
+          200: '#e8c7cf',
+          300: '#d89ba8',
+          400: '#c1697d',
+          500: '#a8435a',
+          600: '#8d243c',
+          700: '#741d31',
+          800: '#5c1829',
+          900: '#3d101b',
         },
-        // Accent - Electric Coral (distinctive, NOT SaaS blue)
+        'ios-gray': {
+          50: '#fbfbfd',
+          100: '#f2f4f7',
+          200: '#e4e9f1',
+          300: '#cfd7e3',
+          400: '#a2adbf',
+          500: '#6b7587',
+          600: '#4a5466',
+          700: '#344054',
+          800: '#1f2937',
+          900: '#101828',
+        },
         accent: {
-          50: '#FFF1F2',
-          100: '#FFE4E6',
-          200: '#FECDD3',
-          300: '#FDA4AF',
-          400: '#FB7185',
-          500: '#F43F5E',
-          600: '#E11D48',
-          700: '#BE123C',
-          800: '#9F1239',
-          900: '#881337',
+          gold: '#b6924f',
+          blue: '#5c7cbe',
+          mist: '#eef3fb',
         },
-        // Success, Warning, Error
         success: {
-          50: '#F0FDF4',
-          500: '#10B981',
-          600: '#059669',
+          50: '#edf9f2',
+          500: '#21a366',
+          600: '#1b8352',
         },
         warning: {
-          50: '#FFFBEB',
-          500: '#F59E0B',
-          600: '#D97706',
+          50: '#fff7e8',
+          500: '#d28a22',
+          600: '#b06e10',
         },
         error: {
-          50: '#FEF2F2',
-          500: '#EF4444',
-          600: '#DC2626',
+          50: '#fef1f2',
+          500: '#d1435b',
+          600: '#b11e3a',
         },
-        // Legacy support (will gradually remove)
-        primary: '#F43F5E',
-        background: '#FAFAF9',
+        background: '#f6f4f2',
+        paper: '#fffdfb',
+        surface: '#f8fafd',
       },
-
-      /**
-       * Typography
-       * Editorial: Distinctive serif for headlines
-       * Body: Refined Inter for readability
-       */
       fontFamily: {
-        display: ['"Newsreader"', 'Georgia', 'serif'],
-        sans: ['Inter', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"Courier New"', 'monospace'],
+        display: ['"Noto Serif SC"', '"Cormorant Garamond"', 'serif'],
+        sans: ['Inter', '"SF Pro Display"', '"PingFang SC"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"SFMono-Regular"', '"Courier New"', 'monospace'],
       },
-
-      /**
-       * Font sizes with proper line heights
-       * Major Third scale (1.25x ratio)
-       */
-      fontSize: {
-        xs: ['0.64rem', { lineHeight: '1rem' }],
-        sm: ['0.8rem', { lineHeight: '1.25rem' }],
-        base: ['1rem', { lineHeight: '1.5rem' }],
-        lg: ['1.125rem', { lineHeight: '1.75rem' }],
-        xl: ['1.25rem', { lineHeight: '1.875rem' }],
-        '2xl': ['1.563rem', { lineHeight: '2rem' }],
-        '3xl': ['1.953rem', { lineHeight: '2.375rem' }],
-        '4xl': ['2.441rem', { lineHeight: '2.875rem' }],
-        '5xl': ['3.052rem', { lineHeight: '3.5rem' }],
-        '6xl': ['3.815rem', { lineHeight: '4rem' }],
-        '7xl': ['4.768rem', { lineHeight: '1' }],
-      },
-
-      /**
-       * Letter spacing (tracking)
-       * Tighter for large text, looser for small
-       */
-      letterSpacing: {
-        tighter: '-0.05em',
-        tight: '-0.025em',
-        normal: '0',
-        wide: '0.025em',
-        wider: '0.05em',
-        widest: '0.1em',
-      },
-
-      /**
-       * Border radius
-       * Subtle, not overly rounded
-       */
       borderRadius: {
-        sm: '2px',
-        DEFAULT: '4px',
-        md: '6px',
-        lg: '8px',
-        xl: '12px',
-        full: '9999px',
+        ios: '18px',
+        'ios-lg': '24px',
+        'ios-xl': '30px',
+        'ios-2xl': '36px',
       },
-
-      /**
-       * Shadows
-       * Editorial style: lifted effect
-       */
       boxShadow: {
-        sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-        DEFAULT: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-        md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-        lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
-        xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-        // Editorial special: lifted effect for buttons/cards
-        lifted: '0 2px 0 0 rgba(0, 0, 0, 0.1)',
-        'lifted-hover': '0 4px 0 0 rgba(0, 0, 0, 0.15)',
+        'ios-sm': '0 8px 20px rgba(16, 24, 40, 0.06)',
+        ios: '0 18px 48px rgba(16, 24, 40, 0.09)',
+        'ios-lg': '0 26px 70px rgba(16, 24, 40, 0.12)',
+        'ios-xl': '0 36px 90px rgba(16, 24, 40, 0.16)',
+        portal: '0 24px 72px rgba(16, 24, 40, 0.12)',
       },
-
-      /**
-       * Transitions
-       */
-      transitionDuration: {
-        fast: '100ms',
-        DEFAULT: '150ms',
-        slow: '300ms',
-        slower: '500ms',
+      backdropBlur: {
+        ios: '20px',
       },
-
-      /**
-       * Animation keyframes
-       */
+      backgroundImage: {
+        'portal-glow':
+          'radial-gradient(circle at top left, rgba(141,36,60,0.14), transparent 32%), radial-gradient(circle at top right, rgba(92,124,190,0.12), transparent 28%), linear-gradient(180deg, rgba(255,255,255,0.86) 0%, rgba(248,250,252,0.76) 100%)',
+      },
       keyframes: {
-        'fade-in': {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        'slide-up': {
-          '0%': { transform: 'translateY(10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-        'slide-down': {
-          '0%': { transform: 'translateY(-10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-        'scale-in': {
-          '0%': { transform: 'scale(0.95)', opacity: '0' },
-          '100%': { transform: 'scale(1)', opacity: '1' },
-        },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
+        'fade-up': {
+          '0%': { opacity: '0', transform: 'translateY(18px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 150ms ease-out',
-        'slide-up': 'slide-up 200ms ease-out',
-        'slide-down': 'slide-down 200ms ease-out',
-        'scale-in': 'scale-in 150ms ease-out',
-        shimmer: 'shimmer 1.5s ease-in-out infinite',
+        'fade-up': 'fade-up 280ms ease-out',
       },
     },
   },
   plugins: [],
-}
+};

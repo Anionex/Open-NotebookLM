@@ -33,13 +33,13 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     ref
   ) => {
     // Base styles
-    const baseStyles = 'bg-white rounded-xl transition-all duration-200';
+    const baseStyles = 'portal-card-soft rounded-ios-xl transition-all duration-200';
 
     // Variant styles
     const variantStyles = {
-      default: 'border border-neutral-200',
-      elevated: 'lifted',
-      outlined: 'border-2 border-neutral-300',
+      default: '',
+      elevated: 'shadow-ios',
+      outlined: 'border-2 border-primary/15',
     };
 
     // Padding styles
@@ -52,7 +52,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
 
     // Interactive styles
     const interactiveStyles = interactive
-      ? 'cursor-pointer hover:border-neutral-300 hover:shadow-md'
+      ? 'cursor-pointer hover:shadow-ios-lg hover:border-primary/20'
       : '';
 
     // Combine all styles
@@ -102,11 +102,11 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
   return (
     <div className={`flex items-start justify-between gap-4 mb-4 ${className}`}>
       <div className="flex-1 min-w-0">
-        <h3 className="font-display text-xl font-semibold text-neutral-800 tracking-tight">
+        <h3 className="font-display text-xl font-semibold text-ios-gray-900 tracking-tight">
           {title}
         </h3>
         {subtitle && (
-          <p className="mt-1 text-sm text-neutral-500">{subtitle}</p>
+          <p className="mt-1 text-sm text-ios-gray-500">{subtitle}</p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}
@@ -149,7 +149,7 @@ export const CardFooter: React.FC<CardFooterProps> = ({
 }) => {
   return (
     <div
-      className={`flex items-center justify-end gap-2 mt-4 pt-4 border-t border-neutral-200 ${className}`}
+      className={`flex items-center justify-end gap-2 mt-4 pt-4 border-t border-primary/10 ${className}`}
     >
       {children}
     </div>

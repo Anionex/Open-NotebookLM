@@ -57,7 +57,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({
         <h2 className="text-2xl font-bold">Quiz Review</h2>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-primary/5 rounded-ios transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -66,7 +66,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({
       {/* Progress */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-ios-gray-600">
             Question {currentIndex + 1} of {questions.length}
           </span>
           <div className="flex items-center gap-2">
@@ -83,23 +83,23 @@ export const QuizReview: React.FC<QuizReviewProps> = ({
               </span>
             )}
             {answerStatus === 'skipped' && (
-              <span className="flex items-center gap-1 text-sm text-gray-600">
+              <span className="flex items-center gap-1 text-sm text-ios-gray-600">
                 <SkipForward className="w-4 h-4" />
                 Skipped
               </span>
             )}
           </div>
         </div>
-        <div className="w-full bg-gray-200 h-2 rounded-full">
+        <div className="w-full bg-ios-gray-200 h-2 rounded-full">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all"
+            className="bg-primary h-2 rounded-full transition-all"
             style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
           />
         </div>
       </div>
 
       {/* Question */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+      <div className="portal-card-soft p-6 mb-6">
         <QuizQuestion
           question={currentQuestion.question}
           options={currentQuestion.options}
@@ -112,14 +112,14 @@ export const QuizReview: React.FC<QuizReviewProps> = ({
       </div>
 
       {/* Explanation */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-        <h3 className="font-semibold text-blue-900 mb-2">Explanation</h3>
-        <p className="text-blue-800 mb-4">{currentQuestion.explanation}</p>
+      <div className="rounded-ios-lg p-6 mb-6 border border-primary/12 bg-primary/5">
+        <h3 className="font-semibold text-primary mb-2">Explanation</h3>
+        <p className="text-ios-gray-700 mb-4">{currentQuestion.explanation}</p>
 
         {currentQuestion.source_excerpt && (
-          <div className="bg-white rounded p-4 border border-blue-100">
-            <p className="text-xs text-blue-600 mb-1">Source:</p>
-            <p className="text-sm text-gray-700 italic">{currentQuestion.source_excerpt}</p>
+          <div className="bg-white/80 rounded-ios p-4 border border-primary/10">
+            <p className="text-xs text-primary mb-1">Source:</p>
+            <p className="text-sm text-ios-gray-700 italic">{currentQuestion.source_excerpt}</p>
           </div>
         )}
       </div>
@@ -129,7 +129,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({
         <button
           onClick={handlePrevious}
           disabled={currentIndex === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-ios-gray-100 rounded-ios hover:bg-ios-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
           Previous
@@ -138,7 +138,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({
         <button
           onClick={handleNext}
           disabled={currentIndex === questions.length - 1}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-ios hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Next
           <ChevronRight className="w-4 h-4" />

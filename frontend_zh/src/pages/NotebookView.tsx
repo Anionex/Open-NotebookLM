@@ -249,14 +249,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Studio tools
   const studioTools: Array<{icon: React.ReactNode, label: string, id: ToolType}> = [
-    { icon: <ImageIcon className="text-orange-500" />, label: 'PPT生成', id: 'ppt' },
-    { icon: <BrainCircuit className="text-purple-500" />, label: '思维导图', id: 'mindmap' },
+    { icon: <ImageIcon className="text-primary" />, label: 'PPT生成', id: 'ppt' },
+    { icon: <BrainCircuit className="text-primary-500" />, label: '思维导图', id: 'mindmap' },
     // DrawIO 图表功能暂时隐藏，后续修复
     // { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO 图表', id: 'drawio' },
-    { icon: <BookOpen className="text-indigo-500" />, label: '闪卡', id: 'flashcard' },
-    { icon: <Brain className="text-blue-500" />, label: '测验', id: 'quiz' },
-    { icon: <Mic2 className="text-red-500" />, label: '知识播客', id: 'podcast' },
-    { icon: <FileText className="text-green-500" />, label: '笔记', id: 'note' },
+    { icon: <BookOpen className="text-amber-600" />, label: '闪卡', id: 'flashcard' },
+    { icon: <Brain className="text-primary-600" />, label: '测验', id: 'quiz' },
+    { icon: <Mic2 className="text-primary-700" />, label: '知识播客', id: 'podcast' },
+    { icon: <FileText className="text-amber-700" />, label: '笔记', id: 'note' },
     // 视频讲解暂未开放
     // { icon: <VideoIcon className="text-blue-600" />, label: '视频讲解', id: 'video' },
   ];
@@ -2208,7 +2208,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   return (
     <>
       {ToastContainer}
-      <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
+      <div className="relative flex h-screen flex-col overflow-hidden bg-transparent">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-16 top-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute right-[-3rem] top-16 h-80 w-80 rounded-full bg-accent-blue/12 blur-3xl" />
+      </div>
       {/* Citation tooltip styles */}
       <style>{`
         .cite-ref[data-source-tooltip] {
@@ -2271,7 +2275,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
       )}
       {/* Header */}
-      <header className="h-14 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
+      <header className="glass z-10 mx-4 mt-4 flex h-[68px] shrink-0 items-center justify-between rounded-ios-2xl px-4 shadow-ios-lg">
         <div className="flex items-center gap-4">
           <motion.button whileTap={{ scale: 0.9 }} onClick={onBack} className="p-2 hover:bg-white/50 rounded-ios text-ios-gray-600 transition-colors">
             <ChevronLeft size={20} />
@@ -2316,10 +2320,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       </header>
 
       {/* Main Content Area: 三栏可拖拽调整宽度 */}
-      <div className="flex-1 flex overflow-hidden min-w-0">
+      <div className="z-10 flex min-w-0 flex-1 gap-3 overflow-hidden px-4 pb-4 pt-3">
         {/* Left Sidebar: Sources */}
         <aside
-          className="bg-ios-gray-50 border-r border-ios-gray-100/60 flex flex-col p-4 shrink-0 overflow-hidden"
+          className="flex shrink-0 flex-col overflow-hidden rounded-ios-2xl border border-white/70 bg-white/78 p-4 shadow-ios-sm backdrop-blur-ios"
           style={{ width: leftPanelWidth, minWidth: 160, maxWidth: 480 }}
         >
           <div className="flex items-center justify-between mb-4">
@@ -2336,7 +2340,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               onClick={() => setShowIntroduceModal(true)}
               className={`w-full flex items-center justify-center gap-2 py-3.5 px-4 border rounded-2xl text-sm font-semibold transition-all ${
                 fileUploading
-                  ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-ios-sm'
+                  ? 'border-primary/20 bg-primary/8 text-primary shadow-ios-sm'
                   : 'border-ios-gray-200 bg-white text-ios-gray-700 hover:shadow-ios-sm hover:bg-ios-gray-50'
               }`}
             >
@@ -2416,7 +2420,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                         <div className={`w-8 h-8 rounded-ios flex items-center justify-center shrink-0 ${
                           item.status === 'error'
                             ? 'bg-red-100 text-red-600'
-                            : 'bg-blue-50 text-blue-600'
+                            : 'bg-primary/8 text-primary'
                         }`}>
                           {item.status === 'error'
                             ? <X size={16} />
@@ -2430,7 +2434,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                             <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                               item.status === 'error'
                                 ? 'bg-red-100 text-red-700'
-                                : 'bg-blue-50 text-blue-700'
+                                : 'bg-primary/8 text-primary'
                             }`}>
                               {item.status === 'error' ? '处理失败' : '处理中'}
                             </span>
@@ -2462,7 +2466,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                         className="flex items-center gap-3 p-3 bg-white border border-ios-gray-100 rounded-ios-xl mb-2 hover:shadow-ios-sm transition-all cursor-pointer"
                         onClick={() => openSourceDetail(file)}
                       >
-                        <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-blue-100 rounded-ios flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-amber-100 rounded-ios flex items-center justify-center shrink-0">
                           <span className="text-xs font-bold text-primary">{pendingSources.length + fileIdx + 1}</span>
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2515,7 +2519,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                   href={sourceDetailView.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline mb-2 block truncate"
+                  className="text-xs text-primary hover:underline mb-2 block truncate"
                 >
                   可在新标签页打开
                 </a>
@@ -2524,14 +2528,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 {sourceDetailCitationFocus && (
                   <div
                     ref={sourceDetailCitationRef}
-                    className="mb-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2.5 shadow-sm"
+                    className="mb-3 rounded-xl border border-primary/18 bg-primary/6 px-3 py-2.5 shadow-sm"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
                         引用 [{sourceDetailCitationFocus.sourceNumber}]
                       </span>
                       {typeof sourceDetailCitationFocus.chunkIndex === 'number' && (
-                        <span className="text-[11px] text-blue-600">
+                        <span className="text-[11px] text-primary-500">
                           Chunk #{sourceDetailCitationFocus.chunkIndex + 1}
                         </span>
                       )}
@@ -2569,7 +2573,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         <div
           role="separator"
           aria-orientation="vertical"
-          className="w-1 shrink-0 bg-ios-gray-100/60 hover:bg-primary/40 active:bg-primary cursor-col-resize transition-colors flex items-center justify-center group"
+          className="group flex w-1 shrink-0 cursor-col-resize items-center justify-center rounded-full bg-ios-gray-200/70 transition-colors hover:bg-primary/40 active:bg-primary"
           onMouseDown={(e) => {
             e.preventDefault();
             setResizing('left');
@@ -2591,7 +2595,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             />
           </div>
         ) : (
-        <main className="flex-1 flex flex-col relative bg-white min-w-[300px] overflow-hidden">
+        <main className="relative flex min-w-[300px] flex-1 flex-col overflow-hidden rounded-ios-2xl border border-white/75 bg-white/88 shadow-ios-sm">
           <div className="flex items-center justify-between px-6 py-3 border-b border-ios-gray-100 shrink-0">
             <span className="text-sm font-medium text-ios-gray-900">对话</span>
             <div className="flex items-center gap-2">
@@ -2624,7 +2628,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                   <button
                     type="button"
                     onClick={() => setChatSubView('current')}
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm text-primary hover:underline"
                   >
                     返回当前对话
                   </button>
@@ -2638,7 +2642,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                         <button
                           type="button"
                           onClick={() => handleRestoreConversation(item)}
-                          className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+                          className="w-full text-left px-4 py-3 rounded-xl border border-primary/10 hover:border-primary/25 hover:bg-primary/5 transition-colors"
                         >
                           <span className="text-sm font-medium text-gray-800 line-clamp-1">{item.title}</span>
                           <span className="text-xs text-gray-400 mt-1 block">
@@ -2661,7 +2665,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 {chatMessages.map(msg => (
                   <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-ios-sm ${
-                      msg.role === 'assistant' ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-primary' : 'bg-gradient-to-br from-ios-gray-200 to-ios-gray-300 text-ios-gray-600'
+                      msg.role === 'assistant' ? 'bg-gradient-to-br from-primary/12 to-amber-100 text-primary' : 'bg-gradient-to-br from-ios-gray-200 to-ios-gray-300 text-ios-gray-600'
                     }`}>
                       {msg.role === 'assistant' ? <Bot size={16} /> : <User size={16} />}
                     </div>
@@ -2683,7 +2687,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 ))}
                 {isChatLoading && (
                   <div className="flex gap-3 animate-pulse">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-primary flex items-center justify-center shadow-ios-sm">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/12 to-amber-100 text-primary flex items-center justify-center shadow-ios-sm">
                       <Bot size={16} />
                     </div>
                     <div className="bg-ios-gray-50 rounded-2xl rounded-tl-md px-4 py-3 text-sm flex items-center gap-2 text-ios-gray-500 shadow-ios-sm">
@@ -2699,7 +2703,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           {chatSubView === 'current' && (
             <div className="px-6 pb-6 shrink-0">
               <div className="max-w-[800px] mx-auto relative">
-                <div className="glass rounded-ios-xl border border-slate-200/85 bg-white/82 shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-primary/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.12),0_18px_40px_rgba(37,99,235,0.16)]">
+                <div className="glass rounded-ios-xl border border-primary/10 bg-white/82 shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-primary/55 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(141,36,60,0.12),0_18px_40px_rgba(141,36,60,0.14)]">
                   <input
                     type="text"
                     value={inputMsg}
@@ -2736,7 +2740,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         <div
           role="separator"
           aria-orientation="vertical"
-          className="w-1 shrink-0 bg-ios-gray-100/60 hover:bg-primary/40 active:bg-primary cursor-col-resize transition-colors flex items-center justify-center group"
+          className="group flex w-1 shrink-0 cursor-col-resize items-center justify-center rounded-full bg-ios-gray-200/70 transition-colors hover:bg-primary/40 active:bg-primary"
           onMouseDown={(e) => {
             e.preventDefault();
             setResizing('right');
@@ -2748,7 +2752,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
         {/* Right Sidebar: Studio 功能卡片，每卡片「…」翻转进该卡片设置 */}
         <aside
-          className="border-l border-ios-gray-100/60 flex flex-col bg-white overflow-hidden shrink-0"
+          className="flex shrink-0 flex-col overflow-hidden rounded-ios-2xl border border-white/75 bg-white/86 shadow-ios-sm"
           style={{ width: rightPanelWidth, minWidth: 200, maxWidth: 600 }}
         >
           <div className="h-14 border-b border-ios-gray-100 flex items-center px-4 shrink-0">
@@ -2781,7 +2785,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">语言</label>
-                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('ppt', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('ppt', { language: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="zh">中文</option>
                           <option value="en">English</option>
                         </select>
@@ -2808,17 +2812,17 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                             if (Number.isNaN(n) || n < 1 || n > 50) setStudioConfigForTool('ppt', { page_count: '10' });
                           }}
                           placeholder="1–50"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30"
                         />
                         <p className="text-xs text-gray-400 mt-0.5">1–50 页，整数</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
-                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('ppt', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('ppt', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">生图模型 (VLM)</label>
-                        <select value={c.genFigModel || 'gemini-2.5-flash-image'} onChange={(e) => setStudioConfigForTool('ppt', { genFigModel: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.genFigModel || 'gemini-2.5-flash-image'} onChange={(e) => setStudioConfigForTool('ppt', { genFigModel: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="gemini-2.5-flash-image">2.5 Pro</option>
                           <option value="gemini-3-pro-image-preview">3.0 Pro</option>
                           <option value="nano-banana-2">Nano Banana 2</option>
@@ -2826,7 +2830,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">风格预设</label>
-                        <select value={c.stylePreset || 'modern'} onChange={(e) => setStudioConfigForTool('ppt', { stylePreset: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.stylePreset || 'modern'} onChange={(e) => setStudioConfigForTool('ppt', { stylePreset: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="modern">现代简约</option>
                           <option value="business">商务专业</option>
                           <option value="academic">学术报告</option>
@@ -2835,7 +2839,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">风格化 Prompt（可选）</label>
-                        <textarea value={c.stylePrompt || ''} onChange={(e) => setStudioConfigForTool('ppt', { stylePrompt: e.target.value })} placeholder="留空用预设" rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none" />
+                        <textarea value={c.stylePrompt || ''} onChange={(e) => setStudioConfigForTool('ppt', { stylePrompt: e.target.value })} placeholder="留空用预设" rows={2} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30 resize-none" />
                       </div>
                     </>
                   );
@@ -2846,11 +2850,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">LLM 模型</label>
-                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('mindmap', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('mindmap', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">思维导图风格</label>
-                        <select value={c.mindmapStyle || 'default'} onChange={(e) => setStudioConfigForTool('mindmap', { mindmapStyle: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.mindmapStyle || 'default'} onChange={(e) => setStudioConfigForTool('mindmap', { mindmapStyle: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="default">默认</option>
                         </select>
                       </div>
@@ -3026,7 +3030,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 })()}
                 */}
               </div>
-              <button type="button" onClick={() => { setStudioPanelView('tools'); setStudioSettingsTool(null); }} className="mt-4 w-full py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600">
+              <button type="button" onClick={() => { setStudioPanelView('tools'); setStudioSettingsTool(null); }} className="mt-4 w-full py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-700">
                 保存并返回
               </button>
             </div>

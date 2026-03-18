@@ -1,289 +1,210 @@
-/* Import Editorial Fonts - Must be first! */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/**
- * Editorial Workspace Global Styles
- * Magazine-inspired design with warm neutrals and vibrant accents
- */
-
 :root {
-  /* Base background - warm off-white */
-  background-color: #FAFAF9;
-
-  /* Set default font smoothing for crisp text */
+  color-scheme: light;
+  background-color: #f3ebe4;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 @layer base {
+  * {
+    box-sizing: border-box;
+  }
+
   body {
-    @apply bg-neutral-50 text-neutral-900 font-sans;
+    @apply bg-background font-sans text-ios-gray-900;
     margin: 0;
+    background-image:
+      radial-gradient(circle at top left, rgba(141, 36, 60, 0.18), transparent 30%),
+      radial-gradient(circle at top right, rgba(182, 146, 79, 0.14), transparent 24%),
+      linear-gradient(180deg, #f6efe8 0%, #f2f0f6 48%, #eef2f8 100%);
+    background-attachment: fixed;
   }
 
-  /* Typography defaults */
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-semibold text-neutral-800 tracking-tight;
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
   }
 
-  h1 {
-    @apply text-5xl md:text-6xl;
-  }
-
-  h2 {
-    @apply text-3xl md:text-4xl;
-  }
-
-  h3 {
-    @apply text-2xl md:text-3xl;
-  }
-
-  h4 {
-    @apply text-xl md:text-2xl;
-  }
-
-  /* Links - editorial style */
   a {
-    @apply text-accent-600 hover:text-accent-700 transition-colors underline-offset-2;
+    @apply text-primary transition-colors duration-200;
   }
 
-  /* Strong emphasis */
-  strong, b {
-    @apply font-semibold text-neutral-900;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-[-0.03em] text-ios-gray-900;
   }
 
-  /* Code elements */
-  code {
-    @apply font-mono text-sm bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded;
-  }
-
-  pre code {
-    @apply bg-transparent p-0;
-  }
-
-  /* Selection color - accent coral */
   ::selection {
-    @apply bg-accent-200 text-accent-900;
+    background: rgba(141, 36, 60, 0.18);
+    color: #5c1829;
   }
 }
 
 @layer components {
-  /**
-   * Custom scrollbar - subtle and editorial
-   */
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  .glass {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.68) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(20px) saturate(145%);
+    -webkit-backdrop-filter: blur(20px) saturate(145%);
   }
 
-  .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-transparent;
+  .glass-dark {
+    background: rgba(16, 24, 40, 0.44);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+
+  .portal-shell {
+    @apply mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8;
+  }
+
+  .portal-page {
+    @apply min-h-screen text-ios-gray-900;
+    background-image:
+      radial-gradient(circle at top left, rgba(141, 36, 60, 0.14), transparent 30%),
+      radial-gradient(circle at top right, rgba(92, 124, 190, 0.14), transparent 26%),
+      linear-gradient(180deg, #f8f5f2 0%, #f4f6fb 48%, #eef2f8 100%);
+  }
+
+  .portal-card {
+    @apply rounded-ios-xl shadow-ios-lg backdrop-blur-ios;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.82);
+  }
+
+  .portal-card-soft {
+    @apply rounded-ios-xl shadow-ios;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .portal-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
+    color: rgba(141, 36, 60, 0.8);
+  }
+
+  .portal-panel {
+    @apply rounded-ios-xl shadow-ios-sm;
+    border: 1px solid rgba(228, 233, 241, 0.92);
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+
+  .portal-panel-muted {
+    @apply rounded-ios-xl;
+    border: 1px solid rgba(228, 233, 241, 0.8);
+    background: rgba(248, 250, 253, 0.76);
+  }
+
+  .portal-segment {
+    @apply rounded-ios-xl p-1.5;
+    background: rgba(228, 233, 241, 0.76);
+  }
+
+  .portal-tab {
+    @apply rounded-ios px-4 py-2.5 text-sm font-semibold text-ios-gray-500 transition-colors;
+  }
+
+  .portal-tab-active {
+    @apply bg-white text-primary shadow-ios-sm;
+  }
+
+  .portal-input {
+    @apply w-full rounded-ios px-4 py-3 text-sm text-ios-gray-800 shadow-ios-sm outline-none transition-all duration-200 placeholder:text-ios-gray-400;
+    border: 1px solid rgba(228, 233, 241, 0.9);
+    background: rgba(255, 255, 255, 0.88);
+  }
+
+  .portal-input:focus {
+    border-color: rgba(141, 36, 60, 0.32);
+    box-shadow:
+      0 0 0 4px rgba(141, 36, 60, 0.08),
+      0 16px 36px rgba(16, 24, 40, 0.08);
+  }
+
+  .portal-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-ios px-5 py-3 text-sm font-semibold text-white shadow-ios-sm transition-all duration-200 hover:shadow-ios;
+    background: #8d243c;
+  }
+
+  .portal-button-primary:hover {
+    background: #7b2237;
+  }
+
+  .portal-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-ios px-5 py-3 text-sm font-semibold text-ios-gray-700 shadow-ios-sm transition-all duration-200 hover:bg-ios-gray-50 hover:shadow-ios;
+    border: 1px solid rgba(228, 233, 241, 0.9);
+    background: rgba(255, 255, 255, 0.86);
+  }
+
+  .portal-button-dark {
+    @apply inline-flex items-center justify-center gap-2 rounded-ios px-5 py-3 text-sm font-semibold text-white shadow-ios-sm transition-all duration-200 hover:shadow-ios;
+    background: linear-gradient(135deg, #1f2937 0%, #101828 100%);
+  }
+
+  .portal-button-dark:hover {
+    background: linear-gradient(135deg, #344054 0%, #1f2937 100%);
+  }
+
+  .portal-badge {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold;
+    border: 1px solid rgba(228, 233, 241, 0.92);
+    background: rgba(255, 255, 255, 0.84);
+    color: #4a5466;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(107, 117, 135, 0.45) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-neutral-300 rounded-full hover:bg-neutral-400 transition-colors;
+    background: rgba(107, 117, 135, 0.35);
+    border-radius: 999px;
   }
 
-  /**
-   * Glass effect (use sparingly - editorial is more matte)
-   */
-  .glass-subtle {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(12px) saturate(150%);
-    -webkit-backdrop-filter: blur(12px) saturate(150%);
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
   }
 
-  /**
-   * Lifted effect - editorial signature
-   * Creates shadow underneath like printed material
-   */
-  .lifted {
-    @apply shadow-lifted hover:shadow-lifted-hover transition-shadow;
-  }
-
-  .lifted-hover {
-    @apply hover:shadow-lifted-hover hover:-translate-y-0.5 transition-all;
-  }
-
-  /**
-   * Text gradient - use for special headings
-   */
-  .text-gradient-accent {
-    @apply bg-gradient-to-r from-accent-600 to-accent-500 bg-clip-text text-transparent;
-  }
-
-  /**
-   * Focus styles - editorial appropriate
-   */
-  .focus-editorial {
-    @apply focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:ring-offset-neutral-50;
-  }
-
-  /**
-   * Asymmetric grid helper
-   * Creates magazine-style layouts
-   */
-  .grid-editorial {
-    @apply grid gap-8;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-  }
-
-  /**
-   * Loading shimmer - editorial style
-   */
-  .shimmer-editorial {
-    background: linear-gradient(90deg,
-      #F5F5F4 0%,
-      #E7E5E4 50%,
-      #F5F5F4 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
-  }
-
-  /**
-   * Divider - editorial style
-   */
-  .divider-editorial {
-    @apply border-t-2 border-neutral-200 my-8;
-  }
-
-  .divider-accent {
-    @apply border-t-4 border-accent-500 my-8 w-16;
+  .portal-shell-deep {
+    @apply min-h-screen;
+    background:
+      radial-gradient(circle at top left, rgba(141, 36, 60, 0.18), transparent 24%),
+      radial-gradient(circle at bottom right, rgba(182, 146, 79, 0.12), transparent 24%),
+      linear-gradient(180deg, #f6efe8 0%, #eef2f8 100%);
   }
 }
 
 @layer utilities {
-  /**
-   * Container utilities for editorial layouts
-   */
-  .container-editorial {
-    @apply mx-auto px-6 md:px-8 lg:px-12;
-    max-width: 1400px;
-  }
-
-  .container-narrow {
-    @apply mx-auto px-6;
-    max-width: 720px;
-  }
-
-  .container-wide {
-    @apply mx-auto px-6;
-    max-width: 1600px;
-  }
-
-  /**
-   * Aspect ratios for media
-   */
-  .aspect-editorial {
-    aspect-ratio: 16 / 10;
-  }
-
-  .aspect-card {
-    aspect-ratio: 4 / 3;
-  }
-
-  /**
-   * Text balance - for better headline wrapping
-   */
   .text-balance {
     text-wrap: balance;
-  }
-
-  /**
-   * Editorial spacing rhythm
-   */
-  .space-editorial > * + * {
-    @apply mt-6;
-  }
-
-  .space-editorial-lg > * + * {
-    @apply mt-12;
-  }
-
-  /**
-   * Prose styling for markdown content
-   */
-  .prose-editorial {
-    @apply text-base leading-relaxed text-neutral-700;
-  }
-
-  .prose-editorial h1,
-  .prose-editorial h2,
-  .prose-editorial h3 {
-    @apply font-display font-semibold text-neutral-900 mt-8 mb-4;
-  }
-
-  .prose-editorial p {
-    @apply mb-4;
-  }
-
-  .prose-editorial a {
-    @apply text-accent-600 hover:text-accent-700 underline underline-offset-2;
-  }
-
-  .prose-editorial ul,
-  .prose-editorial ol {
-    @apply ml-6 mb-4;
-  }
-
-  .prose-editorial li {
-    @apply mb-2;
-  }
-
-  .prose-editorial code {
-    @apply font-mono text-sm bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded;
-  }
-
-  .prose-editorial pre {
-    @apply bg-neutral-900 text-neutral-50 p-4 rounded-lg overflow-x-auto mb-4;
-  }
-
-  .prose-editorial blockquote {
-    @apply border-l-4 border-accent-500 pl-4 italic text-neutral-600 my-4;
-  }
-}
-
-/**
- * Animation utilities
- */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-/**
- * Print styles - for generating reports/exports
- */
-@media print {
-  @page {
-    margin: 2cm;
-  }
-
-  body {
-    @apply bg-white text-black;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-
-  h1, h2, h3 {
-    page-break-after: avoid;
-  }
-
-  img {
-    page-break-inside: avoid;
   }
 }

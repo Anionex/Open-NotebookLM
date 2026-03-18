@@ -235,14 +235,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Studio tools
   const studioTools: Array<{icon: React.ReactNode, label: string, id: ToolType}> = [
-    { icon: <ImageIcon className="text-orange-500" />, label: 'PPT', id: 'ppt' },
-    { icon: <BrainCircuit className="text-purple-500" />, label: 'Mind Map', id: 'mindmap' },
+    { icon: <ImageIcon className="text-primary" />, label: 'PPT', id: 'ppt' },
+    { icon: <BrainCircuit className="text-primary-500" />, label: 'Mind Map', id: 'mindmap' },
     // DrawIO temporarily disabled - will be fixed later
     // { icon: <LayoutGrid className="text-teal-500" />, label: 'DrawIO', id: 'drawio' },
-    { icon: <BookOpen className="text-indigo-500" />, label: 'Flashcards', id: 'flashcard' },
-    { icon: <Brain className="text-blue-500" />, label: 'Quiz', id: 'quiz' },
-    { icon: <Mic2 className="text-red-500" />, label: 'Knowledge Podcast', id: 'podcast' },
-    { icon: <FileText className="text-green-500" />, label: 'Note', id: 'note' },
+    { icon: <BookOpen className="text-amber-600" />, label: 'Flashcards', id: 'flashcard' },
+    { icon: <Brain className="text-primary-600" />, label: 'Quiz', id: 'quiz' },
+    { icon: <Mic2 className="text-primary-700" />, label: 'Knowledge Podcast', id: 'podcast' },
+    { icon: <FileText className="text-amber-700" />, label: 'Note', id: 'note' },
     // Video narration temporarily disabled
     // { icon: <VideoIcon className="text-blue-600" />, label: 'Video narration', id: 'video' },
   ];
@@ -2116,7 +2116,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   return (
     <>
-      <div className="h-screen flex flex-col bg-[#f8f9fa] overflow-hidden">
+      <div className="relative flex h-screen flex-col overflow-hidden bg-transparent">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-16 top-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute right-[-3rem] top-16 h-80 w-80 rounded-full bg-accent-blue/12 blur-3xl" />
+      </div>
       {/* Citation tooltip styles */}
       <style>{`
         .cite-ref[data-source-tooltip] {
@@ -2179,7 +2183,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
       )}
       {/* Header */}
-      <header className="h-14 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
+      <header className="glass z-10 mx-4 mt-4 flex h-[68px] shrink-0 items-center justify-between rounded-ios-2xl px-4 shadow-ios-lg">
         <div className="flex items-center gap-4">
           <motion.button whileTap={{ scale: 0.9 }} onClick={onBack} className="p-2 hover:bg-white/50 rounded-ios text-ios-gray-600 transition-colors">
             <ChevronLeft size={20} />
@@ -2208,10 +2212,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       </header>
 
       {/* Main Content Area: 三栏可拖拽调整宽度 */}
-      <div className="flex-1 flex overflow-hidden min-w-0">
+      <div className="z-10 flex min-w-0 flex-1 gap-3 overflow-hidden px-4 pb-4 pt-3">
         {/* Left Sidebar: Sources */}
         <aside
-          className="bg-ios-gray-50 border-r border-ios-gray-100/60 flex flex-col p-4 shrink-0 overflow-hidden"
+          className="flex shrink-0 flex-col overflow-hidden rounded-ios-2xl border border-white/70 bg-white/78 p-4 shadow-ios-sm backdrop-blur-ios"
           style={{ width: leftPanelWidth, minWidth: 160, maxWidth: 480 }}
         >
           <div className="flex items-center justify-between mb-4">
@@ -2306,7 +2310,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       className="flex items-center gap-3 p-3 bg-white border border-ios-gray-100 rounded-ios-xl mb-2 hover:shadow-ios-sm transition-all cursor-pointer"
                       onClick={() => openSourceDetail(file)}
                     >
-                      <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-blue-100 rounded-ios flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 bg-gradient-to-br from-primary/15 to-amber-100 rounded-ios flex items-center justify-center shrink-0">
                         <span className="text-xs font-bold text-primary">{fileIdx + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -2358,7 +2362,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                   href={sourceDetailView.url}
                   target="_blank"
 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline mb-2 block truncate"
+                className="text-xs text-primary hover:underline mb-2 block truncate"
                 >
                   Open in new tab
                 </a>
@@ -2367,14 +2371,14 @@ rel="noopener noreferrer"
                 {sourceDetailCitationFocus && (
                   <div
                     ref={sourceDetailCitationRef}
-                    className="mb-3 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2.5 shadow-sm"
+                    className="mb-3 rounded-xl border border-primary/18 bg-primary/6 px-3 py-2.5 shadow-sm"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
                         Citation [{sourceDetailCitationFocus.sourceNumber}]
                       </span>
                       {typeof sourceDetailCitationFocus.chunkIndex === 'number' && (
-                        <span className="text-[11px] text-blue-600">
+                        <span className="text-[11px] text-primary-500">
                           Chunk #{sourceDetailCitationFocus.chunkIndex + 1}
                         </span>
                       )}
@@ -2412,7 +2416,7 @@ rel="noopener noreferrer"
         <div
           role="separator"
           aria-orientation="vertical"
-          className="w-1 shrink-0 bg-ios-gray-100/60 hover:bg-primary/40 active:bg-primary cursor-col-resize transition-colors flex items-center justify-center group"
+          className="group flex w-1 shrink-0 cursor-col-resize items-center justify-center rounded-full bg-ios-gray-200/70 transition-colors hover:bg-primary/40 active:bg-primary"
           onMouseDown={(e) => {
             e.preventDefault();
             setResizing('left');
@@ -2434,7 +2438,7 @@ rel="noopener noreferrer"
             />
           </div>
         ) : (
-        <main className="flex-1 flex flex-col relative bg-white min-w-[300px] overflow-hidden">
+        <main className="relative flex min-w-[300px] flex-1 flex-col overflow-hidden rounded-ios-2xl border border-white/75 bg-white/88 shadow-ios-sm">
           <div className="flex items-center justify-between px-6 py-3 border-b border-ios-gray-100 shrink-0">
             <span className="text-sm font-medium text-ios-gray-900">Chat</span>
             <div className="flex items-center gap-2">
@@ -2467,7 +2471,7 @@ rel="noopener noreferrer"
                   <button
                     type="button"
                     onClick={() => setChatSubView('current')}
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm text-primary hover:underline"
                   >
                     Back to current Chat
                   </button>
@@ -2481,7 +2485,7 @@ rel="noopener noreferrer"
                         <button
                           type="button"
                           onClick={() => handleRestoreConversation(item)}
-                          className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+                          className="w-full text-left px-4 py-3 rounded-xl border border-primary/10 hover:border-primary/25 hover:bg-primary/5 transition-colors"
                         >
                           <span className="text-sm font-medium text-gray-800 line-clamp-1">{item.title}</span>
                           <span className="text-xs text-gray-400 mt-1 block">
@@ -2504,7 +2508,7 @@ rel="noopener noreferrer"
                 {chatMessages.map(msg => (
                   <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-ios-sm ${
-                      msg.role === 'assistant' ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-primary' : 'bg-gradient-to-br from-ios-gray-200 to-ios-gray-300 text-ios-gray-600'
+                      msg.role === 'assistant' ? 'bg-gradient-to-br from-primary/12 to-amber-100 text-primary' : 'bg-gradient-to-br from-ios-gray-200 to-ios-gray-300 text-ios-gray-600'
                     }`}>
                       {msg.role === 'assistant' ? <Bot size={16} /> : <User size={16} />}
                     </div>
@@ -2526,7 +2530,7 @@ rel="noopener noreferrer"
                 ))}
                 {isChatLoading && (
                   <div className="flex gap-3 animate-pulse">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-primary flex items-center justify-center shadow-ios-sm">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/12 to-amber-100 text-primary flex items-center justify-center shadow-ios-sm">
                       <Bot size={16} />
                     </div>
                     <div className="bg-ios-gray-50 rounded-2xl rounded-tl-md px-4 py-3 text-sm flex items-center gap-2 text-ios-gray-500 shadow-ios-sm">
@@ -2542,7 +2546,7 @@ rel="noopener noreferrer"
           {chatSubView === 'current' && (
             <div className="px-6 pb-6 shrink-0">
               <div className="max-w-[800px] mx-auto relative">
-                <div className="glass rounded-ios-xl border border-slate-200/85 bg-white/82 shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-primary/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.12),0_18px_40px_rgba(37,99,235,0.16)]">
+                <div className="glass rounded-ios-xl border border-primary/10 bg-white/82 shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-primary/55 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(141,36,60,0.12),0_18px_40px_rgba(141,36,60,0.14)]">
                   <input
                     type="text"
                     value={inputMsg}
@@ -2579,7 +2583,7 @@ rel="noopener noreferrer"
         <div
           role="separator"
           aria-orientation="vertical"
-          className="w-1 shrink-0 bg-ios-gray-100/60 hover:bg-primary/40 active:bg-primary cursor-col-resize transition-colors flex items-center justify-center group"
+          className="group flex w-1 shrink-0 cursor-col-resize items-center justify-center rounded-full bg-ios-gray-200/70 transition-colors hover:bg-primary/40 active:bg-primary"
           onMouseDown={(e) => {
             e.preventDefault();
             setResizing('right');
@@ -2591,7 +2595,7 @@ rel="noopener noreferrer"
 
         {/* Right Sidebar: Studio 功能卡片，每卡片「…」翻转进该卡片设置 */}
         <aside
-          className="border-l border-ios-gray-100/60 flex flex-col bg-white overflow-hidden shrink-0"
+          className="flex shrink-0 flex-col overflow-hidden rounded-ios-2xl border border-white/75 bg-white/86 shadow-ios-sm"
           style={{ width: rightPanelWidth, minWidth: 200, maxWidth: 600 }}
         >
           <div className="h-14 border-b border-ios-gray-100 flex items-center px-4 shrink-0">
@@ -2624,7 +2628,7 @@ rel="noopener noreferrer"
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Language</label>
-                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('ppt', { language: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.language || 'zh'} onChange={(e) => setStudioConfigForTool('ppt', { language: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="zh">Chinese</option>
                           <option value="en">English</option>
                         </select>
@@ -2651,24 +2655,24 @@ rel="noopener noreferrer"
                             if (Number.isNaN(n) || n < 1 || n > 50) setStudioConfigForTool('ppt', { page_count: '10' });
                           }}
                           placeholder="1–50"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30"
                         />
                         <p className="text-xs text-gray-400 mt-0.5">1–50 pages, integer</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
-                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('ppt', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('ppt', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Image model (VLM)</label>
-                        <select value={c.genFigModel || 'gemini-2.5-flash-image'} onChange={(e) => setStudioConfigForTool('ppt', { genFigModel: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.genFigModel || 'gemini-2.5-flash-image'} onChange={(e) => setStudioConfigForTool('ppt', { genFigModel: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="gemini-2.5-flash-image">2.5 Pro</option>
                           <option value="gemini-3-pro-image-preview">3.0 Pro</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Style preset</label>
-                        <select value={c.stylePreset || 'modern'} onChange={(e) => setStudioConfigForTool('ppt', { stylePreset: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.stylePreset || 'modern'} onChange={(e) => setStudioConfigForTool('ppt', { stylePreset: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="modern">Modern</option>
                           <option value="business">Business</option>
                           <option value="academic">Academic</option>
@@ -2677,7 +2681,7 @@ rel="noopener noreferrer"
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Style prompt (optional)</label>
-                        <textarea value={c.stylePrompt || ''} onChange={(e) => setStudioConfigForTool('ppt', { stylePrompt: e.target.value })} placeholder="Leave empty for preset" rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none" />
+                        <textarea value={c.stylePrompt || ''} onChange={(e) => setStudioConfigForTool('ppt', { stylePrompt: e.target.value })} placeholder="Leave empty for preset" rows={2} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30 resize-none" />
                       </div>
                     </>
                   );
@@ -2688,11 +2692,11 @@ rel="noopener noreferrer"
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">LLM model</label>
-                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('mindmap', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                        <input type="text" value={c.llmModel || ''} onChange={(e) => setStudioConfigForTool('mindmap', { llmModel: e.target.value })} placeholder="deepseek-v3.2" className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Mind map style</label>
-                        <select value={c.mindmapStyle || 'default'} onChange={(e) => setStudioConfigForTool('mindmap', { mindmapStyle: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <select value={c.mindmapStyle || 'default'} onChange={(e) => setStudioConfigForTool('mindmap', { mindmapStyle: e.target.value })} className="w-full px-3 py-2 border border-primary/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/30">
                           <option value="default">Default</option>
                         </select>
                       </div>
@@ -2868,7 +2872,7 @@ rel="noopener noreferrer"
                 })()}
                 */}
               </div>
-              <button type="button" onClick={() => { setStudioPanelView('tools'); setStudioSettingsTool(null); }} className="mt-4 w-full py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600">
+              <button type="button" onClick={() => { setStudioPanelView('tools'); setStudioSettingsTool(null); }} className="mt-4 w-full py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-700">
                 Save & back
               </button>
             </div>

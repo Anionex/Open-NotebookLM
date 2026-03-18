@@ -78,10 +78,10 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-sm border">
+    <div className="portal-card-soft p-6">
       <div className="flex items-center gap-2 mb-4">
-        <Brain className="w-5 h-5 text-blue-600" />
-        <h3 className="text-lg font-semibold">Generate Quiz</h3>
+        <Brain className="w-5 h-5 text-primary" />
+        <h3 className="text-lg font-semibold text-ios-gray-900">Generate Quiz</h3>
       </div>
 
       {error && (
@@ -92,16 +92,16 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({
       )}
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-ios-gray-700 mb-2">
           Selected Files: {selectedFiles.length}
         </label>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ios-gray-500">
           Generate multiple-choice questions to test understanding
         </p>
       </div>
 
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-ios-gray-700 mb-2">
           Number of Questions
         </label>
         <input
@@ -110,9 +110,9 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({
           onChange={(e) => setQuestionCount(Number(e.target.value))}
           min={5}
           max={20}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="portal-input"
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-ios-gray-500 mt-1">
           Recommended: 10-15 questions
         </p>
       </div>
@@ -120,7 +120,7 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({
       <button
         onClick={handleGenerate}
         disabled={loading || selectedFiles.length === 0}
-        className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+        className="portal-button-primary w-full py-2.5 px-4 disabled:bg-ios-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {loading ? (
           <>

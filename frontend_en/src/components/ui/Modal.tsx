@@ -79,7 +79,7 @@ export const Modal: React.FC<ModalProps> = ({
         <>
           {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-[rgba(61,16,27,0.34)] backdrop-blur-sm z-40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -91,7 +91,7 @@ export const Modal: React.FC<ModalProps> = ({
           {/* Modal Container */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <motion.div
-              className={`bg-white rounded-xl shadow-xl ${sizeClasses[size]} w-full max-h-[90vh] flex flex-col pointer-events-auto`}
+              className={`portal-card ${sizeClasses[size]} w-full max-h-[90vh] flex flex-col pointer-events-auto`}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -102,24 +102,24 @@ export const Modal: React.FC<ModalProps> = ({
             >
               {/* Header */}
               {(title || showCloseButton) && (
-                <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-neutral-200">
+                <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-primary/10">
                   <div className="flex-1 min-w-0">
                     {title && (
                       <h2
                         id="modal-title"
-                        className="font-display text-2xl font-semibold text-neutral-800 tracking-tight"
+                        className="font-display text-2xl font-semibold text-ios-gray-900 tracking-tight"
                       >
                         {title}
                       </h2>
                     )}
                     {subtitle && (
-                      <p className="mt-1 text-sm text-neutral-500">{subtitle}</p>
+                      <p className="mt-1 text-sm text-ios-gray-500">{subtitle}</p>
                     )}
                   </div>
                   {showCloseButton && (
                     <button
                       onClick={onClose}
-                      className="shrink-0 p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
+                      className="shrink-0 p-2 text-ios-gray-400 hover:text-primary hover:bg-primary/5 rounded-ios transition-colors"
                       aria-label="关闭对话框"
                     >
                       <X size={20} />
@@ -157,7 +157,7 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
 }) => {
   return (
     <div
-      className={`flex items-center justify-end gap-3 px-6 py-4 border-t border-neutral-200 bg-neutral-50 ${className}`}
+      className={`flex items-center justify-end gap-3 px-6 py-4 border-t border-primary/10 bg-white/55 ${className}`}
     >
       {children}
     </div>
