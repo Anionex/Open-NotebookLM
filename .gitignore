@@ -10,6 +10,8 @@ logs/
 
 # Outputs
 outputs/
+uploads/
+chroma_db/
 
 # Python
 __pycache__/

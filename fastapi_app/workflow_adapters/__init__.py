@@ -1,19 +1,10 @@
 from __future__ import annotations
 
 """
-Workflow adapters for Notebook (frontend-v2) KB generate-ppt.
+Workflow adapter package.
+
+Intentionally side-effect free so individual adapters can be imported without
+pulling in every optional workflow dependency.
 """
 
-from .wa_paper2ppt import (
-    run_paper2page_content_wf_api,
-    run_paper2page_content_refine_wf_api,
-    run_paper2ppt_wf_api,
-    run_paper2ppt_full_pipeline,
-)
-
-__all__ = [
-    "run_paper2page_content_wf_api",
-    "run_paper2page_content_refine_wf_api",
-    "run_paper2ppt_wf_api",
-    "run_paper2ppt_full_pipeline",
-]
+__all__: list[str] = []

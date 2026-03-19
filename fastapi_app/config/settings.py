@@ -40,6 +40,14 @@ class AppSettings(BaseSettings):
 
     # Knowledge Base
     KB_CHAT_MODEL: str = "deepseek-v3.2"
+    SQLBOT_OPENAI_API_KEY: Optional[str] = None
+    SQLBOT_OPENAI_API_BASE: Optional[str] = None
+    SQLBOT_OPENAI_MODEL: Optional[str] = None
+
+    # Intelligent data extraction bridge
+    SQLBOT_MODE: str = "embedded"
+    SQLBOT_BASE_URL: str = "http://127.0.0.1:8000"
+    SQLBOT_API_KEY: Optional[str] = None
 
     # Search API
     SERPER_API_KEY: Optional[str] = None

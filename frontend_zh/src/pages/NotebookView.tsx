@@ -25,6 +25,102 @@ import 'katex/dist/katex.min.css';
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
 
+type DataExtractDatasource = {
+  id: string;
+  datasource_id: number;
+  name: string;
+  display_name: string;
+  file_path: string;
+  local_path: string;
+  file_type: string;
+  rows?: number;
+  columns?: number;
+  preview?: {
+    column_names?: string[];
+    sample_data?: Record<string, any>[];
+  };
+};
+
+type DataExtractMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  time: string;
+  turnId?: string;
+  artifactId?: string;
+  sql?: string;
+  columns?: string[];
+  rows?: Record<string, any>[];
+  rowCount?: number;
+  exportUrl?: string;
+  error?: string | null;
+};
+
+type DataExtractArtifact = {
+  id: string;
+  session_id: string;
+  turn_id?: string | null;
+  type: 'csv' | 'text';
+  title: string;
+  question?: string;
+  answer_summary?: string;
+  sql?: string;
+  file_name?: string;
+  file_url?: string;
+  columns?: string[];
+  row_count?: number;
+  preview_rows?: Record<string, any>[];
+  preview_text?: string;
+  selected_datasource_ids?: number[];
+  imported_to_sources?: boolean;
+  imported_source_static_url?: string;
+  reusable_as_input?: boolean;
+  created_at: string;
+};
+
+type DataExtractTurn = {
+  id: string;
+  question: string;
+  answer: string;
+  sql?: string;
+  row_count?: number;
+  columns?: string[];
+  preview_rows?: Record<string, any>[];
+  preview_text?: string;
+  file_url?: string;
+  success?: boolean;
+  error?: string | null;
+  artifact_id?: string | null;
+  created_at: string;
+};
+
+type DataExtractSessionSummary = {
+  id: string;
+  title: string;
+  primary_datasource_id: number;
+  selected_datasource_ids: number[];
+  datasource_snapshot?: Array<{
+    datasource_id: number;
+    display_name?: string;
+    name?: string;
+    file_path?: string;
+    file_type?: string;
+    rows?: number;
+    columns?: number;
+  }>;
+  turn_count?: number;
+  artifact_count?: number;
+  created_at: string;
+  updated_at: string;
+};
+
+const createDataExtractWelcomeMessage = (): DataExtractMessage => ({
+  id: 'data-extract-welcome',
+  role: 'assistant',
+  content: '选择 CSV 数据源后，可以直接用自然语言提问。我会返回结论、SQL、结果表，并把可复用产出放到下方的小 Tab 里。',
+  time: new Date().toLocaleTimeString(),
+});
+
 const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void }) => {
   const { user } = useAuthStore();
   const effectiveUser = user || DEFAULT_USER;
@@ -46,6 +142,26 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const conversationIdRef = React.useRef<string | null>(null);
   const [inputMsg, setInputMsg] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [dataExtractDatasources, setDataExtractDatasources] = useState<DataExtractDatasource[]>([]);
+  const [dataExtractDatasourceId, setDataExtractDatasourceId] = useState<string>('');
+  const [dataExtractSessionId, setDataExtractSessionId] = useState<string | null>(null);
+  const [dataExtractSessions, setDataExtractSessions] = useState<DataExtractSessionSummary[]>([]);
+  const [dataExtractArtifacts, setDataExtractArtifacts] = useState<DataExtractArtifact[]>([]);
+  const [dataExtractSelectedArtifactIds, setDataExtractSelectedArtifactIds] = useState<Set<string>>(new Set());
+  const [dataExtractPreviewArtifact, setDataExtractPreviewArtifact] = useState<DataExtractArtifact | null>(null);
+  const [dataExtractSubView, setDataExtractSubView] = useState<'current' | 'history'>('current');
+  const [dataExtractHistoryLoading, setDataExtractHistoryLoading] = useState(false);
+  const [dataExtractInput, setDataExtractInput] = useState('');
+  const [dataExtractMessages, setDataExtractMessages] = useState<DataExtractMessage[]>([
+    {
+      id: 'data-extract-welcome',
+      role: 'assistant',
+      content: '选择 CSV 数据源后，可以直接用自然语言提问，我会返回结论、SQL 和结果表。',
+      time: new Date().toLocaleTimeString(),
+    },
+  ]);
+  const [dataExtractLoading, setDataExtractLoading] = useState(false);
+  const [dataExtractSyncing, setDataExtractSyncing] = useState(false);
 
   // 对话历史：本地持久化
   type ConversationItem = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
@@ -206,7 +322,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   }, [resizing]);
 
   // Studio tools
+  const dataExtractTool = { icon: <BarChart2 className="text-emerald-500" />, label: '智能取数', id: 'data_extract' as ToolType };
   const studioTools: Array<{icon: React.ReactNode, label: string, id: ToolType}> = [
+    dataExtractTool,
     { icon: <ImageIcon className="text-orange-500" />, label: 'PPT生成', id: 'ppt' },
     { icon: <BrainCircuit className="text-purple-500" />, label: '思维导图', id: 'mindmap' },
     // DrawIO 图表功能暂时隐藏，后续修复
@@ -220,11 +338,12 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   ];
 
   // Studio：每个功能卡片各自配置，点卡片上的「…」翻转进该卡片的设置
-  type StudioToolId = 'ppt' | 'mindmap' | 'drawio' | 'flashcard' | 'quiz' | 'podcast' | 'video' | 'note';
+  type StudioToolId = 'data_extract' | 'ppt' | 'mindmap' | 'drawio' | 'flashcard' | 'quiz' | 'podcast' | 'video' | 'note';
   const [studioPanelView, setStudioPanelView] = useState<'tools' | 'settings'>('tools');
   const [studioSettingsTool, setStudioSettingsTool] = useState<StudioToolId | null>(null);
   const STORAGE_STUDIO_CONFIG = `kb_studio_config_${effectiveUser?.id || 'default'}`;
   const defaultByTool: Record<StudioToolId, Record<string, string>> = {
+    data_extract: { resultFormat: 'json', executionStrategy: 'auto' },
     ppt: { llmModel: 'deepseek-v3.2', genFigModel: 'gemini-2.5-flash-image', stylePreset: 'modern', stylePrompt: '', language: 'zh', page_count: '10' },
     mindmap: { llmModel: 'deepseek-v3.2', mindmapStyle: 'default' },
     drawio: { llmModel: 'deepseek-v3.2', diagramType: 'auto', diagramStyle: 'default', language: 'zh' },
@@ -847,8 +966,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     }
   };
 
-  const mapFileType = (mimeOrExt: string): 'doc' | 'image' | 'video' | 'link' | 'audio' => {
+  const mapFileType = (mimeOrExt: string): 'doc' | 'image' | 'video' | 'link' | 'audio' | 'dataset' => {
     if (!mimeOrExt) return 'doc';
+    const lower = mimeOrExt.toLowerCase();
+    if (lower.includes('csv') || lower.includes('excel') || lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.db') || lower.endsWith('.sqlite')) return 'dataset';
     if (mimeOrExt.includes('image')) return 'image';
     if (mimeOrExt.includes('video')) return 'video';
     if (mimeOrExt.includes('pdf')) return 'doc';
@@ -862,6 +983,354 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const selectedDatasetFiles = files.filter(f => selectedIds.has(f.id) && f.type === 'dataset');
+  const selectedDatasetFileUrls = new Set(
+    selectedDatasetFiles
+      .map(file => file.url)
+      .filter((url): url is string => Boolean(url))
+  );
+  const selectedDataExtractDatasources = dataExtractDatasources.filter(ds => selectedDatasetFileUrls.has(ds.file_path));
+  const activeDataExtractDatasources = selectedDatasetFiles.length > 0
+    ? selectedDataExtractDatasources
+    : dataExtractDatasources;
+  const activeDataExtractDatasourceIds = activeDataExtractDatasources.map(ds => ds.datasource_id);
+  const activeDataExtractDatasourceKey = activeDataExtractDatasourceIds.join(',');
+  const unsyncedSelectedDatasetCount = Math.max(0, selectedDatasetFiles.length - selectedDataExtractDatasources.length);
+  const selectedDataExtractArtifacts = dataExtractArtifacts.filter(artifact => dataExtractSelectedArtifactIds.has(artifact.id));
+
+  const getDataExtractRequestBase = () => ({
+    notebook_id: notebook.id,
+    notebook_title: notebook?.title || notebook?.name || '',
+    user_id: effectiveUser.id || 'default',
+    email: effectiveUser.email || effectiveUser.id || 'default',
+  });
+
+  const mapTurnsToDataExtractMessages = (
+    turns: DataExtractTurn[],
+    artifacts: DataExtractArtifact[] = [],
+  ): DataExtractMessage[] => {
+    if (!Array.isArray(turns) || turns.length === 0) {
+      return [createDataExtractWelcomeMessage()];
+    }
+    const artifactById = new Map<string, DataExtractArtifact>();
+    artifacts.forEach((artifact) => {
+      artifactById.set(artifact.id, artifact);
+    });
+    return turns.flatMap((turn) => {
+      const timeText = turn.created_at ? new Date(turn.created_at).toLocaleTimeString() : new Date().toLocaleTimeString();
+      const linkedArtifact = turn.artifact_id ? artifactById.get(turn.artifact_id) : undefined;
+      const previewRows = Array.isArray(turn.preview_rows) && turn.preview_rows.length > 0
+        ? turn.preview_rows
+        : Array.isArray(linkedArtifact?.preview_rows) ? linkedArtifact?.preview_rows : [];
+      const previewText = turn.preview_text || linkedArtifact?.preview_text || linkedArtifact?.answer_summary || '';
+      return [
+        {
+          id: `de-user-${turn.id}`,
+          role: 'user',
+          content: turn.question,
+          time: timeText,
+          turnId: turn.id,
+          artifactId: turn.artifact_id || undefined,
+        },
+        {
+          id: `de-assistant-${turn.id}`,
+          role: 'assistant',
+          content: turn.answer || previewText || '未返回结果',
+          time: timeText,
+          turnId: turn.id,
+          artifactId: turn.artifact_id || undefined,
+          sql: turn.sql || '',
+          columns: Array.isArray(turn.columns) ? turn.columns : [],
+          rows: Array.isArray(previewRows) ? previewRows : [],
+          rowCount: typeof turn.row_count === 'number' ? turn.row_count : 0,
+          exportUrl: turn.file_url || linkedArtifact?.file_url || '',
+          error: turn.error || null,
+        },
+      ];
+    });
+  };
+
+  const resetDataExtractWorkspace = (clearSession = true) => {
+    if (clearSession) setDataExtractSessionId(null);
+    setDataExtractMessages([createDataExtractWelcomeMessage()]);
+    setDataExtractArtifacts([]);
+    setDataExtractSelectedArtifactIds(new Set());
+    setDataExtractPreviewArtifact(null);
+    setDataExtractSubView('current');
+  };
+
+  const fetchDataExtractDatasources = async () => {
+    if (!notebook?.id) return;
+    try {
+      const params = new URLSearchParams({
+        notebook_id: notebook.id,
+        notebook_title: notebook?.title || notebook?.name || '',
+        user_id: effectiveUser.id || 'default',
+        email: effectiveUser.email || effectiveUser.id || 'default',
+      });
+      const res = await apiFetch(`/api/v1/data-extract/datasources?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to load datasources');
+      const data = await res.json();
+      const list = Array.isArray(data?.datasources) ? data.datasources : [];
+      setDataExtractDatasources(list);
+    } catch (err) {
+      console.error('Failed to fetch data extract datasources:', err);
+    }
+  };
+
+  const fetchDataExtractSessions = async () => {
+    if (!notebook?.id) return;
+    try {
+      const params = new URLSearchParams(getDataExtractRequestBase());
+      const res = await apiFetch(`/api/v1/data-extract/sessions?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to load data extract sessions');
+      const data = await res.json();
+      const list = Array.isArray(data?.sessions) ? data.sessions : [];
+      setDataExtractSessions(list);
+    } catch (err) {
+      console.error('Failed to fetch data extract sessions:', err);
+    }
+  };
+
+  const loadDataExtractSession = async (sessionId: string) => {
+    if (!notebook?.id || !sessionId) return;
+    setDataExtractHistoryLoading(true);
+    try {
+      const params = new URLSearchParams(getDataExtractRequestBase());
+      const res = await apiFetch(`/api/v1/data-extract/sessions/${sessionId}?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to load data extract session');
+      const data = await res.json();
+      const session = data?.session as DataExtractSessionSummary | undefined;
+      const turns = Array.isArray(data?.turns) ? data.turns as DataExtractTurn[] : [];
+      const artifacts = Array.isArray(data?.artifacts) ? data.artifacts as DataExtractArtifact[] : [];
+      setDataExtractSessionId(session?.id || sessionId);
+      if (session?.primary_datasource_id) {
+        setDataExtractDatasourceId(String(session.primary_datasource_id));
+      }
+      setDataExtractMessages(mapTurnsToDataExtractMessages(turns, artifacts));
+      setDataExtractArtifacts(artifacts);
+      setDataExtractSelectedArtifactIds(new Set());
+      setDataExtractPreviewArtifact(null);
+      setDataExtractSubView('current');
+      await fetchDataExtractSessions();
+    } catch (err) {
+      console.error('Failed to load data extract session detail:', err);
+      alert('加载历史取数会话失败，请稍后重试');
+    } finally {
+      setDataExtractHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (notebook?.id) {
+      fetchDataExtractDatasources();
+      fetchDataExtractSessions();
+    } else {
+      setDataExtractDatasources([]);
+      setDataExtractSessions([]);
+      resetDataExtractWorkspace();
+    }
+  }, [effectiveUser?.id, effectiveUser?.email, notebook?.id]);
+
+  useEffect(() => {
+    setDataExtractDatasourceId(prev => {
+      if (prev && activeDataExtractDatasources.some(item => String(item.datasource_id) === prev)) return prev;
+      return activeDataExtractDatasources[0] ? String(activeDataExtractDatasources[0].datasource_id) : '';
+    });
+  }, [activeDataExtractDatasourceKey]);
+
+  useEffect(() => {
+    resetDataExtractWorkspace();
+  }, [activeDataExtractDatasourceKey, notebook?.id]);
+
+  const handleSyncDataExtractSources = async () => {
+    if (!notebook?.id) {
+      alert('请先创建或选择一个笔记本');
+      return;
+    }
+    if (selectedDatasetFiles.length === 0) {
+      alert('请先在左侧勾选至少一个 CSV 数据文件');
+      return;
+    }
+
+    setDataExtractSyncing(true);
+    try {
+      for (const file of selectedDatasetFiles) {
+        await apiFetch('/api/v1/data-extract/datasources/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notebook_id: notebook.id,
+            notebook_title: notebook?.title || notebook?.name || '',
+            user_id: effectiveUser.id || 'default',
+            email: effectiveUser.email || effectiveUser.id || 'default',
+            file_path: file.url,
+            display_name: file.name.replace(/\.[^.]+$/, ''),
+          }),
+        });
+      }
+      await fetchDataExtractDatasources();
+      await fetchDataExtractSessions();
+      alert('数据源已同步到智能取数模块');
+    } catch (err) {
+      console.error('Failed to sync data extract datasources:', err);
+      alert('数据源同步失败，请重试');
+    } finally {
+      setDataExtractSyncing(false);
+    }
+  };
+
+  const ensureDataExtractSession = async (): Promise<string> => {
+    if (dataExtractSessionId) return dataExtractSessionId;
+    const primaryDatasourceId = dataExtractDatasourceId || (
+      activeDataExtractDatasources[0] ? String(activeDataExtractDatasources[0].datasource_id) : ''
+    );
+    if (!primaryDatasourceId) throw new Error('No datasource selected');
+
+    const res = await apiFetch('/api/v1/data-extract/sessions/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...getDataExtractRequestBase(),
+        datasource_id: Number(primaryDatasourceId),
+        selected_datasource_ids: activeDataExtractDatasourceIds.length > 1 ? activeDataExtractDatasourceIds : undefined,
+        title: `智能取数 - ${new Date().toLocaleString()}`,
+      }),
+    });
+    if (!res.ok) throw new Error('Failed to start session');
+    const data = await res.json();
+    const sessionId = data?.session?.id;
+    if (!sessionId) throw new Error('Session id missing');
+    setDataExtractSessionId(sessionId);
+    await fetchDataExtractSessions();
+    return sessionId;
+  };
+
+  const handleDataExtractExport = async (exportUrl?: string) => {
+    if (!exportUrl) return;
+    try {
+      const res = await apiFetch(exportUrl);
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = 'data_extract_export.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('导出失败，请重试');
+    }
+  };
+
+  const handleToggleDataExtractArtifact = (artifactId: string) => {
+    setDataExtractSelectedArtifactIds(prev => {
+      const next = new Set(prev);
+      if (next.has(artifactId)) next.delete(artifactId);
+      else next.add(artifactId);
+      return next;
+    });
+  };
+
+  const handleImportDataExtractArtifact = async (artifact: DataExtractArtifact) => {
+    if (!notebook?.id) return;
+    try {
+      const res = await apiFetch(`/api/v1/data-extract/artifacts/${artifact.id}/import-source`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getDataExtractRequestBase()),
+      });
+      if (!res.ok) throw new Error('Import artifact failed');
+      await fetchFiles();
+      await fetchDataExtractDatasources();
+      await fetchDataExtractSessions();
+      if (dataExtractSessionId) await loadDataExtractSession(dataExtractSessionId);
+      alert('产出文件已导入到来源');
+    } catch (err) {
+      console.error('Failed to import data extract artifact:', err);
+      alert('导入来源失败，请稍后重试');
+    }
+  };
+
+  const handleNewDataExtractSession = () => {
+    resetDataExtractWorkspace();
+    setDataExtractInput('');
+  };
+
+  const handleSendDataExtractMessage = async () => {
+    if (!dataExtractInput.trim()) return;
+    if (!notebook?.id) {
+      alert('请先创建或选择一个笔记本');
+      return;
+    }
+    if (!dataExtractSessionId && activeDataExtractDatasourceIds.length === 0) {
+      alert(selectedDatasetFiles.length > 0 ? '请先同步选中的 CSV 数据源' : '请先同步并选择一个数据源');
+      return;
+    }
+
+    const userMsg: DataExtractMessage = {
+      id: `de-user-${Date.now()}`,
+      role: 'user',
+      content: dataExtractInput,
+      time: new Date().toLocaleTimeString(),
+    };
+    setDataExtractMessages(prev => [...prev, userMsg]);
+    setDataExtractInput('');
+    setDataExtractLoading(true);
+
+    try {
+      const sessionId = await ensureDataExtractSession();
+      const cfg = getStudioConfig('data_extract');
+      const res = await apiFetch(`/api/v1/data-extract/sessions/${sessionId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...getDataExtractRequestBase(),
+          question: userMsg.content,
+          result_format: cfg.resultFormat || 'json',
+          execution_strategy: cfg.executionStrategy || 'auto',
+          selected_datasource_ids: activeDataExtractDatasourceIds.length > 1 ? activeDataExtractDatasourceIds : undefined,
+          selected_artifact_ids: dataExtractSelectedArtifactIds.size > 0 ? Array.from(dataExtractSelectedArtifactIds) : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Data extract request failed');
+      await loadDataExtractSession(sessionId);
+      return;
+      const data = await res.json();
+
+      const botMsg: DataExtractMessage = {
+        id: `de-assistant-${Date.now()}`,
+        role: 'assistant',
+        content: data.answer || '未返回结果',
+        time: new Date().toLocaleTimeString(),
+        sql: data.sql || '',
+        columns: Array.isArray(data.columns) ? data.columns : [],
+        rows: Array.isArray(data.rows) ? data.rows : [],
+        rowCount: typeof data.row_count === 'number' ? data.row_count : 0,
+        exportUrl: data.export_url || '',
+        error: data.error || null,
+      };
+      setDataExtractMessages(prev => [...prev, botMsg]);
+    } catch (err) {
+      console.error('Data extract error:', err);
+      setDataExtractMessages(prev => [
+        ...prev,
+        {
+          id: `de-error-${Date.now()}`,
+          role: 'assistant',
+          content: '智能取数执行失败，请检查数据源或稍后重试。',
+          time: new Date().toLocaleTimeString(),
+          error: 'request_failed',
+        },
+      ]);
+    } finally {
+      setDataExtractLoading(false);
+    }
   };
 
   const handleToggleSelect = (id: string) => {
@@ -2096,6 +2565,350 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               onSaved={fetchFiles}
             />
           </div>
+        ) : activeTool === 'data_extract' ? (
+          <main className="flex-1 flex flex-col relative bg-white min-w-[300px] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-ios-gray-100 shrink-0">
+              <div>
+                <span className="text-sm font-medium text-ios-gray-900">智能取数</span>
+                <p className="text-xs text-ios-gray-400 mt-1">面向结构化数据的自然语言取数与导出</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncDataExtractSources}
+                  disabled={dataExtractSyncing || selectedDatasetFiles.length === 0}
+                  className="px-3 py-1.5 text-sm font-medium rounded-ios border border-ios-gray-200 text-ios-gray-700 hover:bg-ios-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {dataExtractSyncing ? '同步中...' : '同步选中 CSV'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNewDataExtractSession}
+                  className="px-3 py-1.5 text-sm font-medium rounded-ios border border-ios-gray-200 text-ios-gray-700 hover:bg-ios-gray-50"
+                >
+                  {'\u65b0\u5efa\u4f1a\u8bdd'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDataExtractSubView(prev => prev === 'history' ? 'current' : 'history')}
+                  className="px-3 py-1.5 text-sm font-medium rounded-ios border border-ios-gray-200 text-ios-gray-700 hover:bg-ios-gray-50"
+                >
+                  {dataExtractSubView === 'history'
+                    ? '\u8fd4\u56de\u5f53\u524d\u4f1a\u8bdd'
+                    : '\u53d6\u6570\u5386\u53f2'}
+                </button>
+                <select
+                  value={dataExtractDatasourceId}
+                  onChange={(e) => {
+                    setDataExtractDatasourceId(e.target.value);
+                    resetDataExtractWorkspace();
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-ios border border-ios-gray-200 text-ios-gray-700 min-w-[220px]"
+                >
+                  <option value="">选择数据源</option>
+                  {activeDataExtractDatasources.map(ds => (
+                    <option key={ds.id} value={String(ds.datasource_id)}>
+                      {ds.display_name || ds.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8">
+              <div className="max-w-[900px] mx-auto w-full space-y-4">
+                {dataExtractSubView === 'history' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-500">取数会话历史</h3>
+                      <button
+                        type="button"
+                        onClick={() => setDataExtractSubView('current')}
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        返回当前会话
+                      </button>
+                    </div>
+                    {dataExtractHistoryLoading ? (
+                      <div className="rounded-2xl border border-ios-gray-100 bg-white px-4 py-6 text-sm text-ios-gray-400">
+                        正在加载历史会话...
+                      </div>
+                    ) : dataExtractSessions.length === 0 ? (
+                      <div className="rounded-2xl border border-ios-gray-100 bg-white px-4 py-6 text-sm text-ios-gray-400">
+                        暂无取数历史
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {dataExtractSessions.map(session => (
+                          <button
+                            key={session.id}
+                            type="button"
+                            onClick={() => loadDataExtractSession(session.id)}
+                            className="w-full text-left rounded-2xl border border-ios-gray-100 bg-white px-4 py-4 hover:border-emerald-200 hover:bg-emerald-50/40 transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-medium text-ios-gray-900">{session.title}</div>
+                                <div className="mt-1 text-xs text-ios-gray-500">
+                                  {new Date(session.updated_at).toLocaleString()} · {session.turn_count || 0} 轮问答 · {session.artifact_count || 0} 个产出
+                                </div>
+                              </div>
+                              <div className="text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+                                主数据源 {session.primary_datasource_id}
+                              </div>
+                            </div>
+                            {!!session.datasource_snapshot?.length && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {session.datasource_snapshot.map(ds => (
+                                  <span key={`${session.id}-${ds.datasource_id}`} className="text-[11px] px-2.5 py-1 rounded-full bg-ios-gray-100 text-ios-gray-600">
+                                    {ds.display_name || ds.name || `Datasource ${ds.datasource_id}`}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {dataExtractSubView === 'current' && (
+                  <>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+                  已选结构化文件 {selectedDatasetFiles.length} 个，当前联动数据源 {activeDataExtractDatasources.length} 个，已注册数据源 {dataExtractDatasources.length} 个。
+                </div>
+                {activeDataExtractDatasourceIds.length > 1 && (
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-sky-800">
+                    当前会把 {activeDataExtractDatasourceIds.length} 个已选数据源一起发给 SQLBot 做联合分析，下拉框仅用于指定主数据源。
+                  </div>
+                )}
+                {unsyncedSelectedDatasetCount > 0 && (
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-800">
+                    有 {unsyncedSelectedDatasetCount} 个已选 CSV 还没同步到智能取数模块，当前不会参与联合分析。
+                  </div>
+                )}
+                {selectedDataExtractArtifacts.length > 0 && (
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+                    本轮已附带 {selectedDataExtractArtifacts.length} 个历史产出作为输入。
+                  </div>
+                )}
+                {dataExtractArtifacts.length > 0 && (
+                  <div className="rounded-2xl border border-ios-gray-100 bg-white p-4 shadow-ios-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-ios-gray-700">历史产出</h3>
+                      <span className="text-xs text-ios-gray-400">最近 {dataExtractArtifacts.length} 条</span>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-1">
+                      {dataExtractArtifacts.map((artifact) => (
+                        <div
+                          key={artifact.id}
+                          className={`min-w-[240px] max-w-[280px] rounded-2xl border px-4 py-3 transition-colors ${
+                            dataExtractSelectedArtifactIds.has(artifact.id)
+                              ? 'border-emerald-300 bg-emerald-50/70'
+                              : 'border-ios-gray-100 bg-ios-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-medium text-ios-gray-900 line-clamp-2">{artifact.title}</div>
+                              <div className="mt-1 text-xs text-ios-gray-400">
+                                {artifact.type === 'csv' ? `${artifact.row_count || 0} 行结果` : '文本说明'}
+                              </div>
+                            </div>
+                            {artifact.reusable_as_input && (
+                              <input
+                                type="checkbox"
+                                className="rounded-full text-emerald-600 accent-emerald-600 mt-0.5"
+                                checked={dataExtractSelectedArtifactIds.has(artifact.id)}
+                                onChange={() => handleToggleDataExtractArtifact(artifact.id)}
+                              />
+                            )}
+                          </div>
+                          <div className="mt-3 flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => setDataExtractPreviewArtifact(artifact)}
+                              className="text-xs px-2.5 py-1 rounded-full bg-white border border-ios-gray-200 text-ios-gray-700 hover:bg-ios-gray-50"
+                            >
+                              预览
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleImportDataExtractArtifact(artifact)}
+                              className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            >
+                              {artifact.imported_to_sources ? '已导入来源' : '导入来源'}
+                            </button>
+                            {artifact.file_url && (
+                              <a
+                                href={artifact.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100"
+                              >
+                                打开文件
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dataExtractPreviewArtifact && (
+                  <div className="rounded-2xl border border-ios-gray-100 bg-white p-4 shadow-ios-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-ios-gray-900">{dataExtractPreviewArtifact.title}</h3>
+                        <p className="text-xs text-ios-gray-400 mt-1">
+                          {new Date(dataExtractPreviewArtifact.created_at).toLocaleString()} · {dataExtractPreviewArtifact.type === 'csv' ? 'CSV 结果' : '文本说明'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDataExtractPreviewArtifact(null)}
+                        className="text-xs text-ios-gray-400 hover:text-ios-gray-600"
+                      >
+                        关闭
+                      </button>
+                    </div>
+                    {dataExtractPreviewArtifact.sql && (
+                      <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 px-3 py-3 text-xs text-slate-100">{dataExtractPreviewArtifact.sql}</pre>
+                    )}
+                    {dataExtractPreviewArtifact.type === 'csv' ? (
+                      <div className="mt-3 overflow-x-auto rounded-xl border border-ios-gray-200">
+                        <table className="min-w-full text-xs">
+                          <thead className="bg-ios-gray-100">
+                            <tr>
+                              {(dataExtractPreviewArtifact.columns || []).map(col => (
+                                <th key={col} className="px-3 py-2 text-left font-medium text-ios-gray-700">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(dataExtractPreviewArtifact.preview_rows || []).map((row, rowIdx) => (
+                              <tr key={`${dataExtractPreviewArtifact.id}-${rowIdx}`} className="border-t border-ios-gray-100">
+                                {(dataExtractPreviewArtifact.columns || []).map(col => (
+                                  <td key={`${rowIdx}-${col}`} className="px-3 py-2 text-ios-gray-600 whitespace-nowrap">
+                                    {String(row?.[col] ?? '')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="mt-3 whitespace-pre-wrap text-sm text-ios-gray-700 leading-relaxed">
+                        {dataExtractPreviewArtifact.preview_text || dataExtractPreviewArtifact.answer_summary || '暂无预览内容'}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {dataExtractMessages.map(msg => (
+                  <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-ios-sm ${
+                      msg.role === 'assistant' ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700' : 'bg-gradient-to-br from-ios-gray-200 to-ios-gray-300 text-ios-gray-600'
+                    }`}>
+                      {msg.role === 'assistant' ? <BarChart2 size={16} /> : <User size={16} />}
+                    </div>
+                    <div className={`max-w-[90%] px-4 py-3 text-sm leading-relaxed shadow-ios-sm ${
+                      msg.role === 'assistant' ? 'bg-ios-gray-50 text-ios-gray-700 rounded-2xl rounded-tl-md' : 'bg-primary text-white rounded-2xl rounded-tr-md'
+                    }`}>
+                      <div>{msg.content}</div>
+                      {msg.sql && (
+                        <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 px-3 py-3 text-xs text-slate-100">{msg.sql}</pre>
+                      )}
+                      {msg.columns && msg.columns.length > 0 && (
+                        <div className="mt-3 overflow-x-auto rounded-xl border border-ios-gray-200">
+                          <table className="min-w-full text-xs">
+                            <thead className="bg-ios-gray-100">
+                              <tr>
+                                {msg.columns.map(col => (
+                                  <th key={col} className="px-3 py-2 text-left font-medium text-ios-gray-700">{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(msg.rows || []).slice(0, 20).map((row, rowIdx) => (
+                                <tr key={rowIdx} className="border-t border-ios-gray-100">
+                                  {msg.columns?.map(col => (
+                                    <td key={`${rowIdx}-${col}`} className="px-3 py-2 text-ios-gray-600 whitespace-nowrap">
+                                      {String(row?.[col] ?? '')}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {msg.role === 'assistant' && (
+                        <div className="mt-3 flex items-center gap-3">
+                          {typeof msg.rowCount === 'number' && msg.rowCount > 0 && (
+                            <span className="text-xs text-ios-gray-400">共 {msg.rowCount} 行，当前展示前 20 行</span>
+                          )}
+                          {msg.exportUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleDataExtractExport(msg.exportUrl)}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+                            >
+                              <Download size={14} />
+                              导出 CSV
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {dataExtractLoading && (
+                  <div className="flex gap-3 animate-pulse">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700 flex items-center justify-center shadow-ios-sm">
+                      <BarChart2 size={16} />
+                    </div>
+                    <div className="bg-ios-gray-50 rounded-2xl rounded-tl-md px-4 py-3 text-sm flex items-center gap-2 text-ios-gray-500 shadow-ios-sm">
+                      <Loader2 size={14} className="animate-spin" /> 正在分析数据...
+                    </div>
+                  </div>
+                )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {dataExtractSubView === 'current' && (
+            <div className="px-6 pb-6 shrink-0">
+              <div className="max-w-[900px] mx-auto relative">
+                <div className="glass rounded-ios-xl border border-white/30 shadow-ios-sm">
+                  <input
+                    type="text"
+                    value={dataExtractInput}
+                    onChange={e => setDataExtractInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendDataExtractMessage()}
+                    placeholder={activeDataExtractDatasourceIds.length > 0 ? '输入一个数据问题，例如：统计各城市销售额前 10 名' : '请先同步并选择一个数据源'}
+                    disabled={activeDataExtractDatasourceIds.length === 0 && !dataExtractSessionId}
+                    className="w-full bg-transparent rounded-ios-xl py-4 pl-6 pr-24 focus:outline-none text-lg disabled:opacity-50"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    <span className="text-xs text-ios-gray-400 font-medium">
+                      {activeDataExtractDatasourceIds.length > 1 ? `联合 ${activeDataExtractDatasourceIds.length} 个数据源` : `${activeDataExtractDatasources.length} 个数据源`}
+                    </span>
+                    <motion.button
+                      whileTap={{ scale: 0.88 }}
+                      onClick={handleSendDataExtractMessage}
+                      disabled={!dataExtractInput.trim() || dataExtractLoading || (activeDataExtractDatasourceIds.length === 0 && !dataExtractSessionId)}
+                      className="p-2 bg-emerald-600 text-white rounded-full hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-ios-sm"
+                    >
+                      <Send size={20} />
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+          </main>
         ) : (
         <main className="flex-1 flex flex-col relative bg-white min-w-[300px] overflow-hidden">
           <div className="flex items-center justify-between px-6 py-3 border-b border-ios-gray-100 shrink-0">
@@ -2267,6 +3080,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 返回
               </button>
               <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                {studioSettingsTool === 'data_extract' && '智能取数'}
                 {studioSettingsTool === 'ppt' && 'PPT 生成'}
                 {studioSettingsTool === 'mindmap' && '思维导图'}
                 {studioSettingsTool === 'drawio' && 'DrawIO 图表'}
@@ -2276,6 +3090,29 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 {/* {studioSettingsTool === 'video' && '视频讲解'} */}
               </h3>
               <div className="space-y-4">
+                {studioSettingsTool === 'data_extract' && (() => {
+                  const c = getStudioConfig('data_extract');
+                  return (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">结果格式</label>
+                        <select value={c.resultFormat || 'json'} onChange={(e) => setStudioConfigForTool('data_extract', { resultFormat: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="json">JSON</option>
+                          <option value="markdown">Markdown</option>
+                          <option value="csv">CSV</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">执行策略</label>
+                        <select value={c.executionStrategy || 'auto'} onChange={(e) => setStudioConfigForTool('data_extract', { executionStrategy: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                          <option value="auto">自动</option>
+                          <option value="legacy">legacy</option>
+                          <option value="ega">ega</option>
+                        </select>
+                      </div>
+                    </>
+                  );
+                })()}
                 {studioSettingsTool === 'ppt' && (() => {
                   const c = getStudioConfig('ppt');
                   return (
@@ -2562,7 +3399,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 </motion.div>
               ))}
             </div>
-            {activeTool !== 'chat' && activeTool !== 'search' && (
+            {activeTool !== 'chat' && activeTool !== 'search' && activeTool !== 'data_extract' && (
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="button"

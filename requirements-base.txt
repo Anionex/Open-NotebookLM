@@ -59,6 +59,8 @@ matplotlib>=3.10.0
 numpy<2.0.0
 pandas>=2.3.0
 scipy>=1.16.0
+sqlmodel>=0.0.22
+duckdb>=1.2.0
 torch
 torchvision
 torchaudio
