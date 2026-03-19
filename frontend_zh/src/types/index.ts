@@ -1,5 +1,5 @@
 // Knowledge Base Types
-export type MaterialType = 'image' | 'doc' | 'video' | 'link' | 'audio';
+export type MaterialType = 'image' | 'doc' | 'video' | 'link' | 'audio' | 'dataset';
 
 export interface KnowledgeFile {
   id: string;
@@ -27,4 +27,4 @@ export interface ChatMessage {
 }
 
 export type SectionType = 'library' | 'upload' | 'output' | 'settings';
-export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video' | 'search' | 'drawio' | 'flashcard' | 'quiz' | 'note';
+export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video' | 'search' | 'drawio' | 'flashcard' | 'quiz' | 'note' | 'data_extract';

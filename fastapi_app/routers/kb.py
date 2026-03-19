@@ -118,10 +118,11 @@ def _text_to_pdf(text: str, output_path: str) -> None:
     doc.close()
 
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4", ".md"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4", ".md", ".csv"}
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 DOC_EXTENSIONS = {".pdf", ".docx", ".doc", ".pptx", ".ppt", ".md", ".markdown"}
+DATASET_EXTENSIONS = {".csv"}
 
 
 def _find_mineru_stem_dir(
@@ -389,19 +390,20 @@ async def upload_kb_file(
 
         # Auto-embed using new vector_store path
         embedded = False
-        try:
-            vector_base = str(paths.vector_store_dir)
-            mineru_base = str(paths.source_mineru_dir(filename))
-            file_list = [{"path": str(source_info.original_path)}]
-            await process_knowledge_base_files(
-                file_list=file_list,
-                base_dir=vector_base,
-                mineru_output_base=mineru_base,
-            )
-            embedded = True
-            log.info("[upload] auto-embedding done: %s", filename)
-        except Exception as emb_err:
-            log.warning("[upload] auto-embedding failed for %s: %s", filename, emb_err)
+        if file_ext not in DATASET_EXTENSIONS:
+            try:
+                vector_base = str(paths.vector_store_dir)
+                mineru_base = str(paths.source_mineru_dir(filename))
+                file_list = [{"path": str(source_info.original_path)}]
+                await process_knowledge_base_files(
+                    file_list=file_list,
+                    base_dir=vector_base,
+                    mineru_output_base=mineru_base,
+                )
+                embedded = True
+                log.info("[upload] auto-embedding done: %s", filename)
+            except Exception as emb_err:
+                log.warning("[upload] auto-embedding failed for %s: %s", filename, emb_err)
 
         return {
             "success": True,
