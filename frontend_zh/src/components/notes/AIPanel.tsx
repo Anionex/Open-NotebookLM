@@ -131,7 +131,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({
     <div className="mt-1 border border-accent-200 bg-accent-50/40 rounded-xl p-3 shadow-sm">
       {/* 来源文件选择 - 使用 Badge 组件 */}
       {files.length > 0 && (
-        <BadgeGroup className="mb-2.5">
+        <BadgeGroup className="mb-2.5 max-h-24 overflow-y-auto">
           <span className="text-xs text-neutral-500 shrink-0 font-medium">来源：</span>
           {files.map(f => (
             <button

@@ -297,12 +297,18 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
         tableLines.push(line);
       } else {
         flushTable();
-        if (line.startsWith('# ')) {
-          newBlocks.push({ id: generateId(), type: 'heading1', content: removeBold(line.slice(2)) });
-        } else if (line.startsWith('## ')) {
-          newBlocks.push({ id: generateId(), type: 'heading2', content: removeBold(line.slice(3)) });
+        if (line.startsWith('###### ')) {
+          newBlocks.push({ id: generateId(), type: 'heading6', content: removeBold(line.slice(7)) });
+        } else if (line.startsWith('##### ')) {
+          newBlocks.push({ id: generateId(), type: 'heading5', content: removeBold(line.slice(6)) });
+        } else if (line.startsWith('#### ')) {
+          newBlocks.push({ id: generateId(), type: 'heading4', content: removeBold(line.slice(5)) });
         } else if (line.startsWith('### ')) {
           newBlocks.push({ id: generateId(), type: 'heading3', content: removeBold(line.slice(4)) });
+        } else if (line.startsWith('## ')) {
+          newBlocks.push({ id: generateId(), type: 'heading2', content: removeBold(line.slice(3)) });
+        } else if (line.startsWith('# ')) {
+          newBlocks.push({ id: generateId(), type: 'heading1', content: removeBold(line.slice(2)) });
         } else if (line.match(/^[-*+]\s/)) {
           newBlocks.push({ id: generateId(), type: 'bulletList', content: removeBold(line.slice(2)) });
         } else if (line.match(/^\d+\.\s/)) {
@@ -338,6 +344,9 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
           case 'heading1': return `# ${block.content}\n`;
           case 'heading2': return `## ${block.content}\n`;
           case 'heading3': return `### ${block.content}\n`;
+          case 'heading4': return `#### ${block.content}\n`;
+          case 'heading5': return `##### ${block.content}\n`;
+          case 'heading6': return `###### ${block.content}\n`;
           case 'bulletList': return `- ${block.content}\n`;
           case 'numberedList': {
             numIdx++;
@@ -360,11 +369,10 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
       const t = blocks[i].type;
       if (t === 'numberedList') {
         count++;
-      } else if (t === 'text' || t.startsWith('heading')) {
-        // 遇到文本或标题块才停止
+      } else {
+        // 遇到任何非 numberedList 块就停止
         break;
       }
-      // bulletList, todo, quote 等不会打断编号
     }
     return count;
   };
@@ -527,7 +535,6 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
                   blockId={block.id}
                   files={files}
                   user={user}
-                  notebook={notebook}
                   noteContext={getNoteContext()}
                   noteMemory={noteMemory}
                   onInsertText={handleInsertText}

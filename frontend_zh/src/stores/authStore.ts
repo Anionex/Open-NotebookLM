@@ -25,6 +25,7 @@ interface AuthState {
   verifyOtp: (email: string, token: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  continueAsGuest: () => void;
   clearError: () => void;
   clearPendingVerification: () => void;
 }
@@ -159,6 +160,27 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     set({
       user: null,
+      session: null,
+      loading: false,
+      error: null,
+      pendingEmail: null,
+      needsOtpVerification: false,
+    });
+  },
+
+  continueAsGuest: () => {
+    const guestUser = {
+      id: 'guest',
+      email: 'guest@local',
+      aud: 'authenticated',
+      role: 'authenticated',
+      created_at: new Date().toISOString(),
+      app_metadata: {},
+      user_metadata: {},
+    } as User;
+
+    set({
+      user: guestUser,
       session: null,
       loading: false,
       error: null,

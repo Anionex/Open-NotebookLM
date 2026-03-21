@@ -120,7 +120,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const [toolLoading, setToolLoading] = useState(false);
   const [outputFeed, setOutputFeed] = useState<Array<{
     id: string;
-    type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz';
+    type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz' | 'note';
     title: string;
     sources: string;
     url?: string;
@@ -130,6 +130,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     mermaidCode?: string;
     setId?: string;
   }>>([]);
+  const [editingNote, setEditingNote] = useState<{ title: string; blocks: any[] } | null>(null);
 
   // Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -385,12 +386,13 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return 'ppt';
   };
 
-  const getOutputTitle = (type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz') => {
+  const getOutputTitle = (type: 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz' | 'note') => {
     if (type === 'mindmap') return '思维导图';
     if (type === 'podcast') return '播客生成';
     if (type === 'drawio') return 'DrawIO 图表';
     if (type === 'flashcard') return '闪卡';
     if (type === 'quiz') return '测验';
+    if (type === 'note') return '笔记';
     return 'PPT 生成';
   };
 
@@ -2973,11 +2975,19 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         {activeTool === 'note' ? (
           <div className="flex-1 flex overflow-hidden">
             <NotionEditor
-              onClose={() => setActiveTool('chat')}
+              onClose={() => {
+                setActiveTool('chat');
+                setEditingNote(null);
+              }}
               notebook={notebook}
               user={effectiveUser}
               files={files}
-              onSaved={fetchFiles}
+              onSaved={() => {
+                setEditingNote(null);
+                setTimeout(() => fetchFiles(), 1000);
+              }}
+              initialTitle={editingNote?.title}
+              initialBlocks={editingNote?.blocks}
             />
           </div>
         ) : activeTool === 'data_extract' ? (
@@ -4021,6 +4031,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       <div className="flex items-center gap-1.5 text-sm font-medium text-ios-gray-900">
                         {item.type === 'flashcard' && <BookOpen size={14} className="text-purple-500" />}
                         {item.type === 'quiz' && <Brain size={14} className="text-orange-500" />}
+                        {item.type === 'note' && <FileText size={14} className="text-blue-500" />}
                         {item.title}
                       </div>
                       <div className="text-[10px] text-ios-gray-400">{item.createdAt}</div>
@@ -4040,6 +4051,41 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                         >
                           {loadingSetId === item.id ? '加载中...' : item.type === 'flashcard' ? '学习' : '做测验'}
                         </button>
+                      ) : item.type === 'note' ? (
+                        <>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const res = await fetch(item.url!);
+                                const markdown = await res.text();
+                                const lines = markdown.split('\n').filter(l => l.trim());
+                                const titleLine = lines.find(l => l.startsWith('# '));
+                                const title = titleLine ? titleLine.slice(2).trim() : item.title;
+                                const contentLines = lines.filter(l => !l.startsWith('# ') && !l.startsWith('!['));
+                                const blocks = contentLines.length > 0
+                                  ? contentLines.map((line, i) => ({ id: `${i}`, type: 'text' as const, content: line }))
+                                  : [{ id: '1', type: 'text' as const, content: '' }];
+                                setEditingNote({ title, blocks });
+                                setActiveTool('note');
+                              } catch (err) {
+                                alert('加载笔记失败');
+                              }
+                            }}
+                            className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOutputFeed(prev => prev.filter(f => f.id !== item.id));
+                            }}
+                            className="text-xs px-2.5 py-1 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                          >
+                            删除
+                          </button>
+                        </>
                       ) : item.url ? (
                         <>
                           <button
