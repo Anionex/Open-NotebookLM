@@ -8,7 +8,6 @@ TTS_GPU="6"           # 例如: "6"
 EMBEDDING_GPU="7"     # 例如: "7"
 MINERU_GPU="6"        # 例如: "6"
 
-CPOLAR_TUNNEL_NAME="opennotebook"
 CPOLAR_PUBLIC_URL="https://opennotebook.nas.cpolar.cn"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +31,7 @@ lsof -ti:8213 | xargs kill -9 2>/dev/null
 lsof -ti:3001 | xargs kill -9 2>/dev/null
 pkill -9 -f "uvicorn fastapi_app.main:app" 2>/dev/null
 pkill -9 -f "vite.*--port 3001" 2>/dev/null
-pkill -9 -f "cpolar start opennotebook" 2>/dev/null
+pkill -9 -f "bash scripts/monitor.sh" 2>/dev/null
 sleep 2
 
 # 创建日志目录
@@ -43,6 +42,11 @@ echo "启动后端服务..."
 nohup uvicorn fastapi_app.main:app --host 0.0.0.0 --port 8213 > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 
+# 启动监控脚本
+echo "启动监控服务..."
+nohup bash scripts/monitor.sh > /dev/null 2>&1 &
+MONITOR_PID=$!
+
 # 后台启动前端
 echo "启动前端服务..."
 cd frontend_zh
@@ -50,22 +54,9 @@ nohup npm run dev -- --port 3001 --host 0.0.0.0 > ../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
 
-# 后台启动 cpolar
-echo "启动 cpolar 隧道..."
-nohup cpolar start "${CPOLAR_TUNNEL_NAME}" > logs/cpolar.log 2>&1 &
-CPOLAR_PID=$!
-
 # 等待服务启动
 echo "等待服务启动..."
 sleep 5
-
-# 验证 cpolar 进程
-if ! ps -p $CPOLAR_PID > /dev/null 2>&1; then
-    echo "警告: cpolar 进程启动失败，请检查 logs/cpolar.log"
-fi
-
-# 额外等待 cpolar 隧道建立
-sleep 10
 
 PUBLIC_URL="$CPOLAR_PUBLIC_URL"
 
@@ -79,19 +70,19 @@ echo "前端: http://localhost:3001"
 if [ -n "$PUBLIC_URL" ]; then
     echo "公网: $PUBLIC_URL"
 else
-    echo "公网: $CPOLAR_PUBLIC_URL (如果未生效，检查 logs/cpolar.log)"
+    echo "公网: $CPOLAR_PUBLIC_URL"
 fi
 echo "======================================="
 echo ""
 echo "进程 ID:"
 echo "  Backend: $BACKEND_PID"
 echo "  Frontend: $FRONTEND_PID"
-echo "  Cpolar: $CPOLAR_PID"
+echo "  Monitor: $MONITOR_PID"
 echo ""
 echo "日志文件:"
 echo "  Backend: logs/backend.log"
 echo "  Frontend: logs/frontend.log"
-echo "  Cpolar: logs/cpolar.log"
+echo "  Monitor: logs/monitor.log"
 echo ""
 if [[ -f "$PROJECT_ROOT/fastapi_app/.env.local" ]]; then
     echo "GPU 配置: fastapi_app/.env.local"

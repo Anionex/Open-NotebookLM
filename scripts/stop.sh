@@ -1,7 +1,5 @@
 #!/bin/bash
 
-CPOLAR_TUNNEL_NAME="opennotebook"
-
 # 递归清理进程树
 kill_process_tree() {
     local pid=$1
@@ -22,10 +20,8 @@ pkill -9 -f "uvicorn fastapi_app.main:app"
 lsof -ti:3001 | xargs kill -9 2>/dev/null
 pkill -9 -f "vite.*--port 3001"
 
-# 停止 cpolar
-pkill -9 -f "cpolar http 3001"
-pkill -9 -f "cpolar start ${CPOLAR_TUNNEL_NAME}"
-pkill -9 -f "cpolar start.*opennotebook"
+# 停止监控脚本
+pkill -9 -f "bash scripts/monitor.sh" 2>/dev/null
 
 # 停止本项目的 vLLM 进程（清理整个进程树）
 for port in 26210 26211; do
