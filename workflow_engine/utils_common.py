@@ -579,7 +579,7 @@ def transform_sub_bbox(sub_bbox, parent_bbox):
 async def recursive_run_mineru_http(
     image_path: Path,
     out_dir: Path,
-    port:int = 8010,
+    port: int = None,
     max_depth: int = 2,
     current_depth: int = 0,
 ):
@@ -588,6 +588,10 @@ async def recursive_run_mineru_http(
     不依赖中间 JSON 文件。
     自动截图 image/table/list 等元素作为下一轮输入。
     """
+    # 从环境变量读取端口
+    if port is None:
+        import os
+        port = int(os.getenv("LOCAL_MINERU_PORT", "26215"))
 
     # ---- 深度控制 ----
     if current_depth > max_depth:

@@ -18,6 +18,7 @@
 
 ## 📅 更新日志
 
+- **2026.03.18** — 后端认证代理迁移；部署模型 vLLM 支持；实现文档级检索映射
 - **2026.03.11** — 代码重构：实行严格的功能分层架构；集成本地 TTS 模型（[Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)）；新增基于来源的笔记 QA 问答编辑功能（Notion AI 风格）；UI 优化；简化配置文件结构
 - **2026.03.08** — 新增用户管理系统：Supabase 邮箱 + OTP 认证登录，多用户数据隔离，用户目录以邮箱命名；清理废弃脚本
 - **2026.02.27** — 迁移集成 [Qwen-DeepResearch](https://github.com/Alibaba-NLP/DeepResearch) 深度研究模块；PPT 生成支持 Nano Banana 2 生图模型

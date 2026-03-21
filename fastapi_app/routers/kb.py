@@ -411,6 +411,21 @@ async def upload_kb_file(
         except Exception as emb_err:
             log.warning("[upload] auto-embedding failed for %s: %s", filename, emb_err)
 
+        # Write to JSON records
+        from fastapi_app.kb_records import add_source_record
+        try:
+            add_source_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                file_name=filename,
+                file_path=str(source_info.original_path),
+                static_url=static_path,
+                file_size=os.path.getsize(source_info.original_path),
+                file_type=file.content_type or ""
+            )
+        except Exception as e:
+            log.warning("[upload] failed to write JSON record: %s", e)
+
         return {
             "success": True,
             "filename": filename,
@@ -491,6 +506,21 @@ async def add_text_source(
     project_root = get_project_root()
     rel = source_info.original_path.relative_to(project_root)
     static_path = "/" + rel.as_posix()
+
+    from fastapi_app.kb_records import add_source_record
+    try:
+        add_source_record(
+            user_email=email,
+            notebook_id=notebook_id,
+            file_name=source_info.original_path.name,
+            file_path=str(source_info.original_path),
+            static_url=static_path,
+            file_size=source_info.original_path.stat().st_size,
+            file_type="text/markdown"
+        )
+    except Exception as e:
+        log.warning("[add-text-source] failed to write JSON record: %s", e)
+
     return {
         "success": True,
         "filename": source_info.original_path.name,
@@ -554,6 +584,21 @@ async def import_url_as_source(
     project_root = get_project_root()
     rel = source_info.original_path.relative_to(project_root)
     static_path = "/" + rel.as_posix()
+
+    from fastapi_app.kb_records import add_source_record
+    try:
+        add_source_record(
+            user_email=email,
+            notebook_id=notebook_id,
+            file_name=source_info.original_path.name,
+            file_path=str(source_info.original_path),
+            static_url=static_path,
+            file_size=source_info.original_path.stat().st_size,
+            file_type="text/markdown"
+        )
+    except Exception as e:
+        log.warning("[import-url-as-source] failed to write JSON record: %s", e)
+
     return {
         "success": True,
         "filename": source_info.original_path.name,
@@ -966,35 +1011,35 @@ async def list_outputs(
     notebook_id: Optional[str] = None,
     notebook_title: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List generated outputs (ppt/mindmap/podcast/drawio) for user. Prefer DB, fallback to disk scan."""
-    sb = get_supabase_admin_client()
-    project_root = get_project_root()
+    """List generated outputs. Reads from JSON records first, falls back to filesystem scan."""
+    from fastapi_app.kb_records import get_output_records
+
+    em = email or user_id
+    if not em:
+        raise HTTPException(status_code=400, detail="email or user_id is required")
+
+    # Try JSON records first (only if notebook_id is provided)
+    if notebook_id:
+        records = get_output_records(user_email=em, notebook_id=notebook_id)
+        log.info(f"[list_outputs] Got {len(records)} records from JSON for {em}/{notebook_id}")
+    else:
+        records = []
+
+    if records:
+        files = []
+        for r in records:
+            files.append({
+                "id": f"output-{r['output_type']}-{int(r.get('created_at', 0))}",
+                "output_type": r["output_type"],
+                "file_name": r["file_name"],
+                "download_url": r["download_url"],
+                "created_at": r.get("created_at"),
+            })
+        return {"success": True, "files": files}
+
+    # Fallback to filesystem scan
     files: List[Dict[str, Any]] = []
-    if sb:
-        try:
-            q = sb.table("kb_output_records").select("id,output_type,file_name,file_path,result_path,download_url,created_at")
-            if email:
-                q = q.eq("user_email", email)
-            if user_id:
-                q = q.eq("user_id", user_id)
-            if notebook_id:
-                q = q.eq("notebook_id", notebook_id)
-            r = q.order("created_at", desc=True).limit(100).execute()
-            rows = (r.data or []) if hasattr(r, "data") else []
-            for row in rows:
-                url = row.get("download_url") or row.get("result_path") or row.get("file_path")
-                if url and not url.startswith("http") and not url.startswith("/"):
-                    url = _to_outputs_url(url)
-                files.append({
-                    "id": row.get("id"),
-                    "output_type": row.get("output_type", "ppt"),
-                    "file_name": row.get("file_name"),
-                    "download_url": url,
-                    "created_at": row.get("created_at"),
-                })
-        except Exception as e:
-            log.warning("list_outputs from db failed: %s", e)
-    # Disk fallback: scan notebook-centric directory layout
+    project_root = get_project_root()
     if not files and notebook_id:
         _FEATURE_EXT_MAP = {
             "ppt":     {".pdf", ".pptx"},
@@ -1197,12 +1242,30 @@ async def list_notebook_files(
     email: Optional[str] = None,
     notebook_title: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List files in a notebook. Reads from new sources/ dir first, then falls back to legacy kb_data/."""
+    """List files in a notebook. Reads from JSON records first, falls back to filesystem scan."""
+    from fastapi_app.kb_records import get_source_records
+
     uid = (user_id or "").strip() or DEFAULT_USER_ID
     em = (email or "").strip() or DEFAULT_EMAIL
     if not notebook_id:
         return {"success": True, "files": []}
 
+    # Try JSON records first
+    records = get_source_records(user_email=em, notebook_id=notebook_id)
+    if records:
+        files = []
+        for r in records:
+            files.append({
+                "id": f"file-{r['file_name']}-{int(r.get('created_at', 0))}",
+                "name": r["file_name"],
+                "url": r["static_url"],
+                "static_url": r["static_url"],
+                "file_size": r.get("file_size", 0),
+                "file_type": r.get("file_type", ""),
+            })
+        return {"success": True, "files": files}
+
+    # Fallback to filesystem scan
     files: List[Dict[str, Any]] = []
     seen_names: set = set()
     project_root = get_project_root()
@@ -1952,6 +2015,18 @@ async def generate_ppt_from_kb(
             download_url=download_url,
         )
 
+        from fastapi_app.kb_records import add_output_record
+        try:
+            add_output_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                output_type="ppt",
+                file_name="paper2ppt.pdf",
+                download_url=download_url
+            )
+        except Exception as e:
+            log.warning("[generate-ppt] failed to write JSON record: %s", e)
+
         return {
             "success": True,
             "result_path": str(output_dir),
@@ -2131,6 +2206,19 @@ async def generate_deep_research_report(
                 result_path=str(output_dir),
                 download_url=report_url,
             )
+
+            from fastapi_app.kb_records import add_output_record
+            try:
+                add_output_record(
+                    user_email=email,
+                    notebook_id=notebook_id,
+                    output_type="report",
+                    file_name=file_name,
+                    download_url=report_url
+                )
+            except Exception as e:
+                log.warning("[generate-deep-research-report] failed to write JSON record: %s", e)
+
             stat = dest.stat()
             added_file = {
                 "id": f"file-{file_name}-{stat.st_mtime_ns}",
@@ -2161,6 +2249,19 @@ async def generate_deep_research_report(
             result_path=str(output_dir),
             download_url=report_url,
         )
+
+        from fastapi_app.kb_records import add_output_record
+        try:
+            add_output_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                output_type="report",
+                file_name=file_name,
+                download_url=report_url
+            )
+        except Exception as e:
+            log.warning("[generate-deep-research-report] failed to write JSON record: %s", e)
+
         log.info("[generate-deep-research-report] 完成: 未加入来源, file_name=%s", file_name)
         return {
             "success": True,
@@ -2197,6 +2298,14 @@ async def generate_podcast_from_kb(
     从知识库生成播客。支持本地文件与「搜索引入」的 URL：URL 优先用已存 .md，否则抓取后写临时 .md 再参与生成。
     """
     try:
+        # Validate TTS mode restrictions
+        if podcast_mode == "dialog":
+            tts_lower = tts_model.lower()
+            if "qwen" in tts_lower:
+                raise HTTPException(status_code=400, detail="qwen-tts 仅支持单人播客模式")
+            if "gemini" in tts_lower and "tts" in tts_lower and "apiyi" not in api_url.lower():
+                raise HTTPException(status_code=400, detail="gemini-2.5-flash-tts 双人模式需要使用 apiyi 平台")
+
         ts = int(time.time())
         # New layout: outputs/{title}_{id}/podcast/{ts}/
         if notebook_id:
@@ -2356,6 +2465,18 @@ async def generate_podcast_from_kb(
             download_url=audio_url,
         )
 
+        from fastapi_app.kb_records import add_output_record
+        try:
+            add_output_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                output_type="podcast",
+                file_name=Path(audio_path).name if audio_path else "podcast.wav",
+                download_url=audio_url
+            )
+        except Exception as e:
+            log.warning("[generate-podcast] failed to write JSON record: %s", e)
+
         return {
             "success": True,
             "result_path": result_url,
@@ -2483,6 +2604,18 @@ async def generate_mindmap_from_kb(
             result_path=result_path or "",
             download_url=mindmap_path,
         )
+
+        from fastapi_app.kb_records import add_output_record
+        try:
+            add_output_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                output_type="mindmap",
+                file_name="mindmap.mmd",
+                download_url=mindmap_path
+            )
+        except Exception as e:
+            log.warning("[generate-mindmap] failed to write JSON record: %s", e)
 
         return {
             "success": True,
@@ -2679,6 +2812,18 @@ async def generate_flashcards(
         )
         log.info("[generate-flashcards] 成功生成 %d 张闪卡", len(flashcards))
 
+        from fastapi_app.kb_records import add_output_record
+        try:
+            add_output_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                output_type="flashcard",
+                file_name="flashcards.json",
+                download_url=_to_outputs_url(str(output_dir))
+            )
+        except Exception as e:
+            log.warning("[generate-flashcards] failed to write JSON record: %s", e)
+
         return {
             "success": True,
             "flashcards": [fc.dict() for fc in flashcards],
@@ -2765,6 +2910,18 @@ async def generate_quiz(
             json.dumps(quiz_data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         log.info("[generate-quiz] 成功生成 %d 道题目", len(questions))
+
+        from fastapi_app.kb_records import add_output_record
+        try:
+            add_output_record(
+                user_email=email,
+                notebook_id=notebook_id,
+                output_type="quiz",
+                file_name="quiz.json",
+                download_url=_to_outputs_url(str(output_dir))
+            )
+        except Exception as e:
+            log.warning("[generate-quiz] failed to write JSON record: %s", e)
 
         return {
             "success": True,

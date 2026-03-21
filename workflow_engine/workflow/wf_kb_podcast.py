@@ -55,8 +55,8 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 
     def _start_(state: KBPodcastState) -> KBPodcastState:
         # Ensure request fields
-        if not state.request.files:
-            state.request.files = []
+        if not state.request.file_ids:
+            state.request.file_ids = []
 
         # Initialize output directory
         if not state.result_path:
@@ -79,7 +79,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
         """
         Parse all files and extract content
         """
-        files = state.request.files
+        files = state.request.file_ids
         if not files:
             state.file_contents = []
             return state
@@ -181,7 +181,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
         if mode == "dialog":
             speaker_a = "主持人" if language == "zh" else "Host"
             speaker_b = "嘉宾" if language == "zh" else "Guest"
-            prompt = f"""你是一位专业的知识播客制作人。基于以下资料，生成一段5-10分钟的双人对话播客脚本。
+            prompt = f"""你是一位专业的知识播客制作人。基于以下资料，生成一段5分钟左右的双人对话播客脚本。
 
 要求：
 1. 口语化、生动有趣，避免书面语
@@ -189,16 +189,20 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 3. 使用类比和例子帮助理解
 4. 适当加入互动性语言（"你可能会想..."）
 5. 使用{language}语言
-6. 严格使用如下格式逐行输出（每行一个角色）：
-{speaker_a}: ...
-{speaker_b}: ...
+6. **严格要求**：
+   - 只输出对话内容，不要任何场景描述（如[音乐]、[笑]、[停顿]等）
+   - 不要舞台指示或动作描述
+   - 每行格式：{speaker_a}: 对话内容
+   - 示例：
+     {speaker_a}: 大家好，欢迎收听本期节目。
+     {speaker_b}: 很高兴来到这里。
 
 资料内容：
 {contents_str}
 
 请生成播客脚本："""
         else:
-            prompt = f"""你是一位专业的知识播客主播。基于以下资料，生成一段5-10分钟的知识播客脚本。
+            prompt = f"""你是一位专业的知识播客主播。基于以下资料，生成一段5分钟左右的知识播客脚本。
 
 要求：
 1. 口语化、生动有趣，避免书面语
@@ -206,6 +210,12 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 3. 使用类比和例子帮助理解
 4. 适当加入互动性语言（"你可能会想..."）
 5. 使用{language}语言
+6. **严格要求**：
+   - 这是单人播客，直接输出播客主播要说的内容
+   - 不要任何角色标签（如"主持人："、"播客："等）
+   - 不要任何场景描述（如[音乐]、[笑]、[停顿]等）
+   - 不要舞台指示或动作描述
+   - 直接输出连贯的播客稿，就像主播在说话
 
 资料内容：
 {contents_str}
@@ -250,7 +260,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
             audio_path = str(Path(state.result_path) / "podcast.wav")
             mode = getattr(state.request, "podcast_mode", "monologue")
             max_chars = 1500
-            concurrency = 4
+            concurrency = 2  # 降低并发，避免 vLLM 资源竞争
 
             segments = []
             if mode == "dialog":
@@ -318,6 +328,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
                         model=state.request.tts_model,
                         voice_name=voice,
                         language=state.request.language,
+                        timeout=300,  # 增加超时到 5 分钟，适应 vLLM 慢速生成
                     )
 
             async def _run_no_sem(seg):
@@ -329,6 +340,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
                     model=state.request.tts_model,
                     voice_name=voice,
                     language=state.request.language,
+                    timeout=300,
                 )
 
             async def _run_with_retry(seg, attempts=3, base_delay=0.8, use_sem=True):
