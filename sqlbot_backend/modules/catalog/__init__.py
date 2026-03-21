@@ -1,0 +1,2 @@
+"""Catalog / discovery layer."""
+
