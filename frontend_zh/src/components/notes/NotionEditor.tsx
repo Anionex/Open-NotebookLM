@@ -15,7 +15,9 @@ interface NotionEditorProps {
   notebook: any;
   user: any;
   files?: KnowledgeFile[];
-  onSaved?: () => void;
+  onSaved?: (noteInfo: { title: string; fileName: string }) => void;
+  initialTitle?: string;
+  initialBlocks?: Block[];
 }
 
 export const NotionEditor: React.FC<NotionEditorProps> = ({
@@ -24,11 +26,13 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   user,
   files = [],
   onSaved,
+  initialTitle = '无标题',
+  initialBlocks = [{ id: '1', type: 'text', content: '' }],
 }) => {
   const { showToast, ToastContainer } = useToast();
-  const [title, setTitle] = useState('无标题');
+  const [title, setTitle] = useState(initialTitle);
   const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([{ id: '1', type: 'text', content: '' }]);
+  const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [slashMenuBlock, setSlashMenuBlock] = useState<string | null>(null);
   const [aiPanelBlock, setAiPanelBlock] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -386,7 +390,8 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
         ? `![封面](${coverImage})\n\n# ${title}\n\n${content}`
         : `# ${title}\n\n${content}`;
       const blob = new Blob([mdContent], { type: 'text/markdown' });
-      const file = new File([blob], `${title}.md`, { type: 'text/markdown' });
+      const fileName = `${title}_${Date.now()}.md`;
+      const file = new File([blob], fileName, { type: 'text/markdown' });
 
       const formData = new FormData();
       formData.append('file', file);
@@ -399,7 +404,7 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
       if (!res.ok) throw new Error('保存失败');
 
       showToast('笔记已保存到知识库！', 'success');
-      onSaved?.();
+      onSaved?.({ title, fileName });
       onClose();
     } catch {
       showToast('保存笔记失败', 'error');

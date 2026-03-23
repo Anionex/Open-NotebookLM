@@ -3,21 +3,24 @@
 # ============================================
 
 # ------ Core Framework ------
-fastapi==0.128.5
-uvicorn==0.27.0
-starlette>=0.52.0
+fastapi==0.135.1
+uvicorn==0.29.0
+starlette==0.52.1
 pydantic>=2.11.0
 pydantic-settings>=2.12.0
-python-dotenv>=1.2.0
+typing-extensions==4.15.0
+python-dotenv==1.0.1
 python-multipart>=0.0.22
-httpx[socks]
-requests>=2.32.0
-supabase>=2.27.0
+httpx[socks]==0.28.1
+requests==2.32.5
+charset-normalizer==3.4.4
+supabase==2.27.2
 
 # ------ LLM / LangChain ------
-openai>=1.104.2,<2.0.0
+openai==2.16.0
 aisuite>=0.1.14
 langchain==0.3.27
+langchain-chroma==0.2.6
 langchain-community==0.3.29
 langchain-core==0.3.76
 langchain-openai==0.3.33
@@ -29,13 +32,16 @@ langgraph-sdk==0.2.6
 sseclient-py>=1.8.0
 
 # ------ Vector Store / Embedding ------
+chromadb==1.5.5
 faiss-cpu==1.12.0
 sentence-transformers>=3.0.0
-onnxruntime>=1.23.0
+onnxruntime==1.23.2
+huggingface-hub==0.36.2
 
 # ------ Document Parsing ------
-pymupdf>=1.26.0
-pdfplumber>=0.11.0
+PyMuPDF==1.26.7
+pdfplumber==0.11.9
+pdfminer.six==20251230
 PyPDF2>=3.0.1
 pdf2image>=1.17.0
 trafilatura>=2.0.0
@@ -46,35 +52,42 @@ lxml_html_clean>=0.4.0
 python-pptx>=1.0.2
 python-docx>=1.2.0
 openpyxl>=3.1.5
+xlsxwriter==3.2.9
 
 # ------ Image / Vision ------
-pillow>=11.0.0
+pillow>=10.4.0
 opencv-python>=4.11.0
 cairosvg>=2.8.0
 imgkit>=1.2.3
 vtracer>=0.6.0
 matplotlib>=3.10.0
+scikit-image==0.26.0
+ultralytics==8.3.241
 
 # ------ ML / Deep Learning ------
 numpy<2.0.0
 pandas>=2.3.0
 scipy>=1.16.0
-sqlmodel>=0.0.22
-duckdb>=1.2.0
+sqlalchemy==2.0.25
+sqlmodel==0.0.37
+duckdb==1.5.0
 torch
 torchvision
 torchaudio
-transformers>=4.57.0
+transformers==4.57.3
 accelerate>=1.12.0
 scikit-learn>=1.8.0
 
 # ------ Web Scraping / Search ------
 beautifulsoup4>=4.14.0
-playwright>=1.57.0
+playwright==1.56.0
 
 # ------ Deep Research (Qwen-Agent) ------
 qwen-agent>=0.0.34
 alibabacloud-docmind-api20220711>=1.4.13
+alibabacloud-credentials==1.0.7
+alibabacloud-tea-openapi==0.4.3
+alibabacloud-tea-util==0.3.14
 sandbox-fusion>=0.3.7
 tiktoken>=0.12.0
 tabulate>=0.9.0
@@ -116,14 +129,24 @@ google-api-python-client>=2.187.0
 # ------ Audio / TTS ------
 librosa>=0.11.0
 soundfile>=0.13.0
-qwen-tts>=0.1.0
-fireredtts2>=0.1.0
+qwen-tts==0.1.1
+fireredtts2==0.1
 
-# ------ OCR (PaddlePaddle) ------
-paddlepaddle==3.0.0
-paddleocr>=3.4.0
-mineru_vl_utils>=0.1.22
+# ------ OCR (PaddlePaddle / Local Serving) ------
+paddlepaddle==3.2.0
+paddleocr==2.9.1
+mineru_vl_utils==0.1.21
+vllm==0.16.0
+vllm-omni==0.16.0
 loguru>=0.7.3
+
+# ------ Optional Feature Extras (not installed in current szl-dev) ------
+# jieba>=0.42.1            # Better Chinese tokenization for SQLBot RAG
+# rank-bm25>=0.2.2         # BM25 retrieval for schema/value linking
+# elasticsearch>=8.0.0     # Native Elasticsearch datasource support
+# oracledb>=2.0.0          # Oracle datasource support
+# scenedetect>=0.6.0       # Better video keyframe extraction
+# ffmpeg-python>=0.2.0     # Python FFmpeg wrapper for media analysis
 
 # ------ Misc ------
 appdirs>=1.4.4

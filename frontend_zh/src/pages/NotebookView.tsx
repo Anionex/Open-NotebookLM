@@ -26,6 +26,95 @@ import 'katex/dist/katex.min.css';
 // 不做用户管理时使用，数据从 outputs 取
 const DEFAULT_USER = { id: 'default', email: 'default' };
 
+type DataExtractDatasource = {
+  id: string;
+  datasource_id: number;
+  name: string;
+  display_name: string;
+  file_path: string;
+  local_path: string;
+  file_type: string;
+  rows?: number;
+  columns?: number;
+  preview?: {
+    column_names?: string[];
+    sample_data?: Record<string, any>[];
+  };
+};
+
+type DataExtractMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  time: string;
+  turnId?: string;
+  artifactId?: string;
+  sql?: string;
+  columns?: string[];
+  rows?: Record<string, any>[];
+  rowCount?: number;
+  exportUrl?: string;
+  error?: string | null;
+};
+
+type DataExtractArtifact = {
+  id: string;
+  session_id: string;
+  turn_id?: string | null;
+  type: 'csv' | 'text';
+  title: string;
+  question?: string;
+  answer_summary?: string;
+  sql?: string;
+  file_name?: string;
+  file_url?: string;
+  columns?: string[];
+  row_count?: number;
+  preview_rows?: Record<string, any>[];
+  preview_text?: string;
+  selected_datasource_ids?: number[];
+  imported_to_sources?: boolean;
+  imported_source_static_url?: string;
+  reusable_as_input?: boolean;
+  created_at: string;
+};
+
+type DataExtractTurn = {
+  id: string;
+  question: string;
+  answer: string;
+  sql?: string;
+  row_count?: number;
+  columns?: string[];
+  preview_rows?: Record<string, any>[];
+  preview_text?: string;
+  file_url?: string;
+  success?: boolean;
+  error?: string | null;
+  artifact_id?: string | null;
+  created_at: string;
+};
+
+type DataExtractSessionSummary = {
+  id: string;
+  title: string;
+  primary_datasource_id: number;
+  selected_datasource_ids: number[];
+  datasource_snapshot?: Array<{
+    datasource_id: number;
+    display_name?: string;
+    name?: string;
+    file_path?: string;
+    file_type?: string;
+    rows?: number;
+    columns?: number;
+  }>;
+  turn_count?: number;
+  artifact_count?: number;
+  created_at: string;
+  updated_at: string;
+};
+
 type PendingSourceItem = {
   id: string;
   name: string;
@@ -57,6 +146,13 @@ type SourceDetailCacheEntry = {
 const FILE_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
 const SOURCE_DETAIL_CACHE_TTL_MS = 15 * 60 * 1000;
 
+const createDataExtractWelcomeMessage = (): DataExtractMessage => ({
+  id: 'data-extract-welcome',
+  role: 'assistant',
+  content: '选择 CSV 数据源后，可以直接用自然语言提问。我会返回结论、SQL、结果表，并把可复用产出放到下方的小 Tab 里。',
+  time: new Date().toLocaleTimeString(),
+});
+
 const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void }) => {
   const { user } = useAuthStore();
   const effectiveUser = user || DEFAULT_USER;
@@ -80,6 +176,21 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const conversationIdRef = React.useRef<string | null>(null);
   const [inputMsg, setInputMsg] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [dataExtractDatasources, setDataExtractDatasources] = useState<DataExtractDatasource[]>([]);
+  const [dataExtractDatasourceId, setDataExtractDatasourceId] = useState<string>('');
+  const [dataExtractSessionId, setDataExtractSessionId] = useState<string | null>(null);
+  const [dataExtractSessions, setDataExtractSessions] = useState<DataExtractSessionSummary[]>([]);
+  const [dataExtractArtifacts, setDataExtractArtifacts] = useState<DataExtractArtifact[]>([]);
+  const [dataExtractSelectedArtifactIds, setDataExtractSelectedArtifactIds] = useState<Set<string>>(new Set());
+  const [dataExtractPreviewArtifact, setDataExtractPreviewArtifact] = useState<DataExtractArtifact | null>(null);
+  const [dataExtractSubView, setDataExtractSubView] = useState<'current' | 'history'>('current');
+  const [dataExtractHistoryLoading, setDataExtractHistoryLoading] = useState(false);
+  const [dataExtractInput, setDataExtractInput] = useState('');
+  const [dataExtractMessages, setDataExtractMessages] = useState<DataExtractMessage[]>([
+    createDataExtractWelcomeMessage(),
+  ]);
+  const [dataExtractLoading, setDataExtractLoading] = useState(false);
+  const [dataExtractSyncing, setDataExtractSyncing] = useState(false);
   const [chatLoadingStage, setChatLoadingStage] = useState('思考中...');
 
   // 对话历史：本地持久化
@@ -968,19 +1079,24 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const selectedDatasetFiles = files.filter(f => selectedIds.has(f.id) && f.type === 'dataset');
-  const selectedDatasetFileUrls = new Set(
-    selectedDatasetFiles
+  const isCsvDataExtractFile = (file: KnowledgeFile) => {
+    const candidate = `${file.url || ''} ${file.name || ''}`.toLowerCase();
+    return candidate.includes('.csv') || candidate.includes('text/csv');
+  };
+
+  const selectedCsvFiles = files.filter(f => selectedIds.has(f.id) && f.type === 'dataset' && isCsvDataExtractFile(f));
+  const selectedCsvFileUrls = new Set(
+    selectedCsvFiles
       .map(file => file.url)
       .filter((url): url is string => Boolean(url))
   );
-  const selectedDataExtractDatasources = dataExtractDatasources.filter(ds => selectedDatasetFileUrls.has(ds.file_path));
-  const activeDataExtractDatasources = selectedDatasetFiles.length > 0
+  const selectedDataExtractDatasources = dataExtractDatasources.filter(ds => selectedCsvFileUrls.has(ds.file_path));
+  const activeDataExtractDatasources = selectedCsvFiles.length > 0
     ? selectedDataExtractDatasources
     : dataExtractDatasources;
   const activeDataExtractDatasourceIds = activeDataExtractDatasources.map(ds => ds.datasource_id);
   const activeDataExtractDatasourceKey = activeDataExtractDatasourceIds.join(',');
-  const unsyncedSelectedDatasetCount = Math.max(0, selectedDatasetFiles.length - selectedDataExtractDatasources.length);
+  const unsyncedSelectedDatasetCount = Math.max(0, selectedCsvFiles.length - selectedDataExtractDatasources.length);
   const selectedDataExtractArtifacts = dataExtractArtifacts.filter(artifact => dataExtractSelectedArtifactIds.has(artifact.id));
 
   const getDataExtractRequestBase = () => ({
@@ -989,6 +1105,14 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     user_id: effectiveUser.id || 'default',
     email: effectiveUser.email || effectiveUser.id || 'default',
   });
+
+  const getDataExtractLLMConfig = () => {
+    const settings = getApiSettings(effectiveUser?.id || null);
+    return {
+      api_url: settings?.apiUrl?.trim() || undefined,
+      api_key: settings?.apiKey?.trim() || undefined,
+    };
+  };
 
   const mapTurnsToDataExtractMessages = (
     turns: DataExtractTurn[],
@@ -1133,15 +1257,18 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       alert('请先创建或选择一个笔记本');
       return;
     }
-    if (selectedDatasetFiles.length === 0) {
+    if (selectedCsvFiles.length === 0) {
       alert('请先在左侧勾选至少一个 CSV 数据文件');
       return;
     }
 
     setDataExtractSyncing(true);
     try {
-      for (const file of selectedDatasetFiles) {
-        await apiFetch('/api/v1/data-extract/datasources/register', {
+      for (const file of selectedCsvFiles) {
+        if (!file.url) {
+          throw new Error(`数据文件缺少可访问路径: ${file.name}`);
+        }
+        const res = await apiFetch('/api/v1/data-extract/datasources/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1153,6 +1280,10 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             display_name: file.name.replace(/\.[^.]+$/, ''),
           }),
         });
+        if (!res.ok) {
+          const detail = await res.text();
+          throw new Error(detail || `同步失败: ${file.name}`);
+        }
       }
       await fetchDataExtractDatasources();
       await fetchDataExtractSessions();
@@ -1177,6 +1308,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...getDataExtractRequestBase(),
+        ...getDataExtractLLMConfig(),
         datasource_id: Number(primaryDatasourceId),
         selected_datasource_ids: activeDataExtractDatasourceIds.length > 1 ? activeDataExtractDatasourceIds : undefined,
         title: `智能取数 - ${new Date().toLocaleString()}`,
@@ -1252,7 +1384,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       return;
     }
     if (!dataExtractSessionId && activeDataExtractDatasourceIds.length === 0) {
-      alert(selectedDatasetFiles.length > 0 ? '请先同步选中的 CSV 数据源' : '请先同步并选择一个数据源');
+      alert(selectedCsvFiles.length > 0 ? '请先同步选中的 CSV 数据源' : '请先同步并选择一个数据源');
       return;
     }
 
@@ -1274,6 +1406,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...getDataExtractRequestBase(),
+          ...getDataExtractLLMConfig(),
           question: userMsg.content,
           result_format: cfg.resultFormat || 'json',
           execution_strategy: cfg.executionStrategy || 'auto',
@@ -3001,7 +3134,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 <button
                   type="button"
                   onClick={handleSyncDataExtractSources}
-                  disabled={dataExtractSyncing || selectedDatasetFiles.length === 0}
+                  disabled={dataExtractSyncing || selectedCsvFiles.length === 0}
                   className="px-3 py-1.5 text-sm font-medium rounded-ios border border-ios-gray-200 text-ios-gray-700 hover:bg-ios-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {dataExtractSyncing ? '同步中...' : '同步选中 CSV'}
@@ -3100,7 +3233,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 {dataExtractSubView === 'current' && (
                   <>
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
-                  已选结构化文件 {selectedDatasetFiles.length} 个，当前联动数据源 {activeDataExtractDatasources.length} 个，已注册数据源 {dataExtractDatasources.length} 个。
+                  已选 CSV 文件 {selectedCsvFiles.length} 个，当前联动数据源 {activeDataExtractDatasources.length} 个，已注册数据源 {dataExtractDatasources.length} 个。
                 </div>
                 {activeDataExtractDatasourceIds.length > 1 && (
                   <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-sky-800">

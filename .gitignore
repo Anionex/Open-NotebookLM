@@ -61,5 +61,6 @@ chroma_db/
 
 # Static uploads
 static/uploads/
+uploads/
 .claude/
 .codex/

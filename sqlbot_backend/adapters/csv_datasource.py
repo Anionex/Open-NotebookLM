@@ -25,6 +25,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 import time
+import re
 
 from sqlbot_backend.core.datasource_interface import (
     DataSourceInterface,
@@ -205,11 +206,25 @@ class CSVDataSource(DataSourceInterface):
         # 其他选项
         options["null_padding"] = config.get("null_padding", True)
         options["ignore_errors"] = config.get("ignore_errors", False)
+        # DuckDB 1.5 在包含 quoted new lines 的 CSV 上，parallel + null_padding 会报错。
+        # 这里默认关闭并行扫描，优先保证通用 CSV 能稳定导入。
+        options["parallel"] = config.get("parallel", False)
         
         # 自动检测（包括编码、分隔符等）
         options["auto_detect"] = config.get("auto_detect", True)
 
         return options
+
+    def _clean_table_name(self, name: str) -> str:
+        """Normalize CSV-derived table names into DuckDB-safe identifiers."""
+        cleaned = re.sub(r"[^0-9A-Za-z_]+", "_", (name or "").strip())
+        cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+        if cleaned and cleaned[0].isdigit():
+            cleaned = f"table_{cleaned}"
+        return cleaned or "csv_data"
+
+    def _quote_identifier(self, name: str) -> str:
+        return f'"{str(name).replace(chr(34), chr(34) * 2)}"'
 
     def _register_single_csv(self, file_path: Path, table_name: str, options: Dict[str, Any]):
         """
@@ -221,15 +236,20 @@ class CSVDataSource(DataSourceInterface):
         3. 自动检测编码（如果未指定）
         """
         try:
+            safe_table_name = self._clean_table_name(table_name)
+            if safe_table_name != table_name:
+                logger.info("Normalized CSV table name from '%s' to '%s'", table_name, safe_table_name)
+
             # 构建SQL（CREATE TABLE AS SELECT）
             option_str = ", ".join(f"{k}={repr(v)}" for k, v in options.items())
+            escaped_path = str(file_path).replace("'", "''")
             sql = f"""
-                CREATE TABLE {table_name} AS
-                SELECT * FROM read_csv_auto('{file_path}', {option_str})
+                CREATE TABLE {self._quote_identifier(safe_table_name)} AS
+                SELECT * FROM read_csv_auto('{escaped_path}', {option_str})
             """
 
             self.conn.execute(sql)
-            logger.info(f"Registered CSV as table '{table_name}': {file_path}")
+            logger.info(f"Registered CSV as table '{safe_table_name}': {file_path}")
 
         except Exception as e:
             logger.error(f"Failed to register CSV {file_path}: {e}")
@@ -287,7 +307,7 @@ class CSVDataSource(DataSourceInterface):
 
         try:
             # 使用DESCRIBE获取列信息
-            columns_result = self.conn.execute(f"DESCRIBE {table_name}").fetchall()
+            columns_result = self.conn.execute(f"DESCRIBE {self._quote_identifier(table_name)}").fetchall()
 
             columns = []
             for row in columns_result:
@@ -336,7 +356,7 @@ class CSVDataSource(DataSourceInterface):
         try:
             result = self.conn.execute(f"""
                 SELECT DISTINCT "{column_name}"
-                FROM {table_name}
+                FROM {self._quote_identifier(table_name)}
                 WHERE "{column_name}" IS NOT NULL
                 LIMIT {limit}
             """).fetchall()
@@ -354,7 +374,7 @@ class CSVDataSource(DataSourceInterface):
                 SELECT
                     COUNT(DISTINCT "{column_name}") as distinct_count,
                     COUNT(*) - COUNT("{column_name}") as null_count
-                FROM {table_name}
+                FROM {self._quote_identifier(table_name)}
             """).fetchone()
 
             stats["distinct_count"] = result[0]
@@ -368,7 +388,7 @@ class CSVDataSource(DataSourceInterface):
                         MIN("{column_name}") as min_val,
                         MAX("{column_name}") as max_val,
                         AVG("{column_name}") as avg_val
-                    FROM {table_name}
+                    FROM {self._quote_identifier(table_name)}
                     WHERE "{column_name}" IS NOT NULL
                 """).fetchone()
 
@@ -441,11 +461,11 @@ class CSVDataSource(DataSourceInterface):
 
     def _build_sample_query(self, table_name: str, limit: int) -> str:
         """构建样本数据查询"""
-        return f'SELECT * FROM {table_name} LIMIT {limit}'
+        return f'SELECT * FROM {self._quote_identifier(table_name)} LIMIT {limit}'
 
     def _build_count_query(self, table_name: str) -> str:
         """构建计数查询"""
-        return f'SELECT COUNT(*) as count FROM {table_name}'
+        return f'SELECT COUNT(*) as count FROM {self._quote_identifier(table_name)}'
 
     # ========== 扩展功能 ==========
 
@@ -460,7 +480,7 @@ class CSVDataSource(DataSourceInterface):
 
         try:
             self.conn.execute(f"""
-                COPY {table_name} TO '{output_path}' (FORMAT PARQUET)
+                COPY {self._quote_identifier(table_name)} TO '{output_path}' (FORMAT PARQUET)
             """)
             logger.info(f"Exported {table_name} to {output_path}")
         except Exception as e:
@@ -478,7 +498,7 @@ class CSVDataSource(DataSourceInterface):
 
         try:
             # DuckDB的summarize函数
-            result = self.conn.execute(f"SUMMARIZE {table_name}").fetchall()
+            result = self.conn.execute(f"SUMMARIZE {self._quote_identifier(table_name)}").fetchall()
 
             analysis = {
                 "table_name": table_name,

@@ -659,11 +659,11 @@
     },
     {
       "question": "统计各城市的销售额，按销售额从高到低排序，取前10名",
-      "sql": "SELECT\n  \"city\" AS city,\n  SUM(\"total_amount\") AS total_amount\nFROM \"test\"\nGROUP BY \"city\"\nORDER BY total_amount DESC\nLIMIT 10",
+      "sql": "SELECT\n  \"Region\" AS city,\n  SUM(\"IncomeGroup\") AS total_amount\nFROM \"Metadata_Country_API_SP_DYN_LE00_IN_DS2_4a860f008306\"\nGROUP BY \"Region\"\nORDER BY total_amount DESC\nLIMIT 10",
       "description": "城市聚合 + SUM + ORDER BY DESC + LIMIT，列别名使用英文。",
       "pattern": "aggregation",
       "difficulty": "easy",
-      "datasource_id": 7,
+      "datasource_id": 6,
       "tables_used": [],
       "success_count": 0,
       "fail_count": 0

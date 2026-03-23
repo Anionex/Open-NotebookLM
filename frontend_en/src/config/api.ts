@@ -4,6 +4,23 @@
 
 import { getAccessToken } from '../stores/authStore';
 
+// Backend API base URL with smart detection
+function getApiBaseUrl(): string {
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL || '';
+
+  if (configuredUrl.includes('localhost') || configuredUrl.includes('127.0.0.1')) {
+    const currentHost = window.location.hostname;
+    if (currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+      console.info('[API] Public access detected, using relative path instead of localhost');
+      return '';
+    }
+  }
+
+  return configuredUrl;
+}
+
+export const API_BASE_URL = getApiBaseUrl();
+
 // API key for backend authentication
 export const API_KEY = import.meta.env.VITE_API_KEY || 'df-internal-2024-workflow-key';
 
@@ -41,7 +58,9 @@ export async function apiFetch(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  return fetch(url, {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+
+  return fetch(fullUrl, {
     ...options,
     headers,
   });

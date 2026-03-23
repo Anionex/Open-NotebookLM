@@ -57,6 +57,11 @@ def _resolve_command(env_name: str, default_binary: str) -> str:
     configured = os.getenv(env_name, "").strip()
     if configured:
         return configured
+
+    current_env_binary = Path(sys.executable).resolve().parent / default_binary
+    if current_env_binary.exists():
+        return str(current_env_binary)
+
     return shutil.which(default_binary) or default_binary
 
 

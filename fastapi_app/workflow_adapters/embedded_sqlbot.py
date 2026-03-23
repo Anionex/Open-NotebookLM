@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
+from uuid import uuid4
 
 import requests
 from dotenv import dotenv_values
@@ -38,35 +39,39 @@ class EmbeddedSQLBotAdapter:
     _agent_lock = asyncio.Lock()
     _llm_timeout = 45
 
-    def __init__(self, api_key: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        *,
+        llm_api_base: Optional[str] = None,
+        llm_api_key: Optional[str] = None,
+        llm_model: Optional[str] = None,
+    ) -> None:
         self.api_key = (api_key or app_settings.SQLBOT_API_KEY or "").strip()
+        self.llm_api_base = self._normalize_base_url(llm_api_base)
+        self.llm_api_key = self._strip_wrapped_value(llm_api_key)
+        self.llm_model = self._strip_wrapped_value(llm_model)
 
-    def _bootstrap_env(self) -> None:
-        """
-        Provide minimal defaults before the vendored sqlbot_backend settings are imported.
-        """
-        self._load_local_api_key_fallback()
-        if not os.getenv("OPENAI_API_BASE"):
-            if app_settings.SQLBOT_OPENAI_API_BASE:
-                os.environ["OPENAI_API_BASE"] = app_settings.SQLBOT_OPENAI_API_BASE
-            elif app_settings.DEFAULT_LLM_API_URL:
-                os.environ["OPENAI_API_BASE"] = app_settings.DEFAULT_LLM_API_URL
-        if not os.getenv("OPENAI_MODEL"):
-            if app_settings.SQLBOT_OPENAI_MODEL:
-                os.environ["OPENAI_MODEL"] = app_settings.SQLBOT_OPENAI_MODEL
-            elif app_settings.KB_CHAT_MODEL:
-                os.environ["OPENAI_MODEL"] = app_settings.KB_CHAT_MODEL
-        if not os.getenv("OPENAI_API_KEY"):
-            if app_settings.SQLBOT_OPENAI_API_KEY:
-                os.environ["OPENAI_API_KEY"] = app_settings.SQLBOT_OPENAI_API_KEY
-        os.environ.setdefault("SQLBOT_EMBEDDED_MINIMAL", "1")
-        # Embedded mode must tolerate generic host app env values.
-        if not os.getenv("DEBUG"):
-            os.environ["DEBUG"] = "False"
-        if not os.getenv("SECRET_KEY"):
-            os.environ["SECRET_KEY"] = "embedded-sqlbot-secret"
+    @staticmethod
+    def _strip_wrapped_value(value: Optional[str]) -> str:
+        text = str(value or "").strip()
+        if len(text) >= 2 and text.startswith("<") and text.endswith(">"):
+            text = text[1:-1].strip()
+        return text
 
-    def _load_local_api_key_fallback(self) -> None:
+    @classmethod
+    def _normalize_base_url(cls, value: Optional[str]) -> str:
+        base = cls._strip_wrapped_value(value).rstrip("/")
+        if not base:
+            return ""
+        if base.endswith("/chat/completions"):
+            base = base[: -len("/chat/completions")]
+        if "/v1/" in base:
+            base = base.split("/v1/")[0] + "/v1"
+        return base
+
+    def _load_local_api_key_fallback(self) -> Dict[str, str]:
+        fallback: Dict[str, str] = {}
         """
         Local development fallback:
         try nearby `.env` files so the embedded mode can run in the current
@@ -83,17 +88,86 @@ class EmbeddedSQLBotAdapter:
                 values = dotenv_values(env_path)
             except Exception:
                 continue
-            api_key = str(values.get("SQLBOT_OPENAI_API_KEY") or values.get("OPENAI_API_KEY") or values.get("DF_API_KEY") or "").strip()
-            api_base = str(values.get("SQLBOT_OPENAI_API_BASE") or values.get("OPENAI_API_BASE") or values.get("DF_API_URL") or "").strip()
-            model_name = str(values.get("SQLBOT_OPENAI_MODEL") or values.get("OPENAI_MODEL") or values.get("DF_MODEL") or "").strip()
-            if api_key and not os.getenv("OPENAI_API_KEY"):
-                os.environ["OPENAI_API_KEY"] = api_key
-            if api_base and not os.getenv("OPENAI_API_BASE"):
-                os.environ["OPENAI_API_BASE"] = api_base
-            if model_name and not os.getenv("OPENAI_MODEL"):
-                os.environ["OPENAI_MODEL"] = model_name
-            if os.getenv("OPENAI_API_KEY"):
-                return
+
+            api_key = self._strip_wrapped_value(
+                values.get("SQLBOT_OPENAI_API_KEY")
+                or values.get("OPENAI_API_KEY")
+                or values.get("DF_API_KEY")
+            )
+            api_base = self._normalize_base_url(
+                values.get("SQLBOT_OPENAI_API_BASE")
+                or values.get("OPENAI_API_BASE")
+                or values.get("DF_API_URL")
+            )
+            model_name = self._strip_wrapped_value(
+                values.get("SQLBOT_OPENAI_MODEL")
+                or values.get("OPENAI_MODEL")
+                or values.get("DF_MODEL")
+            )
+
+            if api_key and not fallback.get("api_key"):
+                fallback["api_key"] = api_key
+            if api_base and not fallback.get("api_base"):
+                fallback["api_base"] = api_base
+            if model_name and not fallback.get("model"):
+                fallback["model"] = model_name
+
+            if fallback.get("api_key") and fallback.get("api_base"):
+                break
+        return fallback
+
+    def _resolve_llm_config(self) -> Dict[str, str]:
+        fallback = self._load_local_api_key_fallback()
+        api_key = (
+            self.llm_api_key
+            or self._strip_wrapped_value(os.getenv("SQLBOT_OPENAI_API_KEY"))
+            or self._strip_wrapped_value(os.getenv("OPENAI_API_KEY"))
+            or self._strip_wrapped_value(os.getenv("DF_API_KEY"))
+            or self._strip_wrapped_value(app_settings.SQLBOT_OPENAI_API_KEY)
+            or fallback.get("api_key", "")
+        )
+        api_base = (
+            self.llm_api_base
+            or self._normalize_base_url(os.getenv("SQLBOT_OPENAI_API_BASE"))
+            or self._normalize_base_url(os.getenv("OPENAI_API_BASE"))
+            or self._normalize_base_url(os.getenv("DF_API_URL"))
+            or self._normalize_base_url(app_settings.SQLBOT_OPENAI_API_BASE)
+            or fallback.get("api_base", "")
+            or self._normalize_base_url(app_settings.DEFAULT_LLM_API_URL)
+        )
+        model = (
+            self.llm_model
+            or self._strip_wrapped_value(os.getenv("SQLBOT_OPENAI_MODEL"))
+            or self._strip_wrapped_value(os.getenv("OPENAI_MODEL"))
+            or self._strip_wrapped_value(os.getenv("DF_MODEL"))
+            or self._strip_wrapped_value(app_settings.SQLBOT_OPENAI_MODEL)
+            or fallback.get("model", "")
+            or self._strip_wrapped_value(app_settings.KB_CHAT_MODEL)
+            or "gpt-4o-mini"
+        )
+        return {
+            "api_key": api_key,
+            "api_base": api_base,
+            "model": model,
+        }
+
+    def _bootstrap_env(self) -> None:
+        """
+        Provide minimal defaults before the vendored sqlbot_backend settings are imported.
+        """
+        llm_config = self._resolve_llm_config()
+        if llm_config["api_base"] and (self.llm_api_base or not os.getenv("OPENAI_API_BASE")):
+            os.environ["OPENAI_API_BASE"] = llm_config["api_base"]
+        if llm_config["model"] and (self.llm_model or not os.getenv("OPENAI_MODEL")):
+            os.environ["OPENAI_MODEL"] = llm_config["model"]
+        if llm_config["api_key"] and (self.llm_api_key or not os.getenv("OPENAI_API_KEY")):
+            os.environ["OPENAI_API_KEY"] = llm_config["api_key"]
+        os.environ.setdefault("SQLBOT_EMBEDDED_MINIMAL", "1")
+        # Embedded mode must tolerate generic host app env values.
+        if not os.getenv("DEBUG"):
+            os.environ["DEBUG"] = "False"
+        if not os.getenv("SECRET_KEY"):
+            os.environ["SECRET_KEY"] = "embedded-sqlbot-secret"
 
     @classmethod
     def _ensure_runtime(cls) -> SimpleNamespace:
@@ -144,6 +218,7 @@ class EmbeddedSQLBotAdapter:
         return cls._runtime
 
     async def _get_agent(self):
+        self._bootstrap_env()
         self._ensure_runtime()
         if self.__class__._agent is None:
             async with self.__class__._agent_lock:
@@ -155,9 +230,10 @@ class EmbeddedSQLBotAdapter:
 
     def _llm_request(self, messages: list[dict[str, str]]) -> dict[str, Any]:
         self._bootstrap_env()
-        base = (os.getenv("OPENAI_API_BASE") or "").rstrip("/")
-        api_key = os.getenv("OPENAI_API_KEY") or ""
-        model = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
+        llm_config = self._resolve_llm_config()
+        base = llm_config["api_base"].rstrip("/")
+        api_key = llm_config["api_key"]
+        model = llm_config["model"] or "gpt-4o-mini"
         if not base or not api_key:
             raise RuntimeError("Embedded SQLBot LLM config is incomplete.")
 
@@ -365,7 +441,12 @@ class EmbeddedSQLBotAdapter:
 
     def _store_csv(self, path: Path, target_dir: Path) -> Path:
         target_dir.mkdir(parents=True, exist_ok=True)
-        dest = target_dir / path.name
+        if path.parent.resolve() == target_dir.resolve():
+            return path
+
+        suffix = path.suffix or ".csv"
+        unique_name = f"{path.stem}_{uuid4().hex[:12]}{suffix}"
+        dest = target_dir / unique_name
         if path.resolve() != dest.resolve():
             dest.write_bytes(path.read_bytes())
         return dest
@@ -482,6 +563,7 @@ class EmbeddedSQLBotAdapter:
         selected_datasource_ids: Optional[list[int]] = None,
         execution_strategy: Optional[str] = None,
     ) -> Dict[str, Any]:
+        self._bootstrap_env()
         runtime = self._ensure_runtime()
         with runtime.Session(runtime.engine) as session:
             chat = session.get(runtime.Chat, chat_id)
@@ -569,6 +651,7 @@ class EmbeddedSQLBotAdapter:
             }
 
     async def extract_data(self, chat_id: int, question: str, fmt: str = "json") -> Dict[str, Any]:
+        self._bootstrap_env()
         runtime = self._ensure_runtime()
         with runtime.Session(runtime.engine) as session:
             chat = session.get(runtime.Chat, chat_id)
@@ -624,6 +707,7 @@ class EmbeddedSQLBotAdapter:
             }
 
     async def download_data(self, chat_id: int, question: str, fmt: str = "csv") -> EmbeddedDownloadResponse:
+        self._bootstrap_env()
         runtime = self._ensure_runtime()
         with runtime.Session(runtime.engine) as session:
             chat = session.get(runtime.Chat, chat_id)

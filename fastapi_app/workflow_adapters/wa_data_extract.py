@@ -17,6 +17,9 @@ class ExternalSQLBotAdapter:
         self,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        llm_api_base: Optional[str] = None,
+        llm_api_key: Optional[str] = None,
+        llm_model: Optional[str] = None,
     ) -> None:
         self.base_url = (base_url or settings.SQLBOT_BASE_URL).rstrip("/")
         self.api_key = (api_key or settings.SQLBOT_API_KEY or "").strip()
@@ -134,12 +137,26 @@ class SQLBotAdapter:
         self,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        llm_api_base: Optional[str] = None,
+        llm_api_key: Optional[str] = None,
+        llm_model: Optional[str] = None,
     ) -> None:
         mode = (settings.SQLBOT_MODE or "external").strip().lower()
         if mode == "embedded":
-            self._impl = EmbeddedSQLBotAdapter(api_key=api_key)
+            self._impl = EmbeddedSQLBotAdapter(
+                api_key=api_key,
+                llm_api_base=llm_api_base,
+                llm_api_key=llm_api_key,
+                llm_model=llm_model,
+            )
         else:
-            self._impl = ExternalSQLBotAdapter(base_url=base_url, api_key=api_key)
+            self._impl = ExternalSQLBotAdapter(
+                base_url=base_url,
+                api_key=api_key,
+                llm_api_base=llm_api_base,
+                llm_api_key=llm_api_key,
+                llm_model=llm_model,
+            )
 
     async def register_csv(self, file_path: str) -> Dict[str, Any]:
         return await self._impl.register_csv(file_path)

@@ -11,10 +11,10 @@ aisuite==0.1.14
 albucore==0.0.13
 # albumentations==2.0.8
 albumentations==1.4.10
-alibabacloud-credentials
+alibabacloud-credentials==1.0.7
 alibabacloud-docmind-api20220711>=1.4.13
-alibabacloud-tea-openapi
-alibabacloud-tea-util
+alibabacloud-tea-openapi==0.4.3
+alibabacloud-tea-util==0.3.14
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anthropic==0.71.0
@@ -92,9 +92,9 @@ evaluate==0.4.6
 executing==2.2.1
 faiss-cpu==1.12.0
 fast-langdetect==0.2.5
-fastapi==0.128.5
-fastapi-cli==0.0.16
-fastapi-cloud-cli==0.6.0
+fastapi==0.135.1
+fastapi-cli==0.0.20
+fastapi-cloud-cli==0.8.0
 fastar==0.8.0
 fastrlock==0.8.3
 fasttext-predict==0.9.2.4
@@ -102,7 +102,7 @@ fasttext-wheel==0.9.2
 ffmpy==1.0.0
 filelock==3.21.2
 fire==0.7.1
-fireredtts2
+fireredtts2==0.1
 flashinfer-python==0.5.3
 flatbuffers==25.12.19
 fonttools==4.61.1
@@ -129,7 +129,7 @@ htmldate==1.9.4
 httpcore==1.0.9
 httplib2==0.31.2
 httptools==0.7.1
-httpx==0.27.2
+httpx==0.28.1
 httpx-retries==0.4.5
 httpx-sse==0.4.3
 huggingface_hub==0.36.2
@@ -159,6 +159,7 @@ kiwisolver==1.4.9
 kornia==0.8.2
 kornia_rs==0.1.10
 langchain==0.3.27
+langchain-chroma==0.2.6
 langchain-community==0.3.29
 langchain-core==0.3.76
 langchain-openai==0.3.33
@@ -190,8 +191,8 @@ matplotlib==3.10.8
 matplotlib-inline==0.2.1
 mdurl==0.1.2
 mergedeep==1.3.4
-mineru==2.6.6
-mineru_vl_utils==0.1.22
+mineru==2.7.1
+mineru_vl_utils==0.1.21
 mistral_common==1.8.6
 mkdocs==1.6.1
 mkdocs-get-deps==0.2.0
@@ -244,7 +245,7 @@ nvidia-nvtx-cu12==12.8.90
 omegaconf==2.3.0
 onnxruntime==1.24.1
 open-dataflow==1.0.8
-openai==1.109.1
+openai==2.16.0
 openai-harmony==0.0.8
 opencv-contrib-python==4.10.0.84
 opencv-python==4.11.0.86
@@ -255,8 +256,8 @@ orjson==3.11.7
 ormsgpack==1.12.2
 outlines_core==0.2.11
 packaging==25.0
-paddleocr==3.4.0
-paddlepaddle==3.0.0
+paddleocr==2.9.1
+paddlepaddle==3.2.0
 paginate==0.5.7
 pandas==2.3.3
 parso==0.8.6
@@ -271,7 +272,7 @@ phonenumbers==9.0.24
 pikepdf==10.0.3
 pillow==12.1.1
 platformdirs==3.11.0
-playwright==1.58.0
+playwright==1.56.0
 pluggy==1.6.0
 polars==1.35.2
 polars-runtime-32==1.35.2
@@ -311,7 +312,7 @@ pyee==13.0.0
 pyfiglet==1.0.4
 Pygments==2.19.2
 pymdown-extensions==10.18
-PyMuPDF==1.27.1
+PyMuPDF==1.26.7
 PyMySQL==1.1.2
 pyparsing==3.3.2
 pypdf==6.4.1
@@ -323,7 +324,7 @@ pytest==9.0.2
 python-bidi==0.6.7
 python-dateutil==2.9.0.post0
 python-docx==1.2.0
-python-dotenv==1.2.1
+python-dotenv==1.0.1
 python-json-logger==4.0.0
 python-multipart==0.0.22
 python-pptx==1.0.2
@@ -332,7 +333,7 @@ PyYAML==6.0.2
 pyyaml_env_tag==1.1
 pyzmq==27.1.0
 qwen-agent>=0.0.34
-qwen-tts
+qwen-tts==0.1.1
 qwen-vl-utils==0.0.14
 RapidFuzz==3.14.3
 ray==2.52.1
@@ -379,7 +380,8 @@ spacy==3.8.11
 spacy-huggingface-pipelines==0.0.4
 spacy-legacy==3.0.12
 spacy-loggers==1.0.5
-SQLAlchemy==2.0.46
+SQLAlchemy==2.0.25
+sqlmodel==0.0.37
 sqlglot==28.10.1
 srsly==2.5.2
 sseclient-py==1.9.0
@@ -413,13 +415,13 @@ tldextract==5.3.1
 tokenizers==0.22.2
 tomli==2.3.0
 tomlkit==0.13.3
-torch==2.10.0
-torchaudio==2.10.0
-torchvision==0.25.0
+torch==2.9.1
+torchaudio==2.9.1
+torchvision==0.24.1
 tqdm==4.67.3
 trafilatura==2.0.0
 traitlets==5.14.3
-transformers==4.57.6
+transformers==4.57.3
 triton==3.6.0
 typer==0.23.1
 typer-slim==0.23.1
@@ -429,15 +431,16 @@ typing_extensions==4.15.0
 tzdata==2025.3
 tzlocal==5.3.1
 ujson==5.11.0
-ultralytics==8.3.235
+ultralytics==8.3.241
 ultralytics-thop==2.0.18
 uritemplate==4.2.0
 urllib3==2.6.3
 uuid_utils==0.14.0
-uvicorn==0.27.0
+uvicorn==0.29.0
 uvloop==0.22.1
 vendi-score==0.0.3
-vllm
+vllm==0.16.0
+vllm-omni==0.16.0
 vtracer==0.6.12
 wasabi==1.1.3
 watchdog==6.0.0
@@ -459,3 +462,5 @@ xxhash==3.6.0
 yarl==1.22.0
 zopfli==0.4.0
 zstandard==0.25.0
+chromadb==1.5.5
+duckdb==1.5.0

@@ -3,7 +3,15 @@
  */
 
 import { create } from "zustand";
-import { signIn, signUp, signOut as apiSignOut, getCurrentUser, isAuthConfigured } from "../lib/supabase";
+import {
+  signIn,
+  signUp,
+  signOut as apiSignOut,
+  getCurrentUser,
+  isAuthConfigured,
+  verifyOtp as apiVerifyOtp,
+  resendOtp as apiResendOtp,
+} from "../lib/supabase";
 
 interface User {
   id: string;
@@ -120,11 +128,35 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   verifyOtp: async (email, token) => {
-    set({ error: "OTP 验证暂不支持", loading: false });
+    set({ loading: true, error: null });
+    try {
+      const response = await apiVerifyOtp(email, token);
+      if (response.success && response.user) {
+        set({
+          user: response.user,
+          needsOtpVerification: false,
+          pendingEmail: null,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+      throw new Error(response.message || "OTP verification failed");
+    } catch (error: any) {
+      set({ error: error.message || "OTP verification failed", loading: false });
+      throw error;
+    }
   },
 
   resendOtp: async (email) => {
-    set({ error: "OTP 重发暂不支持", loading: false });
+    set({ loading: true, error: null });
+    try {
+      await apiResendOtp(email);
+      set({ loading: false, error: null });
+    } catch (error: any) {
+      set({ error: error.message || "Failed to resend OTP", loading: false });
+      throw error;
+    }
   },
 
   signOut: async () => {

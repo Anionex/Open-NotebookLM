@@ -21,7 +21,13 @@ class RegisterDatasourceRequest(BaseModel):
     display_name: Optional[str] = None
 
 
-class StartSessionRequest(BaseModel):
+class DataExtractLLMConfigMixin(BaseModel):
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+
+class StartSessionRequest(DataExtractLLMConfigMixin):
     notebook_id: str
     notebook_title: str = ""
     user_id: str = "local"
@@ -31,7 +37,7 @@ class StartSessionRequest(BaseModel):
     title: str = ""
 
 
-class SendMessageRequest(BaseModel):
+class SendMessageRequest(DataExtractLLMConfigMixin):
     notebook_id: str
     notebook_title: str = ""
     user_id: str = "local"
@@ -52,6 +58,21 @@ class ImportArtifactRequest(BaseModel):
 
 def _effective_user_id(user_id: str, email: Optional[str]) -> str:
     return (email or user_id or "local").strip() or "local"
+
+
+def _build_service(
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+) -> DataExtractService:
+    from fastapi_app.workflow_adapters.wa_data_extract import SQLBotAdapter
+
+    adapter = SQLBotAdapter(
+        llm_api_base=api_url,
+        llm_api_key=api_key,
+        llm_model=model,
+    )
+    return DataExtractService(adapter=adapter)
 
 
 @router.get("/datasources")
@@ -119,7 +140,7 @@ async def get_session_detail(
 
 @router.post("/sessions/start")
 async def start_session(request: StartSessionRequest) -> Dict[str, Any]:
-    service = DataExtractService()
+    service = _build_service(request.api_url, request.api_key, request.model)
     session = await service.start_session(
         notebook_id=request.notebook_id,
         notebook_title=request.notebook_title,
@@ -133,7 +154,7 @@ async def start_session(request: StartSessionRequest) -> Dict[str, Any]:
 
 @router.post("/sessions/{session_id}/message")
 async def send_message(session_id: str, request: SendMessageRequest) -> Dict[str, Any]:
-    service = DataExtractService()
+    service = _build_service(request.api_url, request.api_key, request.model)
     result = await service.send_message(
         notebook_id=request.notebook_id,
         notebook_title=request.notebook_title,
