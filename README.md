@@ -12,12 +12,15 @@ English | [中文](README_ZH.md)
 
 **Open-source NotebookLM alternative** — Upload documents, chat with sources, generate PPTs / mind maps / podcasts / DrawIO diagrams / flashcards / quizzes / deep research reports in one click
 
+**Online Demo:** https://opennotebook.nas.cpolar.cn/
+
 </div>
 
 ---
 
 ## 📅 Changelog
 
+- **2026.03.25** — Added table-processing and intelligent data extraction features: query, filter, extract, and export CSV / tabular data from natural-language requests; notes now save as backend outputs and support reopening for further editing
 - **2026.03.18** — Backend authentication proxy migration; MinerU vLLM deployment support; document-level retrieval mapping
 - **2026.03.11** — Code refactoring: strict layered architecture; integrated local TTS model ([Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)); added source-based note QA editing (Notion AI style); UI improvements; simplified configuration structure
 - **2026.03.08** — Added user management: Supabase email + OTP authentication, multi-user data isolation, email-based user directories; cleaned up deprecated scripts
@@ -88,6 +91,11 @@ English | [中文](README_ZH.md)
 <p><em>Deep research report generation</em></p>
 </div>
 
+<div align="center">
+<img src="static/readme/headlesheet.png" alt="Intelligent data extraction and table processing" width="90%"/>
+<p><em>Intelligent data extraction and table processing — query, filter, and export tabular data from natural-language requests</em></p>
+</div>
+
 ---
 
 ## ✨ Core Features
@@ -97,6 +105,7 @@ English | [中文](README_ZH.md)
 | 📚 **Knowledge Base** | Upload PDFs, paste URLs/text, import from web search — aggregate multiple sources into a notebook |
 | 🔐 **User Management** | Supabase email + OTP authentication, multi-user data isolation; works without login when unconfigured |
 | 💬 **Smart QA** | RAG-based Q&A grounded in selected documents, with persistent chat history |
+| 📈 **Intelligent Data Extraction / Table Processing** | Natural-language analysis and export for CSV / tabular data, including field extraction, condition filtering, and result tables |
 | ✍️ **AI-Assisted Notes** | Notion-style block editor with AI polish, rewrite, explain, and source-based generation; supports headings (1-6), lists, code blocks, and Markdown formatting |
 | 🎨 **PPT Generation** | One-click editable slide decks from knowledge base content |
 | 🧠 **Mind Maps** | Generate Mermaid mind maps with preview and export |

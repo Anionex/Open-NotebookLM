@@ -99,7 +99,10 @@ def add_output_record(
     notebook_id: str,
     output_type: str,
     file_name: str,
-    download_url: str
+    download_url: str,
+    output_id: Optional[str] = None,
+    title: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
 ):
     notebook_dir = _get_notebook_dir(user_email, notebook_id)
     if not notebook_dir:
@@ -110,11 +113,64 @@ def add_output_record(
     records = _read_json(outputs_file)
 
     record = {
+        "id": output_id,
         "output_type": output_type,
         "file_name": file_name,
+        "title": title or file_name,
         "download_url": download_url,
         "created_at": time.time()
     }
+    if extra and isinstance(extra, dict):
+        record.update(extra)
+    records.append(record)
+    _write_json(outputs_file, records)
+
+def upsert_output_record(
+    user_email: str,
+    notebook_id: str,
+    output_id: str,
+    output_type: str,
+    file_name: str,
+    download_url: str,
+    title: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+):
+    notebook_dir = _get_notebook_dir(user_email, notebook_id)
+    if not notebook_dir:
+        log.warning(f"Notebook dir not found: {user_email}/{notebook_id}")
+        return
+
+    outputs_file = notebook_dir / "_outputs.json"
+    records = _read_json(outputs_file)
+    now = time.time()
+
+    for record in records:
+        if record.get("id") != output_id:
+            continue
+        record.update({
+            "id": output_id,
+            "output_type": output_type,
+            "file_name": file_name,
+            "title": title or file_name,
+            "download_url": download_url,
+            "updated_at": now,
+        })
+        if extra and isinstance(extra, dict):
+            record.update(extra)
+        _write_json(outputs_file, records)
+        return
+
+    record = {
+        "id": output_id,
+        "output_type": output_type,
+        "file_name": file_name,
+        "title": title or file_name,
+        "download_url": download_url,
+        "created_at": now,
+        "updated_at": now,
+    }
+    if extra and isinstance(extra, dict):
+        record.update(extra)
     records.append(record)
     _write_json(outputs_file, records)
 

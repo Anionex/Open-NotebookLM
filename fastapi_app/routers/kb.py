@@ -446,6 +446,13 @@ def _sanitize_md_filename(title: str, prefix: str = "doc") -> str:
     return safe + f"_{int(time.time())}.md"
 
 
+def _sanitize_note_name(title: str, fallback: str = "note") -> str:
+    safe = re.sub(r'[^\w\u4e00-\u9fff\s\-.]', "", (title or "").strip())
+    safe = re.sub(r"\s+", "_", safe)
+    safe = (safe or fallback).strip("._- ") or fallback
+    return safe[:80]
+
+
 def _url_to_pdf(url: str, output_path: Path, timeout_ms: int = 30000) -> None:
     """
     使用 Playwright 打开 URL 并打印为 PDF，便于后续统一走 MinerU。
@@ -526,6 +533,70 @@ async def add_text_source(
         "storage_path": str(source_info.original_path),
         "static_url": static_path,
         "id": f"file-{source_info.original_path.name}",
+    }
+
+
+@router.post("/save-note")
+async def save_note(
+    notebook_id: str = Body(..., embed=True),
+    email: str = Body(..., embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
+    notebook_title: Optional[str] = Body(None, embed=True),
+    title: str = Body("无标题", embed=True),
+    markdown: str = Body(..., embed=True),
+    note_id: Optional[str] = Body(None, embed=True),
+) -> Dict[str, Any]:
+    """保存或更新笔记，并将其登记为 notebook 的 note 输出。"""
+    if not notebook_id or not email:
+        raise HTTPException(status_code=400, detail="notebook_id and email are required")
+    markdown = (markdown or "").strip()
+    if not markdown:
+        raise HTTPException(status_code=400, detail="markdown is required")
+
+    from fastapi_app.kb_records import upsert_output_record
+
+    note_id = (note_id or "").strip() or f"note_{int(time.time() * 1000)}"
+    safe_title = _sanitize_note_name(title or "无标题", "note")
+    paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
+    note_dir = paths.root / "note" / note_id
+    note_dir.mkdir(parents=True, exist_ok=True)
+    note_path = note_dir / f"{safe_title}.md"
+
+    for existing_md in note_dir.glob("*.md"):
+        if existing_md != note_path:
+            try:
+                existing_md.unlink()
+            except Exception:
+                pass
+
+    note_path.write_text(markdown, encoding="utf-8")
+    project_root = get_project_root()
+    rel = note_path.relative_to(project_root)
+    static_path = "/" + rel.as_posix()
+    now = time.time()
+
+    try:
+        upsert_output_record(
+            user_email=email,
+            notebook_id=notebook_id,
+            output_id=note_id,
+            output_type="note",
+            file_name=note_path.name,
+            download_url=static_path,
+            title=title,
+            extra={"updated_at": now},
+        )
+    except Exception as record_err:
+        log.warning("[save-note] failed to write output record: %s", record_err)
+
+    return {
+        "success": True,
+        "note_id": note_id,
+        "title": title,
+        "filename": note_path.name,
+        "static_url": static_path,
+        "download_url": static_path,
+        "updated_at": now,
     }
 
 
@@ -1027,11 +1098,12 @@ async def list_outputs(
         files = []
         for r in records:
             files.append({
-                "id": f"output-{r['output_type']}-{int(r.get('created_at', 0))}",
+                "id": r.get("id") or f"output-{r['output_type']}-{int(r.get('created_at', 0))}",
                 "output_type": r["output_type"],
                 "file_name": r["file_name"],
+                "title": r.get("title") or r["file_name"],
                 "download_url": r["download_url"],
-                "created_at": r.get("created_at"),
+                "created_at": r.get("updated_at") or r.get("created_at"),
             })
         return {"success": True, "files": files}
 
@@ -1240,7 +1312,7 @@ async def list_notebook_files(
     email: Optional[str] = None,
     notebook_title: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List files in a notebook. Reads from JSON records first, falls back to filesystem scan."""
+    """List files in a notebook. Merge JSON records, notebook sources, and legacy link sources."""
     from fastapi_app.kb_records import get_source_records
 
     uid = (user_id or "").strip() or DEFAULT_USER_ID
@@ -1248,25 +1320,41 @@ async def list_notebook_files(
     if not notebook_id:
         return {"success": True, "files": []}
 
-    # Try JSON records first
-    records = get_source_records(user_email=em, notebook_id=notebook_id)
-    if records:
-        files = []
-        for r in records:
-            files.append({
-                "id": f"file-{r['file_name']}-{int(r.get('created_at', 0))}",
-                "name": r["file_name"],
-                "url": r["static_url"],
-                "static_url": r["static_url"],
-                "file_size": r.get("file_size", 0),
-                "file_type": r.get("file_type", ""),
-            })
-        return {"success": True, "files": files}
-
-    # Fallback to filesystem scan
     files: List[Dict[str, Any]] = []
-    seen_names: set = set()
+    seen_keys: set[str] = set()
+    records = get_source_records(user_email=em, notebook_id=notebook_id)
+    seen_names: set[str] = set()
     project_root = get_project_root()
+
+    def _normalize_key(name: str = "", url: str = "", file_type: str = "") -> str:
+        normalized_url = (url or "").strip().rstrip("/")
+        if normalized_url:
+            return f"url:{normalized_url}"
+        return f"{(file_type or '').strip().lower()}::{(name or '').strip()}"
+
+    def _append_file(entry: Dict[str, Any]) -> None:
+        key = _normalize_key(
+            name=str(entry.get("name") or ""),
+            url=str(entry.get("static_url") or entry.get("url") or ""),
+            file_type=str(entry.get("file_type") or entry.get("source_type") or ""),
+        )
+        if key in seen_keys:
+            return
+        seen_keys.add(key)
+        name = str(entry.get("name") or "").strip()
+        if name:
+            seen_names.add(name)
+        files.append(entry)
+
+    for r in records:
+        _append_file({
+            "id": f"file-{r['file_name']}-{int(r.get('created_at', 0))}",
+            "name": r["file_name"],
+            "url": r["static_url"],
+            "static_url": r["static_url"],
+            "file_size": r.get("file_size", 0),
+            "file_type": r.get("file_type", ""),
+        })
 
     # --- 1) Read from new layout: outputs/{title}_{id}/sources/ ---
     try:
@@ -1285,7 +1373,7 @@ async def list_notebook_files(
                     rel = f.relative_to(project_root)
                     static_url = "/" + rel.as_posix()
                     stat = f.stat()
-                    files.append({
+                    _append_file({
                         "id": f"file-{f.name}-{stat.st_mtime_ns}",
                         "name": f.name,
                         "url": static_url,
@@ -1293,7 +1381,6 @@ async def list_notebook_files(
                         "file_size": stat.st_size,
                         "file_type": (f.suffix or "").lower() or "application/octet-stream",
                     })
-                    seen_names.add(f.name)
     except Exception as e:
         log.warning("[list_notebook_files] new layout read failed: %s", e)
 
@@ -1326,7 +1413,7 @@ async def list_notebook_files(
                 if static_url.rstrip("/") in link_static_urls:
                     continue
                 stat = f.stat()
-                files.append({
+                _append_file({
                     "id": f"file-{f.name}-{stat.st_mtime_ns}",
                     "name": f.name,
                     "url": static_url,
@@ -1345,7 +1432,7 @@ async def list_notebook_files(
                             static_url = item.get("static_url") or ""
                             link_url = item.get("link") or ""
                             url = static_url or link_url
-                            files.append({
+                            _append_file({
                                 "id": link_id,
                                 "name": (item.get("title") or item.get("link") or "Link")[:200],
                                 "url": url,
@@ -1584,6 +1671,7 @@ async def import_link_sources(
     """
     if not notebook_id or not email:
         raise HTTPException(status_code=400, detail="notebook_id and email are required")
+    from fastapi_app.kb_records import add_source_record
 
     # New layout
     paths = get_notebook_paths(notebook_id, notebook_title or "", email or user_id)
@@ -1626,6 +1714,19 @@ async def import_link_sources(
                     shutil.copy2(str(source_info.original_path), str(legacy_path))
                 except Exception:
                     pass
+
+            try:
+                add_source_record(
+                    user_email=email,
+                    notebook_id=notebook_id,
+                    file_name=source_info.original_path.name,
+                    file_path=str(source_info.original_path),
+                    static_url=static_url,
+                    file_size=source_info.original_path.stat().st_size,
+                    file_type="text/markdown",
+                )
+            except Exception as record_err:
+                log.warning("[import-link-sources] failed to write source record for %s: %s", link[:60], record_err)
 
             log.info("[import-link-sources] 已抓取并保存: %s -> %s", link[:60], filename)
         except Exception as e:
@@ -3191,6 +3292,7 @@ async def search_and_add(
     """
     try:
         from fastapi_app.services.search_and_add_service import SearchAndAddService
+        from fastapi_app.kb_records import add_source_record
 
         log.info(f"[search-and-add] 开始搜索: {query}, top_k={top_k}")
 
@@ -3225,6 +3327,22 @@ async def search_and_add(
             text=markdown_content,
             title=f"Search: {query[:50]}"
         )
+        project_root = get_project_root()
+        rel = source_info.original_path.relative_to(project_root)
+        static_path = "/" + rel.as_posix()
+
+        try:
+            add_source_record(
+                user_email=email or user_id or DEFAULT_EMAIL,
+                notebook_id=notebook_id,
+                file_name=source_info.original_path.name,
+                file_path=str(source_info.original_path),
+                static_url=static_path,
+                file_size=source_info.original_path.stat().st_size,
+                file_type="text/markdown",
+            )
+        except Exception as record_err:
+            log.warning("[search-and-add] failed to write source record: %s", record_err)
 
         log.info(f"[search-and-add] 已保存 {len(sources)} 个结果: {source_info.original_path}")
 

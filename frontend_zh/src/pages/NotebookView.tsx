@@ -241,7 +241,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
     mermaidCode?: string;
     setId?: string;
   }>>([]);
-  const [editingNote, setEditingNote] = useState<{ title: string; blocks: any[] } | null>(null);
+  const [editingNote, setEditingNote] = useState<{ title: string; markdown?: string; outputId?: string; url?: string; noteId?: string } | null>(null);
 
   // Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -578,11 +578,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
           console.log('[fetchOutputHistory] Processing', data.files.length, 'files');
           for (const item of data.files) {
             const url = item.download_url || item.url || '';
-            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz') || inferOutputType(item.file_name || url);
+            const type = (item.output_type as 'ppt' | 'mindmap' | 'podcast' | 'drawio' | 'flashcard' | 'quiz' | 'note') || inferOutputType(item.file_name || url);
             const output = {
               id: item.id || url || `output_${Date.now()}`,
               type,
-              title: getOutputTitle(type),
+              title: type === 'note' ? (item.title || item.file_name || getOutputTitle(type)) : getOutputTitle(type),
               sources: '历史产出',
               url,
               createdAt: item.created_at ? new Date(item.created_at).toLocaleString() : new Date().toLocaleString(),
@@ -2796,18 +2796,21 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
       )}
       {/* Header */}
-      <header className="h-14 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-4">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={onBack} className="p-2 hover:bg-white/50 rounded-ios text-ios-gray-600 transition-colors">
+      <header className="h-16 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
+        <div className="flex min-w-0 flex-1 items-center gap-3.5 pr-4">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={onBack} className="shrink-0 p-2 hover:bg-white/50 rounded-ios text-ios-gray-600 transition-colors">
             <ChevronLeft size={20} />
           </motion.button>
-          <img src="/logo_small.png" alt="Logo" className="h-8 w-auto object-contain" />
-          <h1 className="font-medium text-ios-gray-900 truncate max-w-[300px]">
+          <img src="/logo_small.png" alt="Logo" className="h-8 w-auto shrink-0 object-contain" />
+          <h1
+            className="min-w-0 flex-1 truncate pt-0.5 text-base font-medium leading-tight text-ios-gray-900 sm:text-lg"
+            title={notebook?.title || 'Semantic Rewards for Low-Resource Language Alignment'}
+          >
             {notebook?.title || 'Semantic Rewards for Low-Resource Language Alignment'}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {/* 右上方添加笔记 - 暂未使用，先注释
           <button className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors">
             <Plus size={16} />
@@ -3115,12 +3118,31 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
               notebook={notebook}
               user={effectiveUser}
               files={files}
-              onSaved={() => {
-                setEditingNote(null);
-                setTimeout(() => fetchFiles(), 1000);
+              onSaved={(noteInfo) => {
+                const now = new Date().toLocaleString();
+                const outputId = noteInfo.noteId || editingNote?.noteId || editingNote?.outputId || `note_${Date.now()}`;
+                if (noteInfo.url) {
+                  setOutputFeed(prev => [
+                    {
+                      id: outputId,
+                      type: 'note',
+                      title: noteInfo.title,
+                      sources: '笔记编辑器',
+                      url: noteInfo.url,
+                      createdAt: now,
+                    },
+                    ...prev.filter(item => item.id !== outputId && item.url !== noteInfo.url),
+                  ]);
+                }
+                setTimeout(() => {
+                  fetchFiles();
+                  refreshVectorList();
+                  refreshOutputHistory();
+                }, 300);
               }}
               initialTitle={editingNote?.title}
-              initialBlocks={editingNote?.blocks}
+              initialMarkdown={editingNote?.markdown}
+              initialNoteId={editingNote?.noteId}
             />
           </div>
         ) : activeTool === 'data_extract' ? (
@@ -4192,14 +4214,9 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                               try {
                                 const res = await fetch(item.url!);
                                 const markdown = await res.text();
-                                const lines = markdown.split('\n').filter(l => l.trim());
-                                const titleLine = lines.find(l => l.startsWith('# '));
-                                const title = titleLine ? titleLine.slice(2).trim() : item.title;
-                                const contentLines = lines.filter(l => !l.startsWith('# ') && !l.startsWith('!['));
-                                const blocks = contentLines.length > 0
-                                  ? contentLines.map((line, i) => ({ id: `${i}`, type: 'text' as const, content: line }))
-                                  : [{ id: '1', type: 'text' as const, content: '' }];
-                                setEditingNote({ title, blocks });
+                                const titleMatch = markdown.match(/^#\s+(.+)$/m);
+                                const title = titleMatch?.[1]?.trim() || item.title;
+                                setEditingNote({ title, markdown, outputId: item.id, url: item.url, noteId: item.id });
                                 setActiveTool('note');
                               } catch (err) {
                                 alert('加载笔记失败');
