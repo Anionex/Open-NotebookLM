@@ -2309,18 +2309,21 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         </div>
       )}
       {/* Header */}
-      <header className="h-14 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-4">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={onBack} className="p-2 hover:bg-white/50 rounded-ios text-ios-gray-600 transition-colors">
+      <header className="h-16 glass border-b border-white/30 flex items-center justify-between px-4 shrink-0">
+        <div className="flex min-w-0 flex-1 items-center gap-3.5 pr-4">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={onBack} className="shrink-0 p-2 hover:bg-white/50 rounded-ios text-ios-gray-600 transition-colors">
             <ChevronLeft size={20} />
           </motion.button>
-          <img src="/logo_small.png" alt="Logo" className="h-8 w-auto object-contain" />
-          <h1 className="font-medium text-ios-gray-900 truncate max-w-[300px]">
+          <img src="/logo_small.png" alt="Logo" className="h-8 w-auto shrink-0 object-contain" />
+          <h1
+            className="min-w-0 flex-1 truncate pt-0.5 text-base font-medium leading-tight text-ios-gray-900 sm:text-lg"
+            title={notebook?.title || 'Semantic Rewards for Low-Resource Language Alignment'}
+          >
             {notebook?.title || 'Semantic Rewards for Low-Resource Language Alignment'}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {/* 右上方添加笔记 - 暂未使用，先注释
           <button className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors">
             <Plus size={16} />

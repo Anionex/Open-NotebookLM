@@ -9,15 +9,18 @@ import { Image, Download, Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import { apiFetch } from '../../config/api';
 import { useToast } from '../../hooks/useToast';
 import type { KnowledgeFile } from '../../types';
+import { blocksToMarkdown, extractNoteFromMarkdown, parseMarkdownToBlocks } from './utils';
 
 interface NotionEditorProps {
   onClose: () => void;
   notebook: any;
   user: any;
   files?: KnowledgeFile[];
-  onSaved?: (noteInfo: { title: string; fileName: string }) => void;
+  onSaved?: (noteInfo: { title: string; fileName: string; url?: string; noteId?: string }) => void;
   initialTitle?: string;
   initialBlocks?: Block[];
+  initialMarkdown?: string;
+  initialNoteId?: string;
 }
 
 export const NotionEditor: React.FC<NotionEditorProps> = ({
@@ -28,16 +31,29 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   onSaved,
   initialTitle = '无标题',
   initialBlocks = [{ id: '1', type: 'text', content: '' }],
+  initialMarkdown = '',
+  initialNoteId,
 }) => {
   const { showToast, ToastContainer } = useToast();
-  const [title, setTitle] = useState(initialTitle);
-  const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
+  const initialDocument = initialMarkdown
+    ? extractNoteFromMarkdown(initialMarkdown, initialTitle)
+    : {
+        title: initialTitle,
+        coverImage: null,
+        bodyMarkdown: blocksToMarkdown(initialBlocks).trim(),
+        blocks: initialBlocks,
+      };
+  const [title, setTitle] = useState(initialDocument.title);
+  const [coverImage, setCoverImage] = useState<string | null>(initialDocument.coverImage);
+  const [blocks, setBlocks] = useState<Block[]>(initialDocument.blocks);
+  const [editorMode, setEditorMode] = useState<'document' | 'blocks'>('document');
+  const [markdownContent, setMarkdownContent] = useState(initialDocument.bodyMarkdown);
   const [slashMenuBlock, setSlashMenuBlock] = useState<string | null>(null);
   const [aiPanelBlock, setAiPanelBlock] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [draggedBlock, setDraggedBlock] = useState<string | null>(null);
+  const DOCUMENT_BLOCK_ID = '__document__';
 
   // AI 上下文记忆
   const [noteMemory, setNoteMemory] = useState<string>('');
@@ -47,6 +63,8 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
     blockId: string;
     text: string;
     position: { x: number; y: number };
+    selectionStart?: number;
+    selectionEnd?: number;
   } | null>(null);
 
   // 差异对比面板（右侧）
@@ -54,6 +72,8 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
     blockId: string;
     originalText: string;
     revisedText: string;
+    selectionStart?: number;
+    selectionEnd?: number;
   } | null>(null);
 
   const coverInputRef = React.useRef<HTMLInputElement>(null);
@@ -188,6 +208,8 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
                 x: Math.max(e.clientX, 10),
                 y: Math.max(e.clientY - 60, 10)
               },
+              selectionStart: blockId === DOCUMENT_BLOCK_ID ? start : undefined,
+              selectionEnd: blockId === DOCUMENT_BLOCK_ID ? end : undefined,
             });
           }
         }
@@ -212,12 +234,29 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
 
   const handleDiffResult = (originalText: string, revisedText: string) => {
     if (!textSelection) return;
-    setDiffPreview({ blockId: textSelection.blockId, originalText, revisedText });
+    setDiffPreview({
+      blockId: textSelection.blockId,
+      originalText,
+      revisedText,
+      selectionStart: textSelection.selectionStart,
+      selectionEnd: textSelection.selectionEnd,
+    });
     setTextSelection(null);
   };
 
   const handleAcceptDiff = (blockId: string, revisedText: string) => {
     if (!diffPreview) return;
+    if (
+      blockId === DOCUMENT_BLOCK_ID &&
+      typeof diffPreview.selectionStart === 'number' &&
+      typeof diffPreview.selectionEnd === 'number'
+    ) {
+      setMarkdownContent(prev => (
+        `${prev.slice(0, diffPreview.selectionStart)}${revisedText}${prev.slice(diffPreview.selectionEnd)}`
+      ));
+      setDiffPreview(null);
+      return;
+    }
     setBlocks(prev =>
       prev.map(b => {
         if (b.id !== blockId) return b;
@@ -233,6 +272,22 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   };
 
   const handleInsertText = (text: string, blockId: string) => {
+    if (blockId === DOCUMENT_BLOCK_ID) {
+      setMarkdownContent(prev => {
+        if (
+          textSelection &&
+          typeof textSelection.selectionStart === 'number' &&
+          typeof textSelection.selectionEnd === 'number'
+        ) {
+          return `${prev.slice(0, textSelection.selectionStart)}${text}${prev.slice(textSelection.selectionEnd)}`;
+        }
+        return prev.trim() ? `${prev}\n\n${text}` : text;
+      });
+      setTextSelection(null);
+      setSlashMenuBlock(null);
+      setAiPanelBlock(null);
+      return;
+    }
     const newBlocks = parseMarkdownToBlocks(text);
     const index = blocks.findIndex(b => b.id === blockId);
     const targetBlock = blocks[index];
@@ -255,117 +310,33 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
 
   const handleInsertBelow = (text: string) => {
     if (!textSelection) {
-      const newBlocks = parseMarkdownToBlocks(text);
-      setBlocks(prev => [...prev, ...newBlocks]);
+      if (editorMode === 'document') {
+        setMarkdownContent(prev => (prev.trim() ? `${prev}\n\n${text}` : text));
+      } else {
+        const newBlocks = parseMarkdownToBlocks(text);
+        setBlocks(prev => [...prev, ...newBlocks]);
+      }
+      return;
+    }
+    if (
+      textSelection.blockId === DOCUMENT_BLOCK_ID &&
+      typeof textSelection.selectionEnd === 'number'
+    ) {
+      setMarkdownContent(prev => (
+        `${prev.slice(0, textSelection.selectionEnd)}\n\n${text}${prev.slice(textSelection.selectionEnd)}`
+      ));
+      setTextSelection(null);
       return;
     }
     handleInsertText(text, textSelection.blockId);
     setTextSelection(null);
   };
 
-  /**
-   * 解析 Markdown 为 Block[]
-   * 修复：bulletList 使用 textarea 支持长文换行；
-   *       numberedList 去除原始数字，编号由 numberedIndex 动态计算。
-   */
-  const parseMarkdownToBlocks = (text: string): Block[] => {
-    const lines = text.split('\n');
-    const newBlocks: Block[] = [];
-    let inCodeBlock = false;
-    let codeContent = '';
-    let tableLines: string[] = [];
+  const getCurrentMarkdownContent = () => (
+    editorMode === 'document' ? markdownContent : blocksToMarkdown(blocks).trim()
+  );
 
-    const removeBold = (s: string) => s.replace(/\*\*(.*?)\*\*/g, '$1');
-
-    const flushTable = () => {
-      if (tableLines.length > 0) {
-        newBlocks.push({ id: generateId(), type: 'table', content: tableLines.join('\n') });
-        tableLines = [];
-      }
-    };
-
-    lines.forEach(line => {
-      if (line.startsWith('```')) {
-        flushTable();
-        if (inCodeBlock) {
-          newBlocks.push({ id: generateId(), type: 'code', content: codeContent.trim() });
-          codeContent = '';
-          inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-        }
-      } else if (inCodeBlock) {
-        codeContent += line + '\n';
-      } else if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-        // Markdown table row — accumulate lines
-        tableLines.push(line);
-      } else {
-        flushTable();
-        if (line.startsWith('###### ')) {
-          newBlocks.push({ id: generateId(), type: 'heading6', content: removeBold(line.slice(7)) });
-        } else if (line.startsWith('##### ')) {
-          newBlocks.push({ id: generateId(), type: 'heading5', content: removeBold(line.slice(6)) });
-        } else if (line.startsWith('#### ')) {
-          newBlocks.push({ id: generateId(), type: 'heading4', content: removeBold(line.slice(5)) });
-        } else if (line.startsWith('### ')) {
-          newBlocks.push({ id: generateId(), type: 'heading3', content: removeBold(line.slice(4)) });
-        } else if (line.startsWith('## ')) {
-          newBlocks.push({ id: generateId(), type: 'heading2', content: removeBold(line.slice(3)) });
-        } else if (line.startsWith('# ')) {
-          newBlocks.push({ id: generateId(), type: 'heading1', content: removeBold(line.slice(2)) });
-        } else if (line.match(/^[-*+]\s/)) {
-          newBlocks.push({ id: generateId(), type: 'bulletList', content: removeBold(line.slice(2)) });
-        } else if (line.match(/^\d+\.\s/)) {
-          newBlocks.push({ id: generateId(), type: 'numberedList', content: removeBold(line.replace(/^\d+\.\s+/, '')) });
-        } else if (line.startsWith('> ')) {
-          newBlocks.push({ id: generateId(), type: 'quote', content: removeBold(line.slice(2)) });
-        } else if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
-          newBlocks.push({ id: generateId(), type: 'divider', content: '' });
-        } else if (line.trim() === '') {
-          // 跳过空行
-        } else {
-          newBlocks.push({ id: generateId(), type: 'text', content: removeBold(line) });
-        }
-      }
-    });
-
-    flushTable();
-    if (inCodeBlock && codeContent.trim()) {
-      newBlocks.push({ id: generateId(), type: 'code', content: codeContent.trim() });
-    }
-
-    return newBlocks.length > 0 ? newBlocks : [{ id: generateId(), type: 'text', content: text }];
-  };
-
-  const getNoteContext = () => `标题：${title}\n\n${blocksToMarkdown()}`;
-
-  const blocksToMarkdown = (): string => {
-    let numIdx = 0;
-    return blocks
-      .map(block => {
-        if (block.type !== 'numberedList') numIdx = 0;
-        switch (block.type) {
-          case 'heading1': return `# ${block.content}\n`;
-          case 'heading2': return `## ${block.content}\n`;
-          case 'heading3': return `### ${block.content}\n`;
-          case 'heading4': return `#### ${block.content}\n`;
-          case 'heading5': return `##### ${block.content}\n`;
-          case 'heading6': return `###### ${block.content}\n`;
-          case 'bulletList': return `- ${block.content}\n`;
-          case 'numberedList': {
-            numIdx++;
-            return `${numIdx}. ${block.content}\n`;
-          }
-          case 'todo': return `- [${block.checked ? 'x' : ' '}] ${block.content}\n`;
-          case 'quote': return `> ${block.content}\n`;
-          case 'code': return `\`\`\`\n${block.content}\n\`\`\`\n`;
-          case 'divider': return `---\n`;
-          case 'table': return `${block.content}\n\n`;
-          default: return `${block.content}\n\n`;
-        }
-      })
-      .join('');
-  };
+  const getNoteContext = () => `标题：${title}\n\n${getCurrentMarkdownContent()}`;
 
   const getNumberedIndex = (blockIndex: number): number => {
     let count = 0;
@@ -385,27 +356,34 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
     if (!notebook?.id) return;
     setSaving(true);
     try {
-      const content = blocksToMarkdown();
+      const content = getCurrentMarkdownContent();
       const mdContent = coverImage
         ? `![封面](${coverImage})\n\n# ${title}\n\n${content}`
         : `# ${title}\n\n${content}`;
-      const blob = new Blob([mdContent], { type: 'text/markdown' });
       const fileName = `${title}_${Date.now()}.md`;
-      const file = new File([blob], fileName, { type: 'text/markdown' });
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('email', user?.email || user?.id || 'default');
-      formData.append('user_id', user?.id || 'default');
-      formData.append('notebook_id', notebook.id);
-      formData.append('notebook_title', notebook?.title || notebook?.name || '');
-
-      const res = await apiFetch('/api/v1/kb/upload', { method: 'POST', body: formData });
+      const res = await apiFetch('/api/v1/kb/save-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.email || user?.id || 'default',
+          user_id: user?.id || 'default',
+          notebook_id: notebook.id,
+          notebook_title: notebook?.title || notebook?.name || '',
+          title,
+          markdown: mdContent,
+          note_id: initialNoteId,
+        }),
+      });
       if (!res.ok) throw new Error('保存失败');
+      const data = await res.json().catch(() => ({}));
 
       showToast('笔记已保存到知识库！', 'success');
-      onSaved?.({ title, fileName });
-      onClose();
+      onSaved?.({
+        title,
+        fileName: data?.filename || fileName,
+        url: data?.static_url || '',
+        noteId: data?.note_id,
+      });
     } catch {
       showToast('保存笔记失败', 'error');
     } finally {
@@ -414,7 +392,7 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
   };
 
   const handleExport = () => {
-    const content = blocksToMarkdown();
+    const content = getCurrentMarkdownContent();
     const mdContent = coverImage
       ? `![封面](${coverImage})\n\n# ${title}\n\n${content}`
       : `# ${title}\n\n${content}`;
@@ -425,6 +403,20 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
     a.download = `${title}.md`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleEditorModeChange = (nextMode: 'document' | 'blocks') => {
+    if (nextMode === editorMode) return;
+    if (nextMode === 'document') {
+      setMarkdownContent(blocksToMarkdown(blocks).trim());
+    } else {
+      setBlocks(parseMarkdownToBlocks(markdownContent, generateId));
+    }
+    setEditorMode(nextMode);
+    setTextSelection(null);
+    setDiffPreview(null);
+    setSlashMenuBlock(null);
+    setAiPanelBlock(null);
   };
 
   return (
@@ -445,6 +437,26 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
               点击添加封面图片
             </span>
           </button>
+          <div className="ml-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              type="button"
+              onClick={() => handleEditorModeChange('document')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                editorMode === 'document' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              全文编辑
+            </button>
+            <button
+              type="button"
+              onClick={() => handleEditorModeChange('blocks')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                editorMode === 'blocks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              块编辑
+            </button>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -499,56 +511,69 @@ export const NotionEditor: React.FC<NotionEditorProps> = ({
             className="text-4xl font-bold outline-none w-full mb-4 bg-transparent"
             placeholder="无标题"
           />
-
-          {blocks.map((block, blockIndex) => (
-            <div key={block.id} className="relative">
-              <BlockEditor
-                block={block}
-                onChange={updateBlock}
-                onTypeChange={changeBlockType}
-                onDelete={deleteBlock}
-                onEnter={addBlock}
-                onBackspace={deleteBlock}
-                onSlashCommand={id => {
-                  setAiPanelBlock(null);
-                  setSlashMenuBlock(id);
-                }}
-                onSpaceKeyEmpty={handleSpaceKeyEmpty}
-                onTextSelection={handleTextSelection}
-                showSlashMenu={slashMenuBlock === block.id}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onToggleTodo={toggleTodo}
-                numberedIndex={
-                  block.type === 'numberedList' ? getNumberedIndex(blockIndex) : undefined
-                }
+          {editorMode === 'document' ? (
+            <div data-block-id={DOCUMENT_BLOCK_ID} className="rounded-2xl border border-gray-200 bg-gray-50/40 p-4">
+              <div className="mb-3 text-sm text-gray-500">
+                全文模式支持跨段选中、整段复制，以及对多行内容直接润色和整理。
+              </div>
+              <textarea
+                value={markdownContent}
+                onChange={(e) => setMarkdownContent(e.target.value)}
+                className="min-h-[520px] w-full resize-none rounded-xl border border-transparent bg-white p-4 font-mono text-[15px] leading-7 text-gray-800 outline-none focus:border-blue-200 focus:ring-2 focus:ring-blue-100"
+                placeholder="在这里输入完整笔记内容，支持跨段编辑与多行选中。"
               />
-
-              {slashMenuBlock === block.id && (
-                <SlashMenu
-                  onSelect={type => changeBlockType(block.id, type)}
-                  onClose={() => setSlashMenuBlock(null)}
-                  onInsertText={text => handleInsertText(text, block.id)}
-                  noteContext={getNoteContext()}
-                  user={user}
-                />
-              )}
-
-              {aiPanelBlock === block.id && (
-                <AIPanel
-                  blockId={block.id}
-                  files={files}
-                  user={user}
-                  noteContext={getNoteContext()}
-                  noteMemory={noteMemory}
-                  onInsertText={handleInsertText}
-                  onClose={() => setAiPanelBlock(null)}
-                  onUpdateMemory={setNoteMemory}
-                />
-              )}
             </div>
-          ))}
+          ) : (
+            blocks.map((block, blockIndex) => (
+              <div key={block.id} className="relative">
+                <BlockEditor
+                  block={block}
+                  onChange={updateBlock}
+                  onTypeChange={changeBlockType}
+                  onDelete={deleteBlock}
+                  onEnter={addBlock}
+                  onBackspace={deleteBlock}
+                  onSlashCommand={id => {
+                    setAiPanelBlock(null);
+                    setSlashMenuBlock(id);
+                  }}
+                  onSpaceKeyEmpty={handleSpaceKeyEmpty}
+                  onTextSelection={handleTextSelection}
+                  showSlashMenu={slashMenuBlock === block.id}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onToggleTodo={toggleTodo}
+                  numberedIndex={
+                    block.type === 'numberedList' ? getNumberedIndex(blockIndex) : undefined
+                  }
+                />
+
+                {slashMenuBlock === block.id && (
+                  <SlashMenu
+                    onSelect={type => changeBlockType(block.id, type)}
+                    onClose={() => setSlashMenuBlock(null)}
+                    onInsertText={text => handleInsertText(text, block.id)}
+                    noteContext={getNoteContext()}
+                    user={user}
+                  />
+                )}
+
+                {aiPanelBlock === block.id && (
+                  <AIPanel
+                    blockId={block.id}
+                    files={files}
+                    user={user}
+                    noteContext={getNoteContext()}
+                    noteMemory={noteMemory}
+                    onInsertText={handleInsertText}
+                    onClose={() => setAiPanelBlock(null)}
+                    onUpdateMemory={setNoteMemory}
+                  />
+                )}
+              </div>
+            ))
+          )}
         </div>
 
         {diffPreview && (
