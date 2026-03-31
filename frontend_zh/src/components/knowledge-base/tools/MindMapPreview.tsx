@@ -17,7 +17,6 @@ export const MindMapPreview = ({ mermaidCode, title = "思维导图预览", onNo
   const containerRef = useRef<HTMLDivElement>(null);
   const mindMapRef = useRef<MindMap | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [askMenu, setAskMenu] = useState<{ nodeText: string; parentText: string; x: number; y: number } | null>(null);
 
@@ -47,7 +46,6 @@ export const MindMapPreview = ({ mermaidCode, title = "思维导图预览", onNo
     if (mindMapRef.current) {
       mindMapRef.current.destroy();
       mindMapRef.current = null;
-      setIsReady(false);
     }
 
     try {
@@ -71,14 +69,11 @@ export const MindMapPreview = ({ mermaidCode, title = "思维导图预览", onNo
 
       if (onNodeClick) {
         mm.on('node_click', (node: any, e: any) => {
-          console.log('[MindMap] node_click fired', { node, e, nodeData: node?.nodeData, text: node?.nodeData?.data?.text });
-          console.log('[MindMap] event keys:', e ? Object.keys(e) : 'null');
           const text = node?.nodeData?.data?.text;
           if (!text) return;
           setTooltip(null);
           const parentText = node?.parent?.nodeData?.data?.text || '';
           const raw = e?.originEvent || e?.event || e;
-          console.log('[MindMap] raw event:', raw, 'clientX:', raw?.clientX);
           const rect = containerRef.current?.getBoundingClientRect();
           if (rect && raw?.clientX != null) {
             setAskMenu({
@@ -121,7 +116,6 @@ export const MindMapPreview = ({ mermaidCode, title = "思维导图预览", onNo
       mm.on('node_tree_render_end', () => {
         if (firstRender) {
           firstRender = false;
-          setIsReady(true);
           setTimeout(() => mm.view.fit(), 100);
         }
       });
@@ -136,7 +130,7 @@ export const MindMapPreview = ({ mermaidCode, title = "思维导图预览", onNo
         mindMapRef.current = null;
       }
     };
-  }, [mermaidCode]);
+  }, [mermaidCode, parseData]);
 
   const handleExpandAll = () => {
     mindMapRef.current?.execCommand('EXPAND_ALL');

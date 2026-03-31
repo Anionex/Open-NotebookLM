@@ -17,7 +17,6 @@ export const MindMapPreview = ({ mermaidCode, title = "Mind map preview", onNode
   const containerRef = useRef<HTMLDivElement>(null);
   const mindMapRef = useRef<MindMap | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [askMenu, setAskMenu] = useState<{ nodeText: string; parentText: string; x: number; y: number } | null>(null);
 
@@ -49,7 +48,6 @@ export const MindMapPreview = ({ mermaidCode, title = "Mind map preview", onNode
     if (mindMapRef.current) {
       mindMapRef.current.destroy();
       mindMapRef.current = null;
-      setIsReady(false);
     }
 
     try {
@@ -120,7 +118,6 @@ export const MindMapPreview = ({ mermaidCode, title = "Mind map preview", onNode
       mm.on('node_tree_render_end', () => {
         if (firstRender) {
           firstRender = false;
-          setIsReady(true);
           setTimeout(() => mm.view.fit(), 100);
         }
       });
