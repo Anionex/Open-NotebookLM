@@ -3786,7 +3786,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                 <p className="text-xs text-ios-gray-500 mt-1">来源：{previewOutput.sources}</p>
               </div>
               <div className="flex items-center gap-2">
-                {previewOutput.url && (
+                {previewOutput.url && previewOutput.type !== 'mindmap' && (
                   <a
                     href={previewOutput.url}
                     target="_blank"

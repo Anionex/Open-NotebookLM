@@ -474,7 +474,7 @@ class KBMindMapRequest(MainRequest):
     """
     file_ids: List[str] = field(default_factory=list)  # 引入层处理后的文件ID列表
     mindmap_style: str = "default"  # default | flowchart | tree
-    max_depth: int = 4  # 思维导图最大深度（根节点 + 一级 + 二级 + 三级要点）
+    max_depth: int = 6  # 思维导图最大深度
     vector_store_base_dir: Optional[str] = None  # 向量库根目录（manifest所在目录）
 
 @dataclass
