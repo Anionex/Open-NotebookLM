@@ -63,8 +63,8 @@ export const MindMapPreview = ({ mermaidCode, title = "Mind map preview", onNode
         enableFreeDrag: false,
         alwaysShowExpandBtn: true,
         initRootNodePosition: ['center', 'center'],
-        exportPaddingX: 20,
-        exportPaddingY: 20,
+        exportPaddingX: 50,
+        exportPaddingY: 50,
       });
 
       mindMapRef.current = mm;
@@ -154,7 +154,9 @@ export const MindMapPreview = ({ mermaidCode, title = "Mind map preview", onNode
       const fullData = mindMapRef.current.getData();
       // Expand all for export
       mindMapRef.current.execCommand('EXPAND_ALL');
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 800));
+      mindMapRef.current.view.fit();
+      await new Promise(r => setTimeout(r, 300));
       await mindMapRef.current.export('png', true, `mindmap_${Date.now()}`);
       // Restore previous state
       mindMapRef.current.setData(fullData);
