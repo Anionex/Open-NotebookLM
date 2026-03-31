@@ -174,7 +174,6 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             contents_str += f"=== {item['filename']} ===\n{item['content']}\n\n"
 
         language = state.request.language
-        max_depth = state.request.max_depth
 
         prompt = f"""请基于以下文档内容，生成一张**层级清晰、主题归纳明确、适合快速把握全文结构的思维导图**。你的目标是把文章压缩成一张"知识地图"，让读者能够迅速理解这篇文章的核心主题、主要模块、关键内容，以及各部分之间的层级关系。
 
@@ -188,7 +187,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
 当某个二级主题中存在特别重要的细节时，继续提炼 **1–3 个三级要点**（#### 四级标题），用于补充最关键的信息，例如术语、条件、指标、例子、判断依据、具体表现、限制条件、后续影响等。
 
-整体层级最多{max_depth}层。使用{language}语言。
+请根据内容复杂度自适应决定层级深度，不要人为限制。使用{language}语言。
 
 整张思维导图要体现出一种**知识整理型、结构概览型、主题分解型**的风格。重点是帮助读者快速理解全文内容版图，而不是只罗列摘要句子。请让结构体现出"从总到分、由主到次、层层展开"的组织逻辑。
 
