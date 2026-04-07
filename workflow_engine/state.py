@@ -489,6 +489,17 @@ class KBMindMapState(MainState):
     mermaid_code: str = ""  # 生成的Mermaid代码
     mindmap_svg_path: str = ""  # SVG输出路径（可选）
 
+    # ---- MapReduce 中间状态 ----
+    use_mapreduce: bool = False  # 是否使用 MapReduce 路径
+    chunks: List[Dict[str, Any]] = field(default_factory=list)
+    # 每个 chunk: {"chunk_id": str, "source": str, "text": str, "token_count": int}
+    map_results: List[Dict[str, Any]] = field(default_factory=list)
+    # 每个条目: {"chunk_id": str, "nodes": [{"node_id","topic","parent_topic","summary","importance_score","source_chunk_id"}]}
+    collapsed_nodes: List[Dict[str, Any]] = field(default_factory=list)
+    collapse_iterations: int = 0  # Collapse 轮次计数
+    total_content_tokens: int = 0  # 所有文件内容总 token 数
+    context_window_limit: int = 0  # 单次调用的 token 上限（模型窗口 * 0.4）
+
 
 # ==================== Paper2Drawio 相关 State ====================
 
