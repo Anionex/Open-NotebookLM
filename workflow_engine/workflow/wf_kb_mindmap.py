@@ -82,12 +82,13 @@ DEFAULT_CONTEXT_WINDOW = 64000
 
 
 def _get_context_window(model: str) -> int:
-    """查表获取模型上下文窗口大小。"""
+    """查表获取模型上下文窗口大小（最长匹配优先）。"""
     model_lower = model.lower() if model else ""
+    best_key, best_val = "", DEFAULT_CONTEXT_WINDOW
     for key, val in _MODEL_CONTEXT_WINDOWS.items():
-        if key in model_lower:
-            return val
-    return DEFAULT_CONTEXT_WINDOW
+        if key in model_lower and len(key) > len(best_key):
+            best_key, best_val = key, val
+    return best_val
 
 
 def _get_chunk_token_limit(model: str) -> int:
