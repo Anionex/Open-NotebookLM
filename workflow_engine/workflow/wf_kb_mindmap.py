@@ -171,14 +171,16 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         # Structure analysis prompt
         language = state.request.language
         max_depth = state.request.max_depth
-        prompt = f"""你是一位专业的知识结构分析师。请分析以下文档内容，提取出层级化的知识结构。
+        prompt = f"""你是一位专业的知识结构分析师。请分析以下文档内容，提取出一份“跨来源综合”的层级化知识结构。
 
 要求：
-1. 识别主要主题和子主题
-2. 提取关键概念和要点
-3. 建立清晰的层级关系（最多{max_depth}层）
-4. 使用{language}语言
-5. 输出格式为层级化的文本结构，使用缩进表示层级
+1. 先综合多个来源的共同主题、关键问题、方法、证据和结论，不要按“论文A/论文B/来源1/来源2”逐篇罗列
+2. 一级节点必须是概念主题、方法模块、问题域、结论方向这类“内容主题”，不能是“训练目标革新”“前沿方向”“跨方向关联”这类空泛包装词
+3. 每个节点要尽量信息密实，优先保留能支撑导图理解的关键词、方法名、现象名、关键结论和关键证据
+4. 建立清晰的层级关系（最多{max_depth}层）
+5. 使用{language}语言
+6. 输出格式为层级化的文本结构，使用缩进表示层级
+7. 如果多个来源之间存在对应关系，应把它们放到同一主题分支下整合，而不是拆成平行的来源分支
 
 文档内容：
 {contents_str}
@@ -214,20 +216,23 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
         # Mermaid generation prompt
         style = state.request.mindmap_style
-        prompt = f"""你是一位专业的Mermaid图表生成专家。请根据以下知识结构，生成Mermaid mindmap语法。
+        prompt = f"""你是一位专业的 Mermaid 导图专家。请根据以下知识结构，生成高质量的 Mermaid mindmap 语法。
 
 知识结构：
 {state.content_structure}
 
 要求：
-1. 使用Mermaid mindmap语法
+1. 使用 Mermaid mindmap 语法
 2. 风格：{style}
-3. 保持层级关系清晰
-4. 节点名称简洁明了
-5. 只输出Mermaid代码，不要有其他解释
+3. 保持层级关系清晰，根节点必须是本批资料的“综合主题”，不能是“大型语言模型前沿方向”“研究方向综述”这类空泛标题
+4. 不要按论文名、来源名、文件名建一级分支；一级分支必须是概念主题、问题域、方法模块、关键发现、应用价值等内容主题
+5. 节点名称要具体，优先使用方法名、现象名、任务名、结论名、关键术语；避免“核心问题/解决方案/关键发现/风险场景/缓解措施/未来探索”这类空壳节点反复出现
+6. 每个分支尽量表达“是什么 -> 为什么重要 -> 关键证据/机制”的信息密度，避免只有目录感没有内容
+7. 如果多个来源讨论的是同一主题，合并到同一分支中，不要拆成并列来源分组
+8. 只输出 Mermaid 代码，不要输出解释，不要加 markdown 代码块
+9. 输出必须以 `mindmap` 开头
 
 Mermaid mindmap语法示例：
-```
 mindmap
   root((中心主题))
     主题1
@@ -235,7 +240,6 @@ mindmap
       子主题1.2
     主题2
       子主题2.1
-```
 
 请生成Mermaid mindmap代码："""
 

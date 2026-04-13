@@ -2,8 +2,8 @@ import json
 from abc import ABC, abstractmethod
 from typing import Tuple, Optional, Any, Dict, List
 from workflow_engine.toolkits.multimodaltool.utils import (
-    Provider, detect_provider, extract_base64, 
-    is_gemini_model, is_gemini_25, is_gemini_3_pro
+    Provider, detect_provider, extract_base64,
+    is_gemini_model, is_gemini_25, is_gemini_3_pro, is_gemini_31_flash_image
 )
 from workflow_engine.logger import get_logger
 
@@ -172,6 +172,20 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 },
             }
             return url, payload, False
+
+        if is_gemini_31_flash_image(model):
+            url = f"{base}/v1beta/models/{model}:generateContent"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
         
         raise ValueError(f"Unsupported Gemini model for APIYI Generation: {model}")
 
@@ -201,6 +215,27 @@ class ApiYiGeminiProvider(AIProviderStrategy):
 
         if is_gemini_3_pro(model):
             url = f"{base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": f"image/{fmt}", "data": image_b64}}
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
+
+        if is_gemini_31_flash_image(model):
+            url = f"{base}/v1beta/models/{model}:generateContent"
             payload = {
                 "contents": [
                     {

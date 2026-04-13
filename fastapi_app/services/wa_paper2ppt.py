@@ -140,6 +140,37 @@ def _try_load_existing_mineru_markdown(result_root: Path) -> tuple[str, str]:
     if not candidates:
         return "", ""
 
+
+def _backfill_ppt_export_paths(result_root: str | Path, pdf_path: str, pptx_path: str) -> tuple[str, str]:
+    root = Path(result_root).resolve()
+    resolved_pdf = str(pdf_path or "").strip()
+    resolved_pptx = str(pptx_path or "").strip()
+
+    candidates = {
+        "pdf": [
+            root / "paper2ppt.pdf",
+            root / "paper2ppt_fallback.pdf",
+        ],
+        "pptx": [
+            root / "paper2ppt_editable.pptx",
+            root / "paper2ppt_fallback.pptx",
+        ],
+    }
+
+    if not resolved_pdf:
+        for candidate in candidates["pdf"]:
+            if candidate.exists() and candidate.is_file():
+                resolved_pdf = str(candidate)
+                break
+
+    if not resolved_pptx:
+        for candidate in candidates["pptx"]:
+            if candidate.exists() and candidate.is_file():
+                resolved_pptx = str(candidate)
+                break
+
+    return resolved_pdf, resolved_pptx
+
     md_path = candidates[0]
     try:
         md = md_path.read_text(encoding="utf-8")
@@ -339,6 +370,13 @@ async def run_paper2ppt_wf_api(
     ppt_pptx_path = getattr(final_state, "ppt_pptx_path", "")
     final_pagecontent = getattr(final_state, "pagecontent", []) or []
     final_result_path = getattr(final_state, "result_path", result_path or "")
+    ppt_pdf_path, ppt_pptx_path = _backfill_ppt_export_paths(
+        final_result_path,
+        str(ppt_pdf_path or ""),
+        str(ppt_pptx_path or ""),
+    )
+    if not final_pagecontent:
+        final_pagecontent = getattr(state, "pagecontent", []) or []
 
     resp_data: dict[str, Any] = {
         "success": True,
@@ -404,6 +442,13 @@ async def run_paper2ppt_full_pipeline(
     ppt_pdf_path = getattr(state_pp, "ppt_pdf_path", "")
     ppt_pptx_path = getattr(state_pp, "ppt_pptx_path", "")
     final_pagecontent = getattr(state_pp, "pagecontent", []) or []
+    ppt_pdf_path, ppt_pptx_path = _backfill_ppt_export_paths(
+        final_result_path,
+        str(ppt_pdf_path or ""),
+        str(ppt_pptx_path or ""),
+    )
+    if not final_pagecontent:
+        final_pagecontent = pagecontent
 
     resp_data: dict[str, Any] = {
         "success": True,

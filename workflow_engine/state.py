@@ -245,8 +245,7 @@ class PlanningState(MainState):
 
 @dataclass
 class Paper2FigureRequest(MainRequest):
-    gen_fig_model: str = "gemini-2.5-flash-image-preview"
-    # gen_fig_model: str = "gemini-3-pro-image-preview"
+    gen_fig_model: str = os.getenv("IMAGE_GEN_MODEL", "gemini-3-pro-image-preview")
     sam2_model: str = "models/facebook/sam2.1-hiera-tiny"
     bg_rm_model: str = "models/RMBG-2.0"
 

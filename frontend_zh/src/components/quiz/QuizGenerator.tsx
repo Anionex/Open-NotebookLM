@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Brain, Loader2, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../config/api';
-import { getApiSettings } from '../../services/apiSettingsService';
+import { getRequestApiSettings } from '../../services/apiSettingsService';
 
 interface QuizGeneratorProps {
   selectedFiles: string[];
@@ -28,7 +28,7 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({
       return;
     }
 
-    const settings = getApiSettings(userId);
+    const settings = getRequestApiSettings(userId);
     const apiUrl = settings?.apiUrl?.trim() || '';
     const apiKey = settings?.apiKey?.trim() || '';
 

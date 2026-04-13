@@ -97,3 +97,8 @@ def is_gemini_25(model: str) -> bool:
 def is_gemini_3_pro(model: str) -> bool:
     """是否为 Gemini 3 Pro 系列"""
     return "gemini-3-pro" in model.lower()
+
+def is_gemini_31_flash_image(model: str) -> bool:
+    """是否为 Gemini 3.1 Flash Image 系列"""
+    normalized = model.lower()
+    return "gemini-3.1-flash-image" in normalized

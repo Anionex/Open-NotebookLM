@@ -8,6 +8,8 @@ import httpx
 from workflow_engine.logger import get_logger
 from workflow_engine.toolkits.multimodaltool.providers import get_provider
 from workflow_engine.toolkits.multimodaltool.req_img import _post_raw
+from workflow_engine.toolkits.multimodaltool.utils import detect_provider, Provider
+from fastapi_app.config import settings
 
 log = get_logger(__name__)
 
@@ -47,6 +49,11 @@ _GEMINI_TTS_VOICES = {
     "Zephyr",
 }
 
+_QWEN_TTS_VOICES = {
+    "Cherry",
+    "Chelsie",
+}
+
 
 def _normalize_api_tts_model(model: str) -> str:
     normalized = (model or "").strip()
@@ -60,6 +67,12 @@ def _normalize_api_tts_model(model: str) -> str:
 def _normalize_api_tts_voice(model: str, voice_name: str) -> str:
     normalized_model = (model or "").lower()
     normalized_voice = (voice_name or "").strip()
+    if "qwen" in normalized_model and "tts" in normalized_model:
+        if normalized_voice in _QWEN_TTS_VOICES:
+            return normalized_voice
+        if normalized_voice:
+            log.warning(f"[TTS] Qwen TTS 不支持音色 {normalized_voice}，自动切换为 Cherry")
+        return "Cherry"
     if "gemini" in normalized_model and "tts" in normalized_model:
         if normalized_voice in _GEMINI_TTS_VOICES:
             return normalized_voice
@@ -67,6 +80,135 @@ def _normalize_api_tts_voice(model: str, voice_name: str) -> str:
             log.warning(f"[TTS] Gemini TTS 不支持音色 {normalized_voice}，自动切换为 Puck")
         return "Puck"
     return normalized_voice
+
+
+def _setting_or_env(name: str, default: Optional[str] = None) -> Optional[str]:
+    env_value = os.getenv(name)
+    if env_value is not None and str(env_value).strip() != "":
+        return env_value
+    setting_value = getattr(settings, name, None)
+    if setting_value is None or setting_value == "":
+        return default
+    return str(setting_value)
+
+
+def _resolve_tts_api_config(
+    api_url: Optional[str],
+    api_key: Optional[str],
+    model: Optional[str],
+) -> tuple[str, str, str]:
+    resolved_api_url = str(_setting_or_env("TTS_API_URL", "") or "").strip() or str(api_url or "").strip()
+    resolved_api_key = str(_setting_or_env("TTS_API_KEY", "") or "").strip() or str(api_key or "").strip()
+    resolved_model = str(_setting_or_env("TTS_MODEL", "") or "").strip() or str(model or "").strip()
+
+    if not resolved_api_url:
+        raise ValueError("Missing TTS api_url")
+    if not resolved_api_key:
+        raise ValueError("Missing TTS api_key")
+    if not resolved_model:
+        raise ValueError("Missing TTS model")
+    return resolved_api_url, resolved_api_key, resolved_model
+
+
+async def _call_openai_compatible_tts(
+    *,
+    api_url: str,
+    api_key: str,
+    model: str,
+    text: str,
+    voice_name: str,
+    timeout: int,
+    response_format: str = "wav",
+    **kwargs,
+) -> bytes:
+    url = f"{api_url.rstrip('/')}/audio/speech"
+    payload = {
+        "model": model,
+        "input": text,
+        "voice": voice_name,
+        "response_format": response_format,
+    }
+    language = kwargs.get("language")
+    if language:
+        payload["language"] = language
+    instructions = kwargs.get("instructions")
+    if instructions:
+        payload["instructions"] = instructions
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    log.info(f"[TTS] OpenAI-compatible POST {url}")
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), http2=False) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+        log.info(f"[TTS] openai-compatible status={resp.status_code}")
+        resp.raise_for_status()
+        return resp.content
+
+
+async def _call_dashscope_qwen_tts(
+    *,
+    api_url: str,
+    api_key: str,
+    model: str,
+    text: str,
+    voice_name: str,
+    timeout: int,
+    **kwargs,
+) -> bytes:
+    base = api_url.rstrip("/")
+    url = f"{base}/services/aigc/multimodal-generation/generation"
+    lang_input = kwargs.get("language") or ""
+    lang_map = {
+        "zh": "Chinese",
+        "en": "English",
+        "fr": "French",
+        "de": "German",
+        "it": "Italian",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "pt": "Portuguese",
+        "ru": "Russian",
+        "es": "Spanish",
+    }
+    language_type = lang_map.get(str(lang_input), str(lang_input) or "Auto")
+    payload = {
+        "model": model,
+        "input": {
+            "text": text,
+            "voice": voice_name,
+            "language_type": language_type,
+        },
+    }
+    instructions = kwargs.get("instructions")
+    if instructions and "instruct" in model.lower():
+        payload["parameters"] = {
+            "instructions": instructions,
+        }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    log.info(f"[TTS] DashScope Qwen TTS POST {url}")
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), http2=False) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+        log.info(f"[TTS] dashscope status={resp.status_code}")
+        if resp.status_code >= 400:
+            log.error(f"[TTS] dashscope body={resp.text[:1000]}")
+        resp.raise_for_status()
+        data = resp.json()
+        audio = (data.get("output") or {}).get("audio") or {}
+        audio_b64 = audio.get("data")
+        if audio_b64:
+            return base64.b64decode(audio_b64)
+        audio_url = audio.get("url")
+        if not audio_url:
+            raise RuntimeError(f"DashScope TTS missing audio url: {str(data)[:400]}")
+        audio_resp = await client.get(audio_url)
+        audio_resp.raise_for_status()
+        return audio_resp.content
 
 def split_tts_text(content: str, limit: int) -> List[str]:
     if limit is None or limit <= 0:
@@ -189,15 +331,15 @@ async def generate_speech_bytes_async(
     **kwargs,
 ) -> bytes:
     # 优先使用本地 TTS
-    use_local = os.getenv("USE_LOCAL_TTS", "0").strip().lower() in ("1", "true", "yes")
-    tts_engine = os.getenv("TTS_ENGINE", "qwen").strip().lower()
+    use_local = str(_setting_or_env("USE_LOCAL_TTS", "0") or "0").strip().lower() in ("1", "true", "yes")
+    tts_engine = str(_setting_or_env("TTS_ENGINE", "qwen") or "qwen").strip().lower()
     log.info(f"[TTS] USE_LOCAL_TTS={use_local}, TTS_ENGINE={tts_engine}")
 
     if use_local:
         try:
             if tts_engine == "qwen":
-                local_tts_api_url = os.getenv("LOCAL_TTS_API_URL", "http://127.0.0.1:26211/v1").rstrip("/")
-                local_tts_model = os.getenv("LOCAL_TTS_MODEL", model or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
+                local_tts_api_url = str(_setting_or_env("LOCAL_TTS_API_URL", "http://127.0.0.1:26211/v1") or "http://127.0.0.1:26211/v1").rstrip("/")
+                local_tts_model = str(_setting_or_env("LOCAL_TTS_MODEL", model or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice") or (model or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"))
                 has_chinese = bool(re.search(r"[\u4e00-\u9fff]", text))
                 lang_input = kwargs.get("language") or ("Chinese" if has_chinese else "English")
                 # Map language codes to vLLM-Omni expected format
@@ -219,7 +361,7 @@ async def generate_speech_bytes_async(
                     "instructions": instructions,
                 }
                 headers = {"Content-Type": "application/json"}
-                local_api_key = os.getenv("LOCAL_TTS_API_KEY", "").strip()
+                local_api_key = str(_setting_or_env("LOCAL_TTS_API_KEY", "") or "").strip()
                 if local_api_key:
                     headers["Authorization"] = f"Bearer {local_api_key}"
                 log.info(f"[TTS] 使用本地 Qwen3-TTS vLLM-Omni: {local_tts_api_url}/audio/speech")
@@ -254,8 +396,8 @@ async def generate_speech_bytes_async(
                 log.info(f"[TTS] 使用原生 Qwen3-TTS（非 vLLM）")
 
                 # 获取模型配置
-                local_tts_model = os.getenv("LOCAL_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
-                tts_cuda = os.getenv("LOCAL_TTS_CUDA_VISIBLE_DEVICES", "0")
+                local_tts_model = str(_setting_or_env("LOCAL_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice") or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
+                tts_cuda = str(_setting_or_env("LOCAL_TTS_CUDA_VISIBLE_DEVICES", "0") or "0")
 
                 # 语言和指令
                 has_chinese = bool(re.search(r"[\u4e00-\u9fff]", text))
@@ -313,8 +455,34 @@ async def generate_speech_bytes_async(
             log.warning(f"[TTS] 本地 TTS 失败: {type(e).__name__}: {str(e) or repr(e)}，回退到 API")
 
     # 回退到 API-based TTS
+    api_url, api_key, model = _resolve_tts_api_config(api_url, api_key, model)
     api_tts_model = _normalize_api_tts_model(model)
     api_tts_voice = _normalize_api_tts_voice(api_tts_model, voice_name)
+
+    if "dashscope.aliyuncs.com" in api_url and "qwen" in api_tts_model.lower() and "tts" in api_tts_model.lower():
+        return await _call_dashscope_qwen_tts(
+            api_url=api_url,
+            api_key=api_key,
+            model=api_tts_model,
+            text=text,
+            voice_name=api_tts_voice,
+            timeout=timeout,
+            **kwargs,
+        )
+
+    provider_type = detect_provider(api_url)
+    if provider_type in (Provider.OTHER, Provider.LOCAL_123) and "tts" in api_tts_model.lower():
+        return await _call_openai_compatible_tts(
+            api_url=api_url,
+            api_key=api_key,
+            model=api_tts_model,
+            text=text,
+            voice_name=api_tts_voice,
+            timeout=timeout,
+            response_format=kwargs.get("response_format", "wav"),
+            **kwargs,
+        )
+
     provider = get_provider(api_url, api_tts_model)
     log.info(f"TTS using Provider: {provider.__class__.__name__}")
 

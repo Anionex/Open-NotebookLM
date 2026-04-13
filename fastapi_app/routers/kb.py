@@ -122,6 +122,19 @@ def _text_to_pdf(text: str, output_path: str) -> None:
     doc.close()
 
 
+def _unwrap_fastapi_body_default(value: Any, fallback: Any = None) -> Any:
+    """
+    outputs-v2 等内部代码会直接调用路由函数，此时未显式传入的参数仍可能是 FastAPI 的 Body 默认对象。
+    这里把它们还原成普通值，避免后续 string/int 操作报错。
+    """
+    if type(value).__name__ == "Body":
+        default = getattr(value, "default", None)
+        if default is ...:
+            return fallback
+        return default if default is not None else fallback
+    return value
+
+
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4", ".md", ".csv"}
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
@@ -794,7 +807,10 @@ def _build_chat_request(
     if not local_files:
         log.warning("[chat] No valid local files found, will rely on RAG only")
 
-    resolved_api_url, resolved_api_key = _require_llm_config(api_url, api_key)
+    if (api_url or "").strip() or (api_key or "").strip():
+        log.warning("[chat] Ignoring frontend-supplied LLM config for notebook chat; using backend env config.")
+
+    resolved_api_url, resolved_api_key = _require_llm_config(None, None)
 
     return IntelligentQARequest(
         file_ids=local_files,
@@ -830,8 +846,25 @@ def _require_llm_config(
     explicit_api_url: Optional[str] = None,
     explicit_api_key: Optional[str] = None,
 ) -> tuple[str, str]:
-    resolved_api_url = _resolve_llm_api_url(explicit_api_url)
-    resolved_api_key = _resolve_llm_api_key(explicit_api_key)
+    explicit_url = (explicit_api_url or "").strip()
+    explicit_key = (explicit_api_key or "").strip()
+
+    backend_api_url = _resolve_llm_api_url(None)
+    backend_api_key = _resolve_llm_api_key(None)
+
+    if explicit_url and explicit_key:
+        resolved_api_url = explicit_url
+        resolved_api_key = explicit_key
+    elif explicit_url or explicit_key:
+        log.warning(
+            "[llm_config] Received incomplete explicit LLM config from request. "
+            "Falling back to backend env pair to avoid mismatched url/key."
+        )
+        resolved_api_url = backend_api_url
+        resolved_api_key = backend_api_key
+    else:
+        resolved_api_url = backend_api_url
+        resolved_api_key = backend_api_key
 
     if not resolved_api_url or not resolved_api_key:
         raise HTTPException(
@@ -840,6 +873,10 @@ def _require_llm_config(
         )
 
     return resolved_api_url, resolved_api_key
+
+
+def _require_backend_llm_config() -> tuple[str, str]:
+    return _require_llm_config(None, None)
 
 
 def _resolve_search_provider(explicit_provider: Optional[str] = None) -> str:
@@ -1509,7 +1546,7 @@ async def generate_ppt_from_kb(
     language: str = Body("zh", embed=True),
     page_count: int = Body(10, embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
-    gen_fig_model: str = Body("gemini-2.5-flash-image", embed=True),
+    gen_fig_model: str = Body(settings.IMAGE_GEN_MODEL or settings.PAPER2PPT_IMAGE_GEN_MODEL, embed=True),
 ):
     """
     Generate PPT from knowledge base file. Outputs under user/notebook dir.
@@ -1867,7 +1904,7 @@ async def generate_deep_research_report(
     style: str = Body("modern", embed=True),
     page_count: int = Body(10, embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
-    gen_fig_model: str = Body("gemini-2.5-flash-image", embed=True),
+    gen_fig_model: str = Body(settings.IMAGE_GEN_MODEL or settings.PAPER2PPT_IMAGE_GEN_MODEL, embed=True),
     add_as_source: bool = Body(True, embed=True),
     search_provider: Optional[str] = Body(None, embed=True),
     search_api_key: Optional[str] = Body(None, embed=True),
@@ -2104,8 +2141,8 @@ async def generate_podcast_from_kb(
     api_key: Optional[str] = Body(None, embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
     tts_model: str = Body("gemini-2.5-pro-preview-tts", embed=True),
-    voice_name: str = Body("Kore", embed=True),
-    voice_name_b: str = Body("Puck", embed=True),
+    voice_name: str = Body("Cherry", embed=True),
+    voice_name_b: str = Body("Chelsie", embed=True),
     podcast_mode: str = Body("monologue", embed=True),
     language: str = Body("zh", embed=True),
 ):
@@ -2113,6 +2150,12 @@ async def generate_podcast_from_kb(
     从知识库生成播客。支持本地文件与「搜索引入」的 URL：URL 优先用已存 .md，否则抓取后写临时 .md 再参与生成。
     """
     try:
+        model = str(_unwrap_fastapi_body_default(model, settings.KB_CHAT_MODEL) or settings.KB_CHAT_MODEL)
+        tts_model = str(_unwrap_fastapi_body_default(tts_model, settings.TTS_MODEL) or settings.TTS_MODEL)
+        voice_name = str(_unwrap_fastapi_body_default(voice_name, "Cherry") or "Cherry")
+        voice_name_b = str(_unwrap_fastapi_body_default(voice_name_b, "Chelsie") or "Chelsie")
+        podcast_mode = str(_unwrap_fastapi_body_default(podcast_mode, "monologue") or "monologue")
+        language = str(_unwrap_fastapi_body_default(language, "zh") or "zh")
         api_url, api_key = _require_llm_config(api_url, api_key)
         # Validate TTS mode restrictions
         if podcast_mode == "dialog":

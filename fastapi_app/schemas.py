@@ -248,7 +248,7 @@ class Paper2PPTRequest(BaseModel):
 
     ref_img : str = ""
 
-    gen_fig_model: str = settings.PAPER2PPT_IMAGE_GEN_MODEL
+    gen_fig_model: str = settings.IMAGE_GEN_MODEL or settings.PAPER2PPT_IMAGE_GEN_MODEL
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
     # 新增模型参数

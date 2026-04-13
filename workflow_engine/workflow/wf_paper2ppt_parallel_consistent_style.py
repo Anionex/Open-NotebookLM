@@ -7,6 +7,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import fitz
+from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN
+from pptx.util import Inches, Pt
+
 from workflow_engine.graphbuilder.graph_builder import GenericGraphBuilder
 from workflow_engine.logger import get_logger
 from workflow_engine.state import Paper2FigureState
@@ -24,6 +30,203 @@ from workflow_engine.toolkits.multimodaltool.ppt_tool import (
 )
 
 log = get_logger(__name__)
+
+FALLBACK_SLIDE_W_IN = 13.333
+FALLBACK_SLIDE_H_IN = 7.5
+
+
+def _get_cjk_font_path() -> Optional[str]:
+    candidates = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/arphic/uming.ttc",
+    ]
+    for path in candidates:
+        if Path(path).exists():
+            return path
+    return None
+
+
+def _collect_exportable_images(img_dir: Path) -> List[Path]:
+    patterns = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tif", "*.tiff")
+    images: List[Path] = []
+    for pattern in patterns:
+        images.extend(img_dir.glob(pattern))
+    images = [
+        path for path in images
+        if "_v" not in path.stem
+    ]
+    return sorted(images)
+
+
+def _coerce_slide_title(item: Any, idx: int) -> str:
+    if isinstance(item, dict):
+        title = str(item.get("title") or "").strip()
+        if title:
+            return title
+    return f"第 {idx + 1} 页"
+
+
+def _coerce_slide_bullets(item: Any) -> List[str]:
+    if isinstance(item, dict):
+        for key in ("bullets", "key_points"):
+            values = item.get(key)
+            if isinstance(values, list):
+                bullets = [str(v).strip() for v in values if str(v).strip()]
+                if bullets:
+                    return bullets[:8]
+        summary = str(item.get("summary") or item.get("layout_description") or "").strip()
+        if summary:
+            return [summary]
+        content = str(item.get("content") or item.get("raw_content") or "").strip()
+        if content:
+            return [content]
+    elif item is not None:
+        text = str(item).strip()
+        if text:
+            return [text]
+    return ["当前页未生成可用图片，已使用文本兜底导出。"]
+
+
+def _coerce_slide_notes(item: Any) -> str:
+    if not isinstance(item, dict):
+        return ""
+    parts: List[str] = []
+    layout = str(item.get("layout_description") or "").strip()
+    asset_ref = str(item.get("asset_ref") or "").strip()
+    summary = str(item.get("summary") or "").strip()
+    if summary and summary not in parts:
+        parts.append(f"摘要：{summary}")
+    if layout and layout != summary:
+        parts.append(f"版式：{layout}")
+    if asset_ref:
+        parts.append(f"素材：{asset_ref}")
+    return "\n".join(parts[:3])
+
+
+def _build_text_fallback_ppt(page_items: List[Any], output_pptx_path: Path) -> str:
+    prs = Presentation()
+    prs.slide_width = Inches(FALLBACK_SLIDE_W_IN)
+    prs.slide_height = Inches(FALLBACK_SLIDE_H_IN)
+    blank_layout = prs.slide_layouts[6]
+
+    for idx, item in enumerate(page_items):
+        slide = prs.slides.add_slide(blank_layout)
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = RGBColor(248, 250, 252)
+
+        title_box = slide.shapes.add_textbox(
+            Inches(0.7), Inches(0.45), Inches(11.9), Inches(0.9)
+        )
+        title_frame = title_box.text_frame
+        title_frame.word_wrap = True
+        title_para = title_frame.paragraphs[0]
+        title_para.text = _coerce_slide_title(item, idx)
+        title_para.font.size = Pt(28)
+        title_para.font.bold = True
+        title_para.font.name = "Microsoft YaHei"
+        title_para.font.color.rgb = RGBColor(15, 23, 42)
+
+        accent = slide.shapes.add_shape(
+            1,  # MSO_AUTO_SHAPE_TYPE.RECTANGLE
+            Inches(0.7), Inches(1.28), Inches(2.0), Inches(0.08)
+        )
+        accent.fill.solid()
+        accent.fill.fore_color.rgb = RGBColor(59, 130, 246)
+        accent.line.fill.background()
+
+        content_box = slide.shapes.add_textbox(
+            Inches(0.85), Inches(1.65), Inches(11.0), Inches(4.7)
+        )
+        content_frame = content_box.text_frame
+        content_frame.word_wrap = True
+        bullets = _coerce_slide_bullets(item)
+        for bullet_idx, bullet in enumerate(bullets):
+            para = content_frame.paragraphs[0] if bullet_idx == 0 else content_frame.add_paragraph()
+            para.text = bullet
+            para.level = 0
+            para.font.size = Pt(20)
+            para.font.name = "Microsoft YaHei"
+            para.font.color.rgb = RGBColor(30, 41, 59)
+            para.line_spacing = 1.2
+            para.alignment = PP_ALIGN.LEFT
+            if bullet_idx > 0:
+                para.space_before = Pt(6)
+
+        notes = _coerce_slide_notes(item)
+        if notes:
+            notes_box = slide.shapes.add_textbox(
+                Inches(0.85), Inches(6.35), Inches(11.0), Inches(0.7)
+            )
+            notes_frame = notes_box.text_frame
+            notes_frame.word_wrap = True
+            notes_para = notes_frame.paragraphs[0]
+            notes_para.text = notes
+            notes_para.font.size = Pt(10)
+            notes_para.font.name = "Microsoft YaHei"
+            notes_para.font.color.rgb = RGBColor(100, 116, 139)
+
+    output_pptx_path.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(str(output_pptx_path))
+    return str(output_pptx_path)
+
+
+def _build_text_fallback_pdf(page_items: List[Any], output_pdf_path: Path) -> str:
+    doc = fitz.open()
+    page_width = 1280
+    page_height = 720
+    title_rect = fitz.Rect(64, 48, 1216, 110)
+    body_rect = fitz.Rect(80, 150, 1200, 610)
+    notes_rect = fitz.Rect(80, 628, 1200, 680)
+    fontfile = _get_cjk_font_path()
+    fontname = "notocjk" if fontfile else "helv"
+
+    for idx, item in enumerate(page_items):
+        page = doc.new_page(width=page_width, height=page_height)
+        page.draw_rect(page.rect, color=(0.97, 0.98, 0.99), fill=(0.97, 0.98, 0.99))
+        page.draw_rect(fitz.Rect(64, 118, 300, 124), color=(0.23, 0.51, 0.96), fill=(0.23, 0.51, 0.96))
+        insert_kwargs = {"fontname": fontname}
+        if fontfile:
+            insert_kwargs["fontfile"] = fontfile
+
+        page.insert_textbox(
+            title_rect,
+            _coerce_slide_title(item, idx),
+            fontsize=26,
+            color=(0.06, 0.09, 0.16),
+            **insert_kwargs,
+        )
+        body_text = "\n".join(f"- {bullet}" for bullet in _coerce_slide_bullets(item))
+        page.insert_textbox(
+            body_rect,
+            body_text,
+            fontsize=18,
+            color=(0.12, 0.16, 0.23),
+            **insert_kwargs,
+        )
+        notes = _coerce_slide_notes(item)
+        if notes:
+            page.insert_textbox(
+                notes_rect,
+                notes,
+                fontsize=10,
+                color=(0.39, 0.45, 0.53),
+                **insert_kwargs,
+            )
+
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(output_pdf_path))
+    doc.close()
+    return str(output_pdf_path)
+
+
+def _export_text_fallback_assets(page_items: List[Any], result_root: Path) -> Dict[str, str]:
+    pdf_path = result_root / "paper2ppt_fallback.pdf"
+    pptx_path = result_root / "paper2ppt_fallback.pptx"
+    return {
+        "pdf": _build_text_fallback_pdf(page_items, pdf_path),
+        "pptx": _build_text_fallback_ppt(page_items, pptx_path),
+    }
 
 
 def _ensure_result_path(state: Paper2FigureState) -> str:
@@ -48,7 +251,12 @@ def _abs_path(p: str) -> str:
     if not p:
         return ""
     try:
-        return str(Path(p).expanduser().resolve())
+        raw = str(p).strip()
+        root = get_project_root()
+        if raw.startswith("/outputs/"):
+            rel = raw[len("/outputs/") :].lstrip("/")
+            return str((root / "outputs" / rel).resolve())
+        return str(Path(raw).expanduser().resolve())
     except Exception:
         return p
 
@@ -609,6 +817,22 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
         log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} temp_save={temp_save_path} ref={user_ref_img}")
 
+        async def _edit_with_retry(coro_factory, retries: int = 3, delay: float = 2.0) -> None:
+            last_err: Optional[Exception] = None
+            for attempt in range(1, retries + 1):
+                try:
+                    await coro_factory()
+                    return
+                except Exception as e:  # noqa: BLE001
+                    last_err = e
+                    log.error(f"[paper2ppt] single page edit failed attempt {attempt}/{retries}: {e}")
+                    if attempt < retries:
+                        try:
+                            await asyncio.sleep(delay * attempt)
+                        except Exception:
+                            pass
+            raise last_err if last_err is not None else RuntimeError("single page edit failed")
+
         if user_ref_img:
             # 有参考图 -> 多图融合
             if prompt:
@@ -625,15 +849,17 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                     f"to be consistent with the {style} style of the first image."
                 )
             
-            await gemini_multi_image_edit_async(
-                prompt=full_prompt,
-                image_paths=[user_ref_img, old_path],
-                save_path=temp_save_path,
-                api_url=state.request.chat_api_url,
-                api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
-                model=state.request.gen_fig_model,
-                aspect_ratio=aspect_ratio,
-                resolution=image_resolution,
+            await _edit_with_retry(
+                lambda: gemini_multi_image_edit_async(
+                    prompt=full_prompt,
+                    image_paths=[user_ref_img, old_path],
+                    save_path=temp_save_path,
+                    api_url=state.request.chat_api_url,
+                    api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                    model=state.request.gen_fig_model,
+                    aspect_ratio=aspect_ratio,
+                    resolution=image_resolution,
+                )
             )
         else:
             # 无参考图 -> 单图编辑
@@ -650,16 +876,18 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                     f"Enhance the visual aesthetics, layout, and background while preserving the core message."
                 )
 
-            await generate_or_edit_and_save_image_async(
-                prompt=full_prompt,
-                save_path=temp_save_path,
-                aspect_ratio=aspect_ratio,
-                api_url=state.request.chat_api_url,
-                api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
-                model=state.request.gen_fig_model,
-                image_path=old_path,
-                use_edit=True,
-                resolution=image_resolution,
+            await _edit_with_retry(
+                lambda: generate_or_edit_and_save_image_async(
+                    prompt=full_prompt,
+                    save_path=temp_save_path,
+                    aspect_ratio=aspect_ratio,
+                    api_url=state.request.chat_api_url,
+                    api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                    model=state.request.gen_fig_model,
+                    image_path=old_path,
+                    use_edit=True,
+                    resolution=image_resolution,
+                )
             )
 
         # 使用版本管理器保存版本化图片
@@ -707,14 +935,24 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
         result_root = Path(_ensure_result_path(state))
         img_dir = result_root / "ppt_pages"
-
-        if not img_dir.exists():
-            raise ValueError(f"[paper2ppt] export_ppt_assets: image dir not found: {img_dir}")
-
         pdf_path = result_root / "paper2ppt.pdf"
         pptx_path = result_root / "paper2ppt_editable.pptx"
+        exportable_images = _collect_exportable_images(img_dir) if img_dir.exists() else []
 
-        log.info(f"[paper2ppt] export_ppt_assets: pdf={pdf_path}, pptx={pptx_path}")
+        log.info(
+            f"[paper2ppt] export_ppt_assets: pdf={pdf_path}, pptx={pptx_path}, "
+            f"image_count={len(exportable_images)}"
+        )
+
+        if not exportable_images:
+            fallback = _export_text_fallback_assets(state.pagecontent or [], result_root)
+            setattr(state, "ppt_pdf_path", fallback["pdf"])
+            setattr(state, "ppt_pptx_path", fallback["pptx"])
+            log.warning(
+                "[paper2ppt] export_ppt_assets: no slide images available, "
+                "fallback to text-based PPT/PDF export."
+            )
+            return state
 
         out = await convert_images_dir_to_pdf_and_ppt_api(
             input_dir=str(img_dir),

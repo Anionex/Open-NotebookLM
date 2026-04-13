@@ -14,6 +14,45 @@ from workflow_engine.toolkits.multimodaltool.providers import get_provider
 
 log = get_logger(__name__)
 
+
+def _resolve_image_generation_config(
+    api_url: Optional[str],
+    api_key: Optional[str],
+    model: Optional[str],
+) -> Tuple[str, str, str]:
+    """
+    Dedicated image-generation env has highest priority.
+    This allows backend text LLM and image LLM to be configured independently.
+    """
+    settings_api_url = ""
+    settings_api_key = ""
+    settings_model = ""
+    try:
+        from fastapi_app.config import settings as app_settings
+
+        settings_api_url = str(getattr(app_settings, "IMAGE_GEN_API_URL", "") or "").strip()
+        settings_api_key = str(getattr(app_settings, "IMAGE_GEN_API_KEY", "") or "").strip()
+        settings_model = str(getattr(app_settings, "IMAGE_GEN_MODEL", "") or "").strip()
+    except Exception:
+        pass
+
+    env_api_url = str(os.getenv("IMAGE_GEN_API_URL", "")).strip() or settings_api_url
+    env_api_key = str(os.getenv("IMAGE_GEN_API_KEY", "")).strip() or settings_api_key
+    env_model = str(os.getenv("IMAGE_GEN_MODEL", "")).strip() or settings_model
+
+    resolved_api_url = env_api_url or str(api_url or "").strip()
+    resolved_api_key = env_api_key or str(api_key or "").strip()
+    resolved_model = env_model or str(model or "").strip()
+
+    if not resolved_api_url:
+        raise ValueError("Missing image generation API url. Set IMAGE_GEN_API_URL or pass api_url explicitly.")
+    if not resolved_api_key:
+        raise ValueError("Missing image generation API key. Set IMAGE_GEN_API_KEY or pass api_key explicitly.")
+    if not resolved_model:
+        raise ValueError("Missing image generation model. Set IMAGE_GEN_MODEL or pass model explicitly.")
+
+    return resolved_api_url, resolved_api_key, resolved_model
+
 async def _post_stream_and_accumulate(
     url: str,
     api_key: str,
@@ -205,6 +244,7 @@ async def gemini_multi_image_edit_async(
     """
     专门针对 Gemini 的多图编辑
     """
+    api_url, api_key, model = _resolve_image_generation_config(api_url, api_key, model)
     image_b64_list = []
     for img_path in image_paths:
         if not os.path.exists(img_path):
@@ -279,6 +319,8 @@ async def generate_or_edit_and_save_image_async(
     重构后：使用 Strategy Pattern 自动匹配 Provider
     """
     
+    api_url, api_key, model = _resolve_image_generation_config(api_url, api_key, model)
+
     # 动态调整超时（保留原有针对 Gemini-3 Pro 的逻辑）
     if _is_gemini_model(model) and is_gemini_3_pro(model):
         timeout_map = {"1K": 40, "2K": 180, "4K": 350}

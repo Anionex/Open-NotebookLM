@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../config/api';
-import { getApiSettings } from '../../services/apiSettingsService';
+import { getRequestApiSettings } from '../../services/apiSettingsService';
 
 interface FlashcardGeneratorProps {
   selectedFiles: string[];
@@ -28,7 +28,7 @@ export const FlashcardGenerator: React.FC<FlashcardGeneratorProps> = ({
       return;
     }
 
-    const settings = getApiSettings(userId);
+    const settings = getRequestApiSettings(userId);
     const apiUrl = settings?.apiUrl?.trim() || '';
     const apiKey = settings?.apiKey?.trim() || '';
 

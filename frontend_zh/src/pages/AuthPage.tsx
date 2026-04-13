@@ -1,10 +1,17 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Loader2, Lock, Mail } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+
 import { useAuthStore } from '../stores/authStore';
 
 type AuthMode = 'login' | 'register' | 'verify';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const inputWrapClass =
+  'flex items-center gap-3 rounded-[20px] border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition focus-within:border-sky-300 focus-within:ring-4 focus-within:ring-sky-100';
+
+const inputClass =
+  'w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400';
 
 export default function AuthPage() {
   const {
@@ -123,29 +130,93 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#eef4ff_0%,#f7f9fc_48%,#eef2f7_100%)] px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-md items-center">
-        <motion.div
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(166,215,255,0.58),transparent_26%),radial-gradient(circle_at_top_right,rgba(255,225,205,0.46),transparent_24%),linear-gradient(180deg,#eef4fb_0%,#f5f4f7_44%,#f7f3ed_100%)] px-4 py-6 md:px-6">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1380px] items-center gap-6 lg:grid-cols-[1.1fr_520px]">
+        <motion.section
+          initial={{ opacity: 0, x: -18 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35 }}
+          className="hidden rounded-[34px] border border-white/60 bg-white/52 p-8 shadow-[0_24px_60px_rgba(22,38,66,0.10)] backdrop-blur-2xl lg:block"
+        >
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/72 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <Sparkles size={14} />
+            ThinkFlow Access
+          </div>
+          <h1 className="mt-6 text-6xl font-semibold tracking-[-0.06em] text-slate-900">统一风格的入口</h1>
+          <p className="mt-5 max-w-xl text-[15px] leading-8 text-slate-600">
+            登录页、首页和笔记本工作台现在是一套连续的视觉语言。认证完成后，直接进入同样的玻璃材质、留白和工作流体验。
+          </p>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="rounded-[26px] border border-white/70 bg-white/72 p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Access</div>
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">登录</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">继续你已有的文档工作流。</p>
+            </div>
+            <div className="rounded-[26px] border border-white/70 bg-white/72 p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Create</div>
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">注册</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">创建新的知识工作空间。</p>
+            </div>
+            <div className="rounded-[26px] border border-white/70 bg-white/72 p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Secure</div>
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">验证</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">邮箱校验后再进入工作台。</p>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-[28px] border border-sky-100/70 bg-[linear-gradient(135deg,rgba(230,241,255,0.82),rgba(255,250,245,0.78))] p-6">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-sky-100 p-2 text-sky-700">
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">同一套产品语言</h2>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  从认证、首页到 ThinkFlow 工作台，整体都采用更简洁的 iOS 玻璃风格，减少视觉跳跃感。
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
-          className="w-full rounded-[28px] border border-slate-200/80 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.10)]"
+          className="rounded-[34px] border border-white/60 bg-white/64 p-6 shadow-[0_24px_60px_rgba(22,38,66,0.10)] backdrop-blur-2xl md:p-8"
         >
-          <div className="mb-8 text-center">
-            <img src="/logo_small.png" alt="OpenNotebookLM" className="mx-auto mb-4 h-12 w-auto object-contain" />
-            <h1 className="text-3xl font-semibold text-slate-900">OpenNotebookLM</h1>
-            <p className="mt-2 text-sm text-slate-500">
-              {mode === 'register' ? '注册账号' : mode === 'verify' ? '验证邮箱' : '登录'}
-            </p>
+          <div className="mb-7">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/72 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <Mail size={14} />
+              OpenNotebookLM
+            </div>
+            <div className="mt-5 flex items-center gap-3">
+              <img src="/logo_small.png" alt="OpenNotebookLM" className="h-12 w-auto object-contain" />
+              <div>
+                <h1 className="text-3xl font-semibold tracking-[-0.04em] text-slate-900">
+                  {mode === 'register' ? '创建你的账号' : mode === 'verify' ? '完成邮箱验证' : '欢迎回来'}
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  {mode === 'register'
+                    ? '注册后即可进入统一的 ThinkFlow 工作台。'
+                    : mode === 'verify'
+                      ? '只差一步，验证成功后即可继续。'
+                      : '登录后继续你的文档与产出工作流。'}
+                </p>
+              </div>
+            </div>
           </div>
 
           {mode !== 'verify' && (
-            <div className="mb-6 flex rounded-2xl bg-slate-100 p-1">
+            <div className="mb-6 inline-flex rounded-full border border-white/70 bg-white/72 p-1">
               <button
                 type="button"
                 onClick={() => switchMode('login')}
-                className={`flex-1 rounded-[14px] px-4 py-2.5 text-sm font-medium transition ${
-                  mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                  mode === 'login'
+                    ? 'bg-[linear-gradient(135deg,#17467a_0%,#3f84cc_100%)] text-white shadow-[0_14px_28px_rgba(45,98,164,0.22)]'
+                    : 'text-slate-500'
                 }`}
               >
                 登录
@@ -153,8 +224,10 @@ export default function AuthPage() {
               <button
                 type="button"
                 onClick={() => switchMode('register')}
-                className={`flex-1 rounded-[14px] px-4 py-2.5 text-sm font-medium transition ${
-                  mode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                  mode === 'register'
+                    ? 'bg-[linear-gradient(135deg,#17467a_0%,#3f84cc_100%)] text-white shadow-[0_14px_28px_rgba(45,98,164,0.22)]'
+                    : 'text-slate-500'
                 }`}
               >
                 注册
@@ -165,8 +238,8 @@ export default function AuthPage() {
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">邮箱</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">邮箱</span>
+                <div className={inputWrapClass}>
                   <Mail size={18} className="text-slate-400" />
                   <input
                     type="email"
@@ -180,15 +253,15 @@ export default function AuthPage() {
                     placeholder="name@example.com"
                     inputMode="email"
                     required
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className={inputClass}
                   />
                 </div>
               </label>
-              {showEmailError && <p className="text-sm text-rose-600">请输入正确的邮箱地址。</p>}
+              {showEmailError ? <p className="text-sm text-rose-600">请输入正确的邮箱地址。</p> : null}
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">密码</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">密码</span>
+                <div className={inputWrapClass}>
                   <Lock size={18} className="text-slate-400" />
                   <input
                     type="password"
@@ -196,7 +269,7 @@ export default function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="请输入密码"
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className={inputClass}
                   />
                 </div>
               </label>
@@ -204,7 +277,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] bg-[linear-gradient(135deg,#17467a_0%,#3f84cc_100%)] px-5 py-3.5 text-sm font-medium text-white shadow-[0_16px_32px_rgba(45,98,164,0.24)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                 {loading ? '登录中...' : '登录'}
@@ -215,8 +288,8 @@ export default function AuthPage() {
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">邮箱</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">邮箱</span>
+                <div className={inputWrapClass}>
                   <Mail size={18} className="text-slate-400" />
                   <input
                     type="email"
@@ -230,15 +303,15 @@ export default function AuthPage() {
                     placeholder="name@example.com"
                     inputMode="email"
                     required
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className={inputClass}
                   />
                 </div>
               </label>
-              {showEmailError && <p className="text-sm text-rose-600">请输入正确的邮箱地址。</p>}
+              {showEmailError ? <p className="text-sm text-rose-600">请输入正确的邮箱地址。</p> : null}
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">密码</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">密码</span>
+                <div className={inputWrapClass}>
                   <Lock size={18} className="text-slate-400" />
                   <input
                     type="password"
@@ -246,14 +319,14 @@ export default function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="至少 6 位"
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className={inputClass}
                   />
                 </div>
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">确认密码</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">确认密码</span>
+                <div className={inputWrapClass}>
                   <Lock size={18} className="text-slate-400" />
                   <input
                     type="password"
@@ -261,7 +334,7 @@ export default function AuthPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="再次输入密码"
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className={inputClass}
                   />
                 </div>
               </label>
@@ -269,7 +342,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] bg-[linear-gradient(135deg,#17467a_0%,#3f84cc_100%)] px-5 py-3.5 text-sm font-medium text-white shadow-[0_16px_32px_rgba(45,98,164,0.24)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                 {loading ? '注册中...' : '注册'}
@@ -279,20 +352,20 @@ export default function AuthPage() {
 
           {mode === 'verify' && (
             <form onSubmit={handleVerify} className="space-y-4">
-              <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+              <div className="rounded-[22px] border border-sky-100/70 bg-sky-50/85 px-4 py-4 text-sm leading-6 text-sky-700">
                 请完成邮箱验证后继续。
               </div>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">验证码</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <Mail size={18} className="text-slate-400" />
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">验证码</span>
+                <div className={inputWrapClass}>
+                  <ShieldCheck size={18} className="text-slate-400" />
                   <input
                     type="text"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
                     placeholder="输入验证码"
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className={inputClass}
                   />
                 </div>
               </label>
@@ -300,9 +373,9 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] bg-[linear-gradient(135deg,#17467a_0%,#3f84cc_100%)] px-5 py-3.5 text-sm font-medium text-white shadow-[0_16px_32px_rgba(45,98,164,0.24)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                 {loading ? '验证中...' : '完成验证'}
               </button>
 
@@ -310,14 +383,14 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => void handleResend()}
-                  className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  className="flex-1 rounded-[18px] border border-white/70 bg-white/75 px-4 py-3 text-sm font-medium text-slate-700"
                 >
                   重新发送
                 </button>
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
-                  className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  className="flex-1 rounded-[18px] border border-white/70 bg-white/75 px-4 py-3 text-sm font-medium text-slate-700"
                 >
                   返回登录
                 </button>
@@ -325,30 +398,30 @@ export default function AuthPage() {
             </form>
           )}
 
-          {localMessage && (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {localMessage ? (
+            <div className="mt-4 rounded-[22px] border border-emerald-100/70 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-700">
               {localMessage}
             </div>
-          )}
+          ) : null}
 
-          {displayError && (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {displayError ? (
+            <div className="mt-4 rounded-[22px] border border-rose-100/70 bg-rose-50/90 px-4 py-3 text-sm text-rose-700">
               {displayError}
             </div>
-          )}
+          ) : null}
 
           {mode !== 'verify' && (
             <div className="mt-6 text-center">
               <button
                 type="button"
                 onClick={continueAsGuest}
-                className="text-sm text-slate-500 hover:text-slate-700 underline"
+                className="text-sm font-medium text-slate-500 underline-offset-4 transition hover:text-slate-700 hover:underline"
               >
                 以访客身份继续
               </button>
             </div>
           )}
-        </motion.div>
+        </motion.section>
       </div>
     </div>
   );

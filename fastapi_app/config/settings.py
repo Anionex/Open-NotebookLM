@@ -72,6 +72,11 @@ class AppSettings(BaseSettings):
     EMBEDDING_MODEL: str = "Octen-Embedding-0.6B"
     EMBEDDING_DIMENSION: int = 768  # 不同模型维度不同
 
+    # Image Generation Provider Configuration
+    IMAGE_GEN_API_URL: str = ""
+    IMAGE_GEN_API_KEY: str = ""
+    IMAGE_GEN_MODEL: str = "gemini-3-pro-image-preview"
+
     # TTS Provider Configuration
     TTS_API_URL: str = "http://localhost:26211"
     TTS_API_KEY: str = ""

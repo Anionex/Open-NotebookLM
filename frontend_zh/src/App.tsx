@@ -57,8 +57,10 @@ function App() {
 
   if (loading || supabaseConfigured === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f2f2f7]">
-        <Loader2 size={28} className="animate-spin text-slate-500" />
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(166,215,255,0.58),transparent_26%),radial-gradient(circle_at_top_right,rgba(255,225,205,0.46),transparent_24%),linear-gradient(180deg,#eef4fb_0%,#f5f4f7_44%,#f7f3ed_100%)]">
+        <div className="rounded-[28px] border border-white/60 bg-white/64 px-6 py-5 shadow-[0_24px_60px_rgba(22,38,66,0.10)] backdrop-blur-2xl">
+          <Loader2 size={28} className="animate-spin text-slate-500" />
+        </div>
       </div>
     );
   }
@@ -84,7 +86,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f2f2f7]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(166,215,255,0.58),transparent_26%),radial-gradient(circle_at_top_right,rgba(255,225,205,0.46),transparent_24%),linear-gradient(180deg,#eef4fb_0%,#f5f4f7_44%,#f7f3ed_100%)]">
       <AnimatePresence mode="wait" custom={direction}>
         {currentView === 'dashboard' ? (
           <motion.div
