@@ -28,7 +28,15 @@ import {
 import { apiFetch } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import type { KnowledgeFile } from '../../types';
+import { ThinkFlowAddSourceModal } from './ThinkFlowAddSourceModal';
+import { ThinkFlowCenterPanel } from './ThinkFlowCenterPanel';
+import { ThinkFlowFlashcardStudy } from './ThinkFlowFlashcardStudy';
+import { ThinkFlowLeftSidebar } from './ThinkFlowLeftSidebar';
 import { MermaidPreview } from '../knowledge-base/tools/MermaidPreview';
+import { ThinkFlowOutputContextModal } from './ThinkFlowOutputContextModal';
+import { ThinkFlowQuizStudy } from './ThinkFlowQuizStudy';
+import { ThinkFlowTopBar } from './ThinkFlowTopBar';
+import { ThinkFlowRightPanel } from './right-panel';
 
 import './ThinkFlowWorkspace.css';
 
@@ -668,6 +676,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showAddSourceModal, setShowAddSourceModal] = useState(false);
 
   const [documents, setDocuments] = useState<ThinkFlowDocument[]>([]);
   const [activeDocumentId, setActiveDocumentId] = useState('');
@@ -4349,632 +4358,185 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             height: 'auto',
           };
 
+  const summaryPanelProps = {
+    summaryItems: summaryItems.map((item) => ({ id: item.id, title: item.title })),
+    activeSummaryId,
+    activeSummary: activeSummary ? { id: activeSummary.id, title: activeSummary.title } : null,
+    summaryTitle,
+    summaryContent,
+    summaryEditMode,
+    workspaceSaving,
+    panelGuide: renderPanelGuide('summary'),
+    onSelectSummary: async (id: string) => {
+      setRightMode('summary');
+      await loadWorkspaceItemDetail(id);
+    },
+    onCreateSummary: () => createWorkspaceItem('summary'),
+    onToggleSummaryEdit: () => setSummaryEditMode((previous) => !previous),
+    onDeleteSummary: (id: string) => deleteWorkspaceItem('summary', id),
+    onSummaryTitleChange: setSummaryTitle,
+    onSummaryContentChange: setSummaryContent,
+    onSaveSummary: () => saveWorkspaceItem('summary'),
+  };
+
+  const guidancePanelProps = {
+    guidanceItems: guidanceItems.map((item) => ({ id: item.id, title: item.title })),
+    activeGuidanceId,
+    activeGuidance: activeGuidance ? { id: activeGuidance.id, title: activeGuidance.title } : null,
+    guidanceTitle,
+    guidanceContent,
+    panelGuide: renderPanelGuide('guidance'),
+    onSelectGuidance: async (id: string) => {
+      setRightMode('guidance');
+      await loadWorkspaceItemDetail(id);
+    },
+    onCreateGuidance: () => createWorkspaceItem('guidance'),
+    onDeleteGuidance: (id: string) => deleteWorkspaceItem('guidance', id),
+  };
+
+  const documentPanelProps = {
+    documents: documents.map((doc) => ({ id: doc.id, title: doc.title })),
+    activeDocumentId,
+    activeDocument: activeDocument ? { id: activeDocument.id, title: activeDocument.title } : null,
+    documentTitle,
+    documentContent,
+    editMode,
+    showVersionPanel,
+    versions,
+    panelGuide: renderPanelGuide('doc'),
+    documentSections,
+    renderDocumentSection,
+    docBodyRef,
+    guidanceItems: guidanceItems.map((item) => ({ id: item.id, title: item.title })),
+    selectedGuidanceIds,
+    outputButtons,
+    generatingOutline,
+    documentSaving,
+    onSelectDocument: async (id: string) => {
+      setActiveDocumentId(id);
+      setRightMode('doc');
+      await loadDocumentDetail(id);
+    },
+    onCreateDocument: createDocument,
+    onToggleDocumentEdit: () => setEditMode((previous) => !previous),
+    onToggleVersionPanel: () => setShowVersionPanel((previous) => !previous),
+    onDeleteDocument: deleteDocument,
+    onDocumentTitleChange: setDocumentTitle,
+    onDocumentContentChange: setDocumentContent,
+    onRestoreVersion: restoreVersion,
+    onToggleGuidanceSelection: toggleGuidanceSelection,
+    onOutputAction: (type: string) => {
+      if (type === 'ppt') {
+        return openPptSourceLockIntent();
+      }
+      return openDirectOutputIntent(type as Exclude<OutputType, 'ppt'>);
+    },
+    onSaveDocument: saveDocument,
+  };
+
+  const outputPanelProps = {
+    activeOutput: activeOutput ? { target_type: activeOutput.target_type } : null,
+    generatingOutline,
+    generatingOutlineLabel: outputButtons.find((item) => item.type === generatingOutline)?.label || '产出',
+    outputWorkspaceHeader: renderOutputWorkspaceHeader(),
+    pptWorkspace: renderPptWorkspace(),
+    directOutputWorkspace: renderDirectOutputWorkspace(),
+  };
+
   return (
     <div className="thinkflow-root">
-      <div className="thinkflow-topbar">
-        <div className="thinkflow-brand" onClick={onBack}>
-          <span className="thinkflow-brand-main">Think</span>
-          <span className="thinkflow-brand-accent">Flow</span>
-        </div>
-        <div className="thinkflow-workspace-badge">📁 {notebookTitle} ▾</div>
-        <div className="thinkflow-topbar-spacer" />
-        <button type="button" className="thinkflow-topbar-btn" onClick={() => void openHistoryPanel()}>
-          <History size={14} />
-          历史
-        </button>
-      </div>
+      <ThinkFlowTopBar notebookTitle={notebookTitle} onBack={onBack} onOpenHistory={openHistoryPanel} />
 
       {captureFeedback ? <div className="thinkflow-capture-toast">{captureFeedback}</div> : null}
-      {globalError ? <div className="thinkflow-global-error">{globalError}</div> : null}
+      {globalError ? (
+        <div className="thinkflow-global-error">
+          {globalError}
+          <button type="button" className="thinkflow-global-error-close" onClick={() => setGlobalError('')}>
+            <X size={14} />
+          </button>
+        </div>
+      ) : null}
 
       <div
         ref={layoutRef}
         className={layoutClassName}
         style={layoutStyle}
       >
-        <aside className={`thinkflow-left-panel ${isOutputWorkspace ? 'is-hidden' : ''}`}>
-          <div className="thinkflow-left-tabs">
-            <button
-              type="button"
-              className={`thinkflow-left-tab ${leftTab === 'materials' ? 'is-active' : ''}`}
-              onClick={() => setLeftTab('materials')}
-            >
-              <span>📂</span>
-              素材
-            </button>
-            <button
-              type="button"
-              className={`thinkflow-left-tab ${leftTab === 'outputs' ? 'is-active' : ''}`}
-              onClick={() => setLeftTab('outputs')}
-            >
-              <span>📦</span>
-              产出
-              {outputs.length > 0 ? <span className="thinkflow-badge-count">{outputs.length}</span> : null}
-            </button>
-          </div>
+        <ThinkFlowLeftSidebar
+          activeOutputId={activeOutputId}
+          files={files}
+          getFileEmoji={fileEmoji}
+          getOutputEmoji={outputEmoji}
+          isOutputWorkspace={isOutputWorkspace}
+          leftTab={leftTab}
+          loadingFiles={loadingFiles}
+          onLeftTabChange={setLeftTab}
+          onOpenOutput={openExistingOutput}
+          onRefreshFiles={refreshFiles}
+          onToggleSource={toggleSource}
+          outputs={outputs}
+          selectedIds={selectedIds}
+          uploading={uploading}
+          onUpload={handleUpload}
+          onAddSource={() => setShowAddSourceModal(true)}
+        />
 
-          {leftTab === 'materials' ? (
-            <>
-              <div className="thinkflow-left-scroll">
-                {loadingFiles ? <div className="thinkflow-empty thinkflow-left-empty">正在加载素材...</div> : null}
-                {!loadingFiles && files.length === 0 ? <div className="thinkflow-empty thinkflow-left-empty">暂无素材</div> : null}
-                {files.map((file) => (
-                  <button
-                    key={file.id}
-                    type="button"
-                    className={`thinkflow-file-item ${selectedIds.has(file.id) ? 'is-active' : ''}`}
-                    onClick={() => toggleSource(file.id)}
-                  >
-                    <div className="thinkflow-file-icon">{fileEmoji(file.type)}</div>
-                    <div className="thinkflow-file-body">
-                      <div className="thinkflow-file-name">{file.name}</div>
-                      <div className="thinkflow-file-meta">
-                        <span>{file.size || '已入库'}</span>
-                        {file.vectorStatus ? <span>{file.vectorStatus}</span> : null}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <label className="thinkflow-upload-area">
-                <Upload size={18} />
-                <span>{uploading ? '上传中...' : '拖拽文件或点击上传'}</span>
-                <small>PDF / Word / 图片 / URL / CSV</small>
-                <input type="file" multiple hidden onChange={handleUpload} />
-              </label>
-            </>
-          ) : (
-            <div className="thinkflow-left-scroll">
-              {outputs.length === 0 ? <div className="thinkflow-empty thinkflow-left-empty">暂无产出</div> : null}
-              {outputs.map((output) => (
-                <button
-                  key={output.id}
-                  type="button"
-                  className={`thinkflow-output-card ${activeOutputId === output.id ? 'is-active' : ''}`}
-                  onClick={() => void openExistingOutput(output)}
-                >
-                  <div className="thinkflow-output-card-thumb">
-                    <div className="thinkflow-output-card-emoji">{outputEmoji(output.target_type)}</div>
-                    <div className="thinkflow-output-card-badge">{output.outline?.length || 0} 项</div>
-                  </div>
-                  <div className="thinkflow-output-card-info">
-                    <div className="thinkflow-output-card-title">{output.title}</div>
-                    <div className="thinkflow-output-card-meta">
-                      {output.target_type} · {new Date(output.updated_at).toLocaleDateString('zh-CN')}
-                    </div>
-                    <div className="thinkflow-output-card-actions">
-                      <span>{activeOutputId === output.id ? '当前查看' : '打开查看'}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </aside>
-
-        <main className={`thinkflow-center-panel ${workspaceMode === 'output_immersive' ? 'is-hidden' : ''} ${workspaceMode === 'output_focus' ? 'is-output-focus' : ''}`}>
-          <div className="thinkflow-chat-scroll" ref={chatScrollRef} onMouseUp={handleChatSelectionMouseUp}>
-            {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                ref={(node) => {
-                  messageRefs.current[message.id] = node;
-                }}
-                data-message-id={message.id}
-                className={`thinkflow-message-row ${message.role} ${focusedMessageId === message.id ? 'is-focused' : ''} ${selectedMessageIds.includes(message.id) ? 'is-selected' : ''}`}
-              >
-                <div className={`thinkflow-message-shell ${message.role}`}>
-                  <div className={`thinkflow-bubble ${message.role}`}>
-                    <div className="thinkflow-bubble-meta">
-                      <span>{message.role === 'assistant' ? 'AI' : '你'}</span>
-                      <span>{message.time}</span>
-                    </div>
-                    {renderMessageMarkdown(message)}
-                  </div>
-                  {message.role === 'assistant' ? (
-                    <div className="thinkflow-message-actions">
-                      <button
-                        type="button"
-                        className={`thinkflow-push-trigger ${message.pushed ? 'is-done' : ''}`}
-                        onClick={(event) => openPushPopover(message, event)}
-                        disabled={!message.content}
-                        title="沉淀当前消息"
-                      >
-                        {message.pushed ? '✓' : '⟩'}
-                      </button>
-                      <button
-                        type="button"
-                        className="thinkflow-message-more"
-                        onClick={(event) => openQAPushPopover(message, event)}
-                        disabled={!message.content}
-                        title="沉淀这一轮问答"
-                      >
-                        本轮
-                      </button>
-                      <button
-                        type="button"
-                        className={`thinkflow-message-select ${selectedMessageIds.includes(message.id) ? 'is-active' : ''}`}
-                        onClick={() => toggleMessageSelection(message.id)}
-                        title="加入多条沉淀"
-                      >
-                        {selectedMessageIds.includes(message.id) ? '✓' : '+'}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {selectionToolbar.show ? (
-            <div
-              className="thinkflow-selection-toolbar"
-              style={{
-                left: selectionToolbar.x,
-                top: selectionToolbar.y,
-              }}
-            >
-              <button type="button" className="thinkflow-selection-btn" onClick={() => void handleSelectionCopy()}>
-                📋 复制
-              </button>
-              <button type="button" className="thinkflow-selection-btn is-primary" onClick={handleSelectionPush}>
-                ⟩ 沉淀
-              </button>
-            </div>
-          ) : null}
-
-          {selectedMessageIds.length > 0 ? (
-            <div className="thinkflow-multi-select-bar">
-              <div className="thinkflow-multi-select-meta">已选 {selectedMessageIds.length} 条消息，你可以把这组内容作为一次明确沉淀。</div>
-              <textarea
-                className="thinkflow-multi-select-input"
-                value={multiSelectPrompt}
-                onChange={(event) => setMultiSelectPrompt(event.target.value)}
-                placeholder="可选：补充你希望这组内容如何被整理，例如‘沉淀成产出指导，强调结论和边界条件’"
-                rows={2}
-              />
-              <div className="thinkflow-multi-select-actions">
-                <button type="button" className="thinkflow-doc-action-btn" onClick={clearSelectedMessages}>
-                  取消选择
-                </button>
-                <button
-                  type="button"
-                  className="thinkflow-generate-btn"
-                  onClick={(event) => openMultiMessagePush(event.currentTarget)}
-                >
-                  ⟩ 沉淀所选内容
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="thinkflow-chat-input-area">
-            <div className="thinkflow-chat-input-box">
-              <textarea
-                value={chatInput}
-                onChange={(event) => setChatInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    void handleSendMessage();
-                  }
-                }}
-                placeholder="输入消息，围绕当前素材梳理你真正想要的结论..."
-                className="thinkflow-chat-input"
-                rows={2}
-              />
-              <div className="thinkflow-chat-toolbar">
-                <button type="button" className="thinkflow-toolbar-btn">
-                  🔍 搜索
-                </button>
-                <div className="thinkflow-toolbar-divider" />
-                {documents.map((doc) => (
-                  <label
-                    key={doc.id}
-                    className={`thinkflow-doc-check ${boundDocIds.includes(doc.id) ? 'is-checked' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={boundDocIds.includes(doc.id)}
-                      onChange={() => toggleBoundDoc(doc.id)}
-                    />
-                    📄 {doc.title}
-                  </label>
-                ))}
-                {boundDocIds.length > 0 ? <span className="thinkflow-doc-check-tip">对话将参考此文档</span> : null}
-                {!rightPanelOpen && workspaceMode === 'normal' ? (
-                  <button
-                    type="button"
-                    className="thinkflow-toolbar-btn"
-                    onClick={() => {
-                      setRightPanelOpen(true);
-                      setRightMode('doc');
-                    }}
-                  >
-                    + 新建梳理
-                  </button>
-                ) : null}
-                <div className="thinkflow-toolbar-spacer" />
-                <button type="button" className="thinkflow-send-btn" onClick={() => void handleSendMessage()} disabled={!chatInput.trim() || chatLoading}>
-                  {chatLoading ? '...' : '↑'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {!rightPanelOpen && workspaceMode === 'normal' ? (
-            <button
-              type="button"
-              className="thinkflow-open-right-btn"
-              onClick={() => {
-                setRightPanelOpen(true);
-                setRightMode(activeOutput ? 'outline' : 'doc');
-              }}
-            >
-              📄
-            </button>
-          ) : null}
-        </main>
+        <ThinkFlowCenterPanel
+          activeOutput={activeOutput}
+          boundDocIds={boundDocIds}
+          chatInput={chatInput}
+          chatLoading={chatLoading}
+          chatMessages={chatMessages}
+          chatScrollRef={chatScrollRef}
+          documents={documents}
+          focusedMessageId={focusedMessageId}
+          handleChatSelectionMouseUp={handleChatSelectionMouseUp}
+          handleSelectionCopy={handleSelectionCopy}
+          handleSelectionPush={handleSelectionPush}
+          handleSendMessage={handleSendMessage}
+          messageRefs={messageRefs}
+          multiSelectPrompt={multiSelectPrompt}
+          openMultiMessagePush={openMultiMessagePush}
+          openPushPopover={openPushPopover}
+          openQAPushPopover={openQAPushPopover}
+          openRightPanelForActiveOutput={() => {
+            setRightPanelOpen(true);
+            setRightMode(activeOutput ? 'outline' : 'doc');
+          }}
+          openRightPanelForDocument={() => {
+            setRightPanelOpen(true);
+            setRightMode('doc');
+          }}
+          clearSelectedMessages={clearSelectedMessages}
+          renderMessageMarkdown={renderMessageMarkdown}
+          rightPanelOpen={rightPanelOpen}
+          selectedMessageIds={selectedMessageIds}
+          selectionToolbar={selectionToolbar}
+          setChatInput={setChatInput}
+          setMultiSelectPrompt={setMultiSelectPrompt}
+          toggleBoundDoc={toggleBoundDoc}
+          toggleMessageSelection={toggleMessageSelection}
+          workspaceMode={workspaceMode}
+        />
 
         {rightPanelOpen ? (
-          <aside className={`thinkflow-right-panel ${workspaceMode !== 'normal' ? 'is-output-workspace' : ''}`}>
-            <div className="thinkflow-right-mode-bar">
-              <button
-                type="button"
-                className="thinkflow-collapse-btn"
-                onClick={() => {
-                  if (workspaceMode !== 'normal') {
-                    exitOutputWorkspace();
-                    return;
-                  }
-                  setRightPanelOpen(false);
-                }}
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button type="button" className={`thinkflow-mode-btn ${rightMode === 'summary' ? 'is-active' : ''}`} onClick={() => setRightMode('summary')}>
-                🗂️ 摘要
-              </button>
-              <button type="button" className={`thinkflow-mode-btn ${rightMode === 'doc' ? 'is-active' : ''}`} onClick={() => setRightMode('doc')}>
-                <PanelRightOpen size={14} />
-                梳理文档
-              </button>
-              <button type="button" className={`thinkflow-mode-btn ${rightMode === 'guidance' ? 'is-active' : ''}`} onClick={() => setRightMode('guidance')}>
-                🎯 产出指导
-              </button>
-              {activeOutput ? (
-                <button type="button" className={`thinkflow-mode-btn ${rightMode === 'outline' ? 'is-active' : ''}`} onClick={() => setRightMode('outline')}>
-                  ✏️ 大纲编排
-                </button>
-              ) : null}
-            </div>
-
-          {rightMode === 'summary' ? (
-            <>
-              <div className="thinkflow-doc-header">
-                <div className="thinkflow-doc-tabs">
-                  {summaryItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`thinkflow-doc-tab ${activeSummaryId === item.id ? 'is-active' : ''}`}
-                      onClick={() => {
-                        setRightMode('summary');
-                        void loadWorkspaceItemDetail(item.id);
-                      }}
-                    >
-                      {item.title}
-                    </button>
-                  ))}
-                </div>
-                <div className="thinkflow-doc-header-actions">
-                  <button type="button" className="thinkflow-doc-new-btn" onClick={() => void createWorkspaceItem('summary')}>
-                    + 新建
-                  </button>
-                  {activeSummary ? (
-                    <div className="thinkflow-doc-actions">
-                      <button
-                        type="button"
-                        className={`thinkflow-doc-action-btn ${summaryEditMode ? 'is-active' : ''}`}
-                        onClick={() => setSummaryEditMode((previous) => !previous)}
-                      >
-                        {summaryEditMode ? '完成编辑' : '编辑摘要'}
-                      </button>
-                      <button
-                        type="button"
-                        className="thinkflow-doc-action-btn is-danger"
-                        onClick={() => void deleteWorkspaceItem('summary', activeSummary.id)}
-                      >
-                        <Trash2 size={14} />
-                        删除
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              {activeSummary ? (
-                <div className="thinkflow-doc-title-row">
-                  <input
-                    className="thinkflow-doc-title-input"
-                    value={summaryTitle}
-                    onChange={(event) => setSummaryTitle(event.target.value)}
-                    placeholder="摘要名称由你决定，也可以先留空后再改"
-                  />
-                </div>
-              ) : null}
-
-              {renderPanelGuide('summary')}
-
-              <div className="thinkflow-doc-body">
-                {!activeSummary ? (
-                  <div className="thinkflow-empty">
-                    摘要不是默认生成的，它更像 AI 帮你记下来的阅读笔记。
-                    <br />
-                    你在中间对话区对某个回答、某组问答或多条消息点击“沉淀”后，它会结合来源整理成可继续编辑的笔记卡。
-                  </div>
-                ) : summaryEditMode ? (
-                  <textarea
-                    className="thinkflow-doc-editor"
-                    value={summaryContent}
-                    onChange={(event) => setSummaryContent(event.target.value)}
-                    placeholder="这里是 AI 笔记的可编辑区。"
-                  />
-                ) : (
-                  renderSummaryCards(summaryContent)
-                )}
-              </div>
-
-              <div className="thinkflow-output-toolbar">
-                <span className="thinkflow-output-toolbar-label">摘要</span>
-                <span className="thinkflow-output-toolbar-tip">这是 AI 笔记区，用来沉淀你当前理解和后续可追问点。</span>
-                <button type="button" className="thinkflow-save-btn" onClick={() => void saveWorkspaceItem('summary')} disabled={!activeSummaryId || workspaceSaving === 'summary'}>
-                  <Save size={14} />
-                  {workspaceSaving === 'summary' ? '保存中' : '保存摘要'}
-                </button>
-              </div>
-            </>
-          ) : rightMode === 'guidance' ? (
-            <>
-              <div className="thinkflow-doc-header">
-                <div className="thinkflow-doc-tabs">
-                  {guidanceItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`thinkflow-doc-tab ${activeGuidanceId === item.id ? 'is-active' : ''}`}
-                      onClick={() => {
-                        setRightMode('guidance');
-                        void loadWorkspaceItemDetail(item.id);
-                      }}
-                    >
-                      {item.title}
-                    </button>
-                  ))}
-                </div>
-                <div className="thinkflow-doc-header-actions">
-                  <button type="button" className="thinkflow-doc-new-btn" onClick={() => void createWorkspaceItem('guidance')}>
-                    + 新建
-                  </button>
-                  {activeGuidance ? (
-                    <div className="thinkflow-doc-actions">
-                      <button
-                        type="button"
-                        className="thinkflow-doc-action-btn is-danger"
-                        onClick={() => void deleteWorkspaceItem('guidance', activeGuidance.id)}
-                      >
-                        <Trash2 size={14} />
-                        删除
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              {activeGuidance ? (
-                <div className="thinkflow-doc-title-row">
-                  <div className="thinkflow-guidance-title">
-                    <span className="thinkflow-guidance-title-label">当前指导</span>
-                    <strong>{guidanceTitle}</strong>
-                  </div>
-                </div>
-              ) : null}
-
-              {renderPanelGuide('guidance')}
-
-              <div className="thinkflow-doc-body">
-                {!activeGuidance ? (
-                  <div className="thinkflow-empty">
-                    产出指导不是聊天副本，而是你从对话里抽出来的高权重 brief。
-                    <br />
-                    它会在你生成大纲和正式产出时强约束参与，建议通过“本轮”或多条沉淀生成。
-                  </div>
-                ) : (
-                  renderGuidanceBrief(guidanceContent)
-                )}
-              </div>
-
-              <div className="thinkflow-output-toolbar">
-                <span className="thinkflow-output-toolbar-label">产出指导</span>
-                <span className="thinkflow-output-toolbar-tip">这是只读的高权重上下文，不允许直接编辑；需要改动时请重新从对话沉淀。</span>
-              </div>
-            </>
-          ) : rightMode === 'doc' ? (
-            <>
-              <div className="thinkflow-doc-header">
-                <div className="thinkflow-doc-tabs">
-                  {documents.map((doc) => (
-                    <button
-                      key={doc.id}
-                      type="button"
-                      className={`thinkflow-doc-tab ${activeDocumentId === doc.id ? 'is-active' : ''}`}
-                      onClick={() => {
-                        setActiveDocumentId(doc.id);
-                        setRightMode('doc');
-                        void loadDocumentDetail(doc.id);
-                      }}
-                    >
-                      {doc.title}
-                    </button>
-                  ))}
-                </div>
-                <div className="thinkflow-doc-header-actions">
-                  <button type="button" className="thinkflow-doc-new-btn" onClick={() => void createDocument()}>
-                    + 新建
-                  </button>
-                  <div className="thinkflow-doc-actions">
-                    <button type="button" className={`thinkflow-doc-action-btn ${editMode ? 'is-active' : ''}`} onClick={() => setEditMode((previous) => !previous)}>
-                      {editMode ? '编辑中' : '编辑全文'}
-                    </button>
-                    <button
-                      type="button"
-                      className={`thinkflow-doc-action-btn ${showVersionPanel ? 'is-active' : ''}`}
-                      onClick={() => setShowVersionPanel((previous) => !previous)}
-                      disabled={versions.length <= 1}
-                    >
-                      历史{versions.length > 1 ? `(${versions.length})` : ''}
-                    </button>
-                    {activeDocument ? (
-                      <button
-                        type="button"
-                        className="thinkflow-doc-action-btn is-danger"
-                        onClick={() => void deleteDocument(activeDocument.id)}
-                      >
-                        <Trash2 size={14} />
-                        删除
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              {activeDocument ? (
-                <div className="thinkflow-doc-title-row">
-                  <input
-                    className="thinkflow-doc-title-input"
-                    value={documentTitle}
-                    onChange={(event) => setDocumentTitle(event.target.value)}
-                    placeholder="为这份梳理输入标题，或稍后从对话内容整理命名"
-                  />
-                </div>
-              ) : null}
-
-              {renderPanelGuide('doc')}
-
-              <div className="thinkflow-doc-body" ref={docBodyRef}>
-                {!activeDocument ? (
-                  <div className="thinkflow-empty">
-                    右侧是你确认过的梳理文档，会作为后续 PPT / 报告 / 导图的直接输入。
-                    <br />
-                    先在中间持续对话，再把真正有价值的段落或回答推送到这里。
-                    <div className="thinkflow-empty-actions">
-                      <button type="button" className="thinkflow-doc-action-btn is-active" onClick={() => void createDocument()}>
-                        + 新建梳理文档
-                      </button>
-                    </div>
-                  </div>
-                ) : !documentContent.trim() ? (
-                  <div className="thinkflow-empty">
-                    在左边对话中选中内容，点击 <strong>⟩</strong> 推送到这里。
-                    <br />
-                    这里默认是阅读视图，你确认过的梳理内容会沉淀成一份可继续编辑的文档。
-                    <br />
-                    如果你还没有准备文档，也可以直接点击底部产出按钮，系统会先基于当前来源生成一份来源梳理。
-                  </div>
-                ) : editMode ? (
-                  <textarea
-                    className="thinkflow-doc-editor"
-                    value={documentContent}
-                    onChange={(event) => setDocumentContent(event.target.value)}
-                  />
-                ) : (
-                  <div className="thinkflow-doc-sections">
-                    {documentSections.map(renderDocumentSection)}
-                  </div>
-                )}
-              </div>
-
-              {showVersionPanel && versions.length > 1 ? (
-                <div className="thinkflow-version-panel">
-                  {versions.map((version, index) => (
-                    <div key={version.id} className={`thinkflow-version-item ${index === 0 ? 'is-current' : ''}`}>
-                      <div className="thinkflow-version-main">
-                        <div className="thinkflow-version-title">{version.reason || 'update'}</div>
-                        <div className="thinkflow-version-time">{new Date(version.created_at).toLocaleString()}</div>
-                      </div>
-                      {index > 0 ? (
-                        <button type="button" className="thinkflow-version-restore" onClick={() => void restoreVersion(version.id)}>
-                          恢复
-                        </button>
-                      ) : (
-                        <span className="thinkflow-version-current">当前</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="thinkflow-output-toolbar">
-                <span className="thinkflow-output-toolbar-label">产出</span>
-                <span className="thinkflow-output-toolbar-tip">优先使用当前梳理文档；如果文档为空，会先基于当前来源自动生成一份来源梳理</span>
-                <div className="thinkflow-guidance-strip">
-                  {guidanceItems.length === 0 ? <span className="thinkflow-doc-check-tip">暂无产出指导</span> : null}
-                  {guidanceItems.map((item) => (
-                    <label key={item.id} className={`thinkflow-doc-check ${selectedGuidanceIds.includes(item.id) ? 'is-checked' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={selectedGuidanceIds.includes(item.id)}
-                        onChange={() => toggleGuidanceSelection(item.id)}
-                      />
-                      🎯 {item.title}
-                    </label>
-                  ))}
-                </div>
-                {outputButtons.map((button) => (
-                  <button
-                    key={button.type}
-                    type="button"
-                    className="thinkflow-output-toolbar-btn"
-                    onClick={() => {
-                      if (button.type === 'ppt') {
-                        void openPptSourceLockIntent();
-                        return;
-                      }
-                      void openDirectOutputIntent(button.type);
-                    }}
-                    disabled={generatingOutline !== null}
-                  >
-                    {button.icon}
-                    {generatingOutline === button.type ? `生成${button.label}中` : button.label}
-                  </button>
-                ))}
-                <button type="button" className="thinkflow-save-btn" onClick={() => void saveDocument()} disabled={documentSaving}>
-                  <Save size={14} />
-                  {documentSaving ? '保存中' : '保存文档'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="thinkflow-outline-editor">
-              {activeOutput ? (
-                <>
-                  {renderOutputWorkspaceHeader()}
-                  {activeOutput.target_type === 'ppt' ? (
-                    <div className="thinkflow-output-workspace-body">
-                      {renderPptWorkspace()}
-                    </div>
-                  ) : (
-                    renderDirectOutputWorkspace()
-                  )}
-                </>
-              ) : generatingOutline ? (
-                <div className="thinkflow-empty">正在准备并生成{outputButtons.find((item) => item.type === generatingOutline)?.label || '产出'}...</div>
-              ) : (
-                <div className="thinkflow-empty">从文档页点击一个产出按钮后，这里会直接显示当前结果工作台。</div>
-              )}
-            </div>
-          )}
-          </aside>
+          <ThinkFlowRightPanel
+            activeDocument={activeDocument}
+            activeGuidance={activeGuidance}
+            activeOutput={activeOutput}
+            activeSummary={activeSummary}
+            generatingOutline={generatingOutline}
+            onClose={() => setRightPanelOpen(false)}
+            onExitOutputWorkspace={exitOutputWorkspace}
+            outputButtons={outputButtons}
+            rightMode={rightMode}
+            setRightMode={setRightMode}
+            summaryPanelProps={summaryPanelProps}
+            guidancePanelProps={guidancePanelProps}
+            documentPanelProps={documentPanelProps}
+            outputPanelProps={outputPanelProps}
+            workspaceMode={workspaceMode}
+          />
         ) : null}
       </div>
 
@@ -5449,6 +5011,16 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           </div>
         </>
       ) : null}
+
+      <ThinkFlowAddSourceModal
+        email={effectiveUser.email || ''}
+        notebookId={notebook.id}
+        notebookTitle={notebookTitle}
+        onClose={() => setShowAddSourceModal(false)}
+        onSourceAdded={() => void refreshFiles()}
+        open={showAddSourceModal}
+        userId={effectiveUser.id}
+      />
     </div>
   );
 };
