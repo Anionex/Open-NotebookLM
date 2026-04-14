@@ -5,7 +5,7 @@ import {
   BarChart2, Zap, AudioLines, Video, FileText,
   Filter, MoreVertical, Search, Image as ImageIcon, FileStack, Sparkles,
   Mic2, Video as VideoIcon, BrainCircuit, Send, Bot, User, Loader2, Upload, X,
-  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain
+  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain, GitBranch
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { apiFetch } from '../config/api';
@@ -14,6 +14,7 @@ import { fetchWithCache, invalidateCacheByPrefix } from '../services/clientCache
 import type { KnowledgeFile, ChatMessage, ToolType } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { MindMapPreview } from '../components/knowledge-base/tools/MindMapPreview';
+import { PipelineDebugModal } from '../components/knowledge-base/tools/pipeline-debug/PipelineDebugModal';
 import { SettingsModal } from '../components/SettingsModal';
 import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
@@ -255,6 +256,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
   // Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showPipelineDebug, setShowPipelineDebug] = useState(false);
 
   // Output preview
   const [previewOutput, setPreviewOutput] = useState<{
@@ -4094,8 +4096,26 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
 
             {toolOutput && activeTool === 'mindmap' && toolOutput.mindmap_code && (
               <div className="bg-white border border-gray-200 rounded-xl p-4">
+                {toolOutput.result_path && (
+                  <div className="flex justify-end mb-2">
+                    <button
+                      onClick={() => setShowPipelineDebug(true)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-600 transition-colors"
+                    >
+                      <GitBranch size={14} />
+                      Pipeline Debug
+                    </button>
+                  </div>
+                )}
                 <MindMapPreview mermaidCode={toolOutput.mindmap_code} title="思维导图" onNodeClick={handleMindmapNodeClick} />
               </div>
+            )}
+            {showPipelineDebug && toolOutput?.result_path && (
+              <PipelineDebugModal
+                isOpen={showPipelineDebug}
+                onClose={() => setShowPipelineDebug(false)}
+                resultPath={toolOutput.result_path}
+              />
             )}
 
             {toolOutput && activeTool === 'ppt' && (

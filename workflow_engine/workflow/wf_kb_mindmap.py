@@ -512,6 +512,17 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         if total <= limit:
             state.use_mapreduce = False
             log.info("[MindMap] 走单次生成路径")
+            _save_debug(state, "01_routing.json", {
+                "use_mapreduce": False,
+                "total_content_tokens": total,
+                "context_window_limit": limit,
+                "model": model,
+                "file_count": len(state.file_contents),
+                "file_tokens": file_tokens,
+                "file_names": [item["filename"] for item in state.file_contents],
+                "chunk_count": 0,
+                "chunks_summary": [],
+            })
             return state
 
         # MapReduce 路径：构建 chunks
@@ -559,6 +570,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             "model": model,
             "file_count": len(state.file_contents),
             "file_tokens": file_tokens,
+            "file_names": [item["filename"] for item in state.file_contents],
             "chunk_count": len(chunks),
             "chunks_summary": [
                 {"chunk_id": c["chunk_id"], "source": c["source"], "token_count": c["token_count"]}
