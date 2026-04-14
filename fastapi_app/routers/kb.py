@@ -122,7 +122,7 @@ def _text_to_pdf(text: str, output_path: str) -> None:
     doc.close()
 
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4", ".md", ".csv"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4", ".md", ".csv", ".txt"}
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 DOC_EXTENSIONS = {".pdf", ".docx", ".doc", ".pptx", ".ppt", ".md", ".markdown"}
