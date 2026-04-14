@@ -1012,7 +1012,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   const isPreviewableDoc = (f: KnowledgeFile) => {
     const name = (f.name || '').toLowerCase();
     const url = (f.url || '').toLowerCase();
-    return (name.endsWith('.pdf') || name.endsWith('.md')) || (url.endsWith('.pdf') || url.endsWith('.md'));
+    return (name.endsWith('.pdf') || name.endsWith('.md') || name.endsWith('.txt')) || (url.endsWith('.pdf') || url.endsWith('.md') || url.endsWith('.txt'));
   };
 
   const normalizeCitationPath = (value?: string) => {
@@ -1771,11 +1771,11 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         const imageFiles = selectedFiles.filter(f => f.type === 'image');
         const validDocFiles = docFiles.filter(f => {
           const name = (f.name || '').toLowerCase();
-          return name.endsWith('.pdf') || name.endsWith('.pptx') || name.endsWith('.ppt') || name.endsWith('.docx') || name.endsWith('.doc') || name.endsWith('.md');
+          return name.endsWith('.pdf') || name.endsWith('.pptx') || name.endsWith('.ppt') || name.endsWith('.docx') || name.endsWith('.doc') || name.endsWith('.md') || name.endsWith('.txt');
         });
         const validSources = [...validDocFiles, ...linkFiles];
         if (validSources.length === 0) {
-          showToast('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD 或网页引入）。', 'warning');
+          showToast('请至少选择 1 个文档或网页来源进行生成（支持 PDF/PPTX/DOCX/MD/TXT 或网页引入）。', 'warning');
           setToolLoading(false);
           return;
         }
@@ -3706,7 +3706,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
                       type="file"
                       className="hidden"
                       multiple
-                      accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.mp4,.md"
+                      accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.mp4,.md,.txt"
                       onChange={(e) => {
                         if (e.target.files?.length) {
                           uploadFiles(e.target.files, { closeModalOnQueue: true });
