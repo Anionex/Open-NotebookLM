@@ -2209,7 +2209,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
       const selectedFileUrls = selectedFiles.map(f => f.url).filter(Boolean) as string[];
       const selectedNames = selectedFiles.map(f => f.name).filter(Boolean);
 
-      const settings = getApiSettings(user?.id || null);
+      const settings = getApiSettings(effectiveUser?.id || null);
       const apiUrl = settings?.apiUrl?.trim() || '';
       const apiKey = settings?.apiKey?.trim() || '';
       if (!apiUrl || !apiKey) {
