@@ -380,6 +380,22 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             return ""
         return ""
 
+    # ==================== 调试中间产物保存 ====================
+
+    def _save_debug(state: KBMindMapState, filename: str, data: Any) -> None:
+        """将中间产物保存到 result_path/debug/ 目录，便于调试。"""
+        try:
+            debug_dir = Path(state.result_path) / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            filepath = debug_dir / filename
+            if isinstance(data, (dict, list)):
+                filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            else:
+                filepath.write_text(str(data), encoding="utf-8")
+            log.info(f"[MindMap Debug] 已保存: {filepath}")
+        except Exception as e:
+            log.warning(f"[MindMap Debug] 保存失败 {filename}: {e}")
+
     # ==================== 节点函数 ====================
 
     def _start_(state: KBMindMapState) -> KBMindMapState:
@@ -534,6 +550,21 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
         state.chunks = chunks
         log.info(f"[MindMap] 分块完成，共 {len(chunks)} 个 chunk")
+
+        # 保存路由决策和分块信息
+        _save_debug(state, "01_routing.json", {
+            "use_mapreduce": state.use_mapreduce,
+            "total_content_tokens": state.total_content_tokens,
+            "context_window_limit": state.context_window_limit,
+            "model": model,
+            "file_count": len(state.file_contents),
+            "file_tokens": file_tokens,
+            "chunk_count": len(chunks),
+            "chunks_summary": [
+                {"chunk_id": c["chunk_id"], "source": c["source"], "token_count": c["token_count"]}
+                for c in chunks
+            ],
+        })
         return state
 
     def _route_after_chunking(state: KBMindMapState) -> str:
@@ -609,6 +640,9 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
         total_nodes = sum(len(r["nodes"]) for r in map_results)
         log.info(f"[MindMap Map] 完成，共提取 {total_nodes} 个节点")
+
+        # 保存每个 chunk 的 Map 提取结果
+        _save_debug(state, "02_map_results.json", map_results)
         return state
 
     async def collapse_phase_node(state: KBMindMapState) -> KBMindMapState:
@@ -630,6 +664,9 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
         if current_tokens <= limit:
             log.info("[MindMap Collapse] 已在上限内，进入 Reduce")
+            # 保存 Collapse 最终状态（可能是初始收集就在上限内，未经合并）
+            if state.collapse_iterations == 0:
+                _save_debug(state, "03_collapse_skipped_all_nodes.json", state.collapsed_nodes)
             return state
 
         state.collapse_iterations += 1
@@ -678,6 +715,9 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
         state.collapsed_nodes = merged
         log.info(f"[MindMap Collapse] 合并后节点数: {len(merged)}")
+
+        # 保存每轮 Collapse 结果
+        _save_debug(state, f"03_collapse_round{state.collapse_iterations}.json", merged)
         return state
 
     def _route_after_collapse(state: KBMindMapState) -> str:
@@ -696,6 +736,9 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         prompt = _build_reduce_prompt(nodes_json, state.request.language, state.request.max_depth)
 
         log.info(f"[MindMap Reduce] 节点数 {len(state.collapsed_nodes)}，开始生成最终思维导图")
+
+        # 保存 Reduce 阶段输入
+        _save_debug(state, "04_reduce_input.json", state.collapsed_nodes)
 
         try:
             agent = create_agent(
