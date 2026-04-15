@@ -14,6 +14,8 @@ interface AuthResponse {
   success: boolean;
   user?: User;
   message?: string;
+  needsVerification?: boolean;
+  emailExists?: boolean;
 }
 
 let currentUser: User | null = null;

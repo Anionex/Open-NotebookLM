@@ -42,21 +42,25 @@ export default function App() {
   const [dashboardRefresh, setDashboardRefresh] = useState(0);
   const [direction, setDirection] = useState(0);
   const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
-  const { user, loading, setUser } = useAuthStore();
+  // initializing：仅首次 session 检查期间为 true，不受后续 auth 操作影响
+  const [initializing, setInitializing] = useState(true);
+  const { user, setUser } = useAuthStore();
 
   useEffect(() => {
     initSupabase().then(setSupabaseConfigured);
   }, []);
 
   useEffect(() => {
-    if (supabaseConfigured === null) {
-      return;
-    }
+    if (supabaseConfigured === null) return;
     if (!supabaseConfigured) {
       setUser(null);
+      setInitializing(false);
       return;
     }
-    refreshSession().then(setUser);
+    refreshSession().then((u) => {
+      setUser(u);
+      setInitializing(false);
+    });
   }, [setUser, supabaseConfigured]);
 
   useEffect(() => {
@@ -66,7 +70,7 @@ export default function App() {
     }
   }, [user]);
 
-  if (loading || supabaseConfigured === null) {
+  if (initializing) {
     return <LoadingScreen />;
   }
 

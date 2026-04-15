@@ -21,7 +21,8 @@
 2. [thinkflow-workflow-source-document-summary-guidance.md](/root/user/szl/prj/Open-NotebookLM/docs/thinkflow-workflow-source-document-summary-guidance.md)
 3. [thinkflow-summary-document-guidance-output-prompts.md](/root/user/szl/prj/Open-NotebookLM/docs/thinkflow-summary-document-guidance-output-prompts.md)
 4. [thinkflow-upload-file-processing-flow.md](/root/user/szl/prj/Open-NotebookLM/docs/thinkflow-upload-file-processing-flow.md)
-5. [CLAUDE.md](/root/user/szl/prj/Open-NotebookLM/docs/CLAUDE.md)
+5. [conversation-history-design.md](/root/user/szl/prj/Open-NotebookLM/docs/conversation-history-design.md)
+6. [CLAUDE.md](/root/user/szl/prj/Open-NotebookLM/docs/CLAUDE.md)
 
 ---
 

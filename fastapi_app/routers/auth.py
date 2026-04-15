@@ -165,13 +165,30 @@ async def signup(request: SignupRequest, response: Response, raw_request: Reques
 
             return {
                 "success": True,
+                "needsVerification": False,
                 "user": {
                     "id": result.user.id,
                     "email": result.user.email
                 }
             }
         else:
-            return {"success": True, "message": "Check your email for confirmation"}
+            # 检测邮箱是否已注册：identities 为空列表表示邮箱已存在
+            identities = getattr(result.user, "identities", None) if result.user else None
+            if identities is not None and len(identities) == 0:
+                log.info(f"Signup attempt with already-registered email: {request.email}")
+                return {
+                    "success": False,
+                    "emailExists": True,
+                    "message": "该邮箱已注册，请直接登录或使用忘记密码找回账号。"
+                }
+
+            # 邮件确认模式：Supabase 已发送验证邮件，等待用户输入 OTP
+            log.info(f"Signup requires email verification for: {request.email}")
+            return {
+                "success": True,
+                "needsVerification": True,
+                "message": "Check your email for the verification code"
+            }
     except Exception as e:
         log.error(f"Signup error: {e}", exc_info=True)
         error_msg = str(e)

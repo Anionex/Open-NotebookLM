@@ -90,11 +90,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       const result = await signUp(email.trim(), password);
 
       if (!result.success) {
+        // 邮箱已注册：给出明确提示，不走 needsOtpVerification 流程
         set({ error: result.message || "注册失败", loading: false });
         return { needsVerification: false };
       }
 
-      if (result.message?.includes("email")) {
+      // 后端明确返回 needsVerification=true：邮件验证模式
+      if (result.needsVerification) {
         set({
           loading: false,
           pendingEmail: email.trim(),
@@ -104,6 +106,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         return { needsVerification: true };
       }
 
+      // 无需验证，直接登录成功
       set({
         session: null,
         user: result.user || null,
