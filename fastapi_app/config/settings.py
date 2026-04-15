@@ -66,18 +66,27 @@ class AppSettings(BaseSettings):
     SUPABASE_ANON_KEY: Optional[str] = None
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
 
-    # Embedding Provider Configuration
+    # Embedding Provider: local | openai | apiyi
+    # local  → vllm/本地推理服务，EMBEDDING_API_URL 指向本地，无需 KEY
+    # openai → OpenAI 或兼容接口（如 Azure），需要填 KEY
+    # apiyi  → ApiYi 代理服务，需要填 KEY
+    EMBEDDING_PROVIDER: str = "local"
     EMBEDDING_API_URL: str = "http://localhost:26210"
     EMBEDDING_API_KEY: str = ""
     EMBEDDING_MODEL: str = "Octen-Embedding-0.6B"
-    EMBEDDING_DIMENSION: int = 768  # 不同模型维度不同
+    EMBEDDING_DIMENSION: int = 768
 
     # Image Generation Provider Configuration
     IMAGE_GEN_API_URL: str = ""
     IMAGE_GEN_API_KEY: str = ""
     IMAGE_GEN_MODEL: str = "gemini-3-pro-image-preview"
 
-    # TTS Provider Configuration
+    # TTS Provider: local | openai | apiyi | bailian
+    # local   → 本地 vllm/TTS 服务，URL 指向本机，无需 KEY
+    # openai  → OpenAI TTS 或兼容接口
+    # apiyi   → ApiYi 代理服务
+    # bailian → 阿里云百炼 TTS
+    TTS_PROVIDER: str = "apiyi"
     TTS_API_URL: str = "http://localhost:26211"
     TTS_API_KEY: str = ""
     TTS_MODEL: str = "qwen-tts"
