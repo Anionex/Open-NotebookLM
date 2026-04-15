@@ -140,28 +140,28 @@ export default function AuthPage() {
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/72 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             <Sparkles size={14} />
-            ThinkFlow Access
+            ThinkFlow
           </div>
-          <h1 className="mt-6 text-6xl font-semibold tracking-[-0.06em] text-slate-900">统一风格的入口</h1>
+          <h1 className="mt-6 text-6xl font-semibold tracking-[-0.06em] text-slate-900">开启你的知识之旅</h1>
           <p className="mt-5 max-w-xl text-[15px] leading-8 text-slate-600">
-            登录页、首页和笔记本工作台现在是一套连续的视觉语言。认证完成后，直接进入同样的玻璃材质、留白和工作流体验。
+            在这里管理你的文档、生成洞见、创建多样化产出。
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-[26px] border border-white/70 bg-white/72 p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Access</div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">登录</div>
-              <p className="mt-2 text-sm leading-6 text-slate-500">继续你已有的文档工作流。</p>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">探索</div>
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">智能问答</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">基于来源的深度 RAG 对话，精准引用原文</p>
             </div>
             <div className="rounded-[26px] border border-white/70 bg-white/72 p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Create</div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">注册</div>
-              <p className="mt-2 text-sm leading-6 text-slate-500">创建新的知识工作空间。</p>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">整理</div>
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">知识梳理</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">沉淀对话、整理文档、构建专属知识底稿</p>
             </div>
             <div className="rounded-[26px] border border-white/70 bg-white/72 p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Secure</div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">验证</div>
-              <p className="mt-2 text-sm leading-6 text-slate-500">邮箱校验后再进入工作台。</p>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">产出</div>
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">多样产出</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">一键生成 PPT、播客、导图、测验和报告</p>
             </div>
           </div>
 
@@ -171,9 +171,9 @@ export default function AuthPage() {
                 <ShieldCheck size={18} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">同一套产品语言</h2>
+                <h2 className="text-sm font-semibold text-slate-900">AI 全链路知识工作台</h2>
                 <p className="mt-2 text-sm leading-7 text-slate-600">
-                  从认证、首页到 ThinkFlow 工作台，整体都采用更简洁的 iOS 玻璃风格，减少视觉跳跃感。
+                  从来源导入、智能问答到多样产出，ThinkFlow 覆盖知识工作的完整闭环。
                 </p>
               </div>
             </div>
@@ -189,10 +189,10 @@ export default function AuthPage() {
           <div className="mb-7">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/72 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               <Mail size={14} />
-              OpenNotebookLM
+              ThinkFlow
             </div>
             <div className="mt-5 flex items-center gap-3">
-              <img src="/logo_small.png" alt="OpenNotebookLM" className="h-12 w-auto object-contain" />
+              <img src="/logo_small.png" alt="ThinkFlow" className="h-12 w-auto object-contain" />
               <div>
                 <h1 className="text-3xl font-semibold tracking-[-0.04em] text-slate-900">
                   {mode === 'register' ? '创建你的账号' : mode === 'verify' ? '完成邮箱验证' : '欢迎回来'}

@@ -1,4 +1,5 @@
 import type { MutableRefObject, ReactNode, RefObject } from 'react';
+import { History, MessageSquarePlus } from 'lucide-react';
 
 import type {
   SelectionToolbarState,
@@ -6,7 +7,7 @@ import type {
   ThinkFlowMessage,
   ThinkFlowOutput,
   WorkspaceMode,
-} from './types';
+} from './thinkflow-types';
 
 type ThinkFlowCenterPanelProps = {
   workspaceMode: WorkspaceMode;
@@ -38,6 +39,8 @@ type ThinkFlowCenterPanelProps = {
   toggleBoundDoc: (docId: string) => void;
   openRightPanelForDocument: () => void;
   openRightPanelForActiveOutput: () => void;
+  onOpenHistory: () => void;
+  onNewConversation: () => void;
 };
 
 export function ThinkFlowCenterPanel({
@@ -70,9 +73,36 @@ export function ThinkFlowCenterPanel({
   toggleBoundDoc,
   openRightPanelForDocument,
   openRightPanelForActiveOutput,
+  onOpenHistory,
+  onNewConversation,
 }: ThinkFlowCenterPanelProps) {
   return (
-    <main className={`thinkflow-center-panel ${workspaceMode === 'output_immersive' ? 'is-hidden' : ''} ${workspaceMode === 'output_focus' ? 'is-output-focus' : ''}`}>
+    <main className={`thinkflow-center-panel ${workspaceMode === 'output_immersive' ? 'is-output-immersive' : ''} ${workspaceMode === 'output_focus' ? 'is-output-focus' : ''}`}>
+      <div className="thinkflow-chat-header-bar">
+        <div className="thinkflow-chat-header-left">
+          💬 对话
+        </div>
+        <div className="thinkflow-chat-header-actions">
+          <button
+            type="button"
+            className="thinkflow-chat-header-btn"
+            onClick={onNewConversation}
+            title="开始新对话"
+          >
+            <MessageSquarePlus size={14} />
+            新对话
+          </button>
+          <button
+            type="button"
+            className="thinkflow-chat-header-btn"
+            onClick={onOpenHistory}
+            title="查看历史对话"
+          >
+            <History size={14} />
+            历史
+          </button>
+        </div>
+      </div>
       <div className="thinkflow-chat-scroll" ref={chatScrollRef} onMouseUp={handleChatSelectionMouseUp}>
         {chatMessages.map((message) => (
           <div

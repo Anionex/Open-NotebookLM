@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { Save, Target, Trash2 } from 'lucide-react';
 
-import type { ThinkFlowOutputButton } from '../types';
+import type { ThinkFlowOutputButton } from './thinkflow-types';
 
 type DocumentPanelSectionProps = {
   documents: Array<{ id: string; title: string }>;

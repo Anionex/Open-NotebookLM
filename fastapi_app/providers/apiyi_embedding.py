@@ -32,10 +32,13 @@ class ApiYiEmbeddingProvider(EmbeddingProvider):
     async def _embed_batch(self, texts: List[str], api_url: str, api_key: str, model: str) -> List[List[float]]:
         for attempt in range(self.max_retries):
             try:
+                headers: dict = {"Content-Type": "application/json"}
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     resp = await client.post(
                         f"{api_url.rstrip('/')}/embeddings",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        headers=headers,
                         json={"input": texts, "model": model}
                     )
                     resp.raise_for_status()

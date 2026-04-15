@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   ArrowRight,
@@ -25,18 +25,18 @@ import {
   X,
 } from 'lucide-react';
 
-import { apiFetch } from '../../config/api';
-import { useAuthStore } from '../../stores/authStore';
-import type { KnowledgeFile } from '../../types';
+import { apiFetch } from '../config/api';
+import { useAuthStore } from '../stores/authStore';
+import type { KnowledgeFile } from '../types';
 import { ThinkFlowAddSourceModal } from './ThinkFlowAddSourceModal';
 import { ThinkFlowCenterPanel } from './ThinkFlowCenterPanel';
 import { ThinkFlowFlashcardStudy } from './ThinkFlowFlashcardStudy';
 import { ThinkFlowLeftSidebar } from './ThinkFlowLeftSidebar';
-import { MermaidPreview } from '../knowledge-base/tools/MermaidPreview';
+import { MermaidPreview } from './MermaidPreview';
 import { ThinkFlowOutputContextModal } from './ThinkFlowOutputContextModal';
 import { ThinkFlowQuizStudy } from './ThinkFlowQuizStudy';
 import { ThinkFlowTopBar } from './ThinkFlowTopBar';
-import { ThinkFlowRightPanel } from './right-panel';
+import { ThinkFlowRightPanel } from './ThinkFlowRightPanel';
 
 import './ThinkFlowWorkspace.css';
 
@@ -743,8 +743,26 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [boundDocIds, setBoundDocIds] = useState<string[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [multiSelectPrompt, setMultiSelectPrompt] = useState('');
-  const [globalError, setGlobalError] = useState('');
+  const [globalError, setGlobalErrorRaw] = useState('');
   const [captureFeedback, setCaptureFeedback] = useState('');
+
+  // ── Toast system ──────────────────────────────────────────────────────────
+  type ToastKind = 'error' | 'success' | 'info';
+  const [toasts, setToasts] = useState<Array<{ id: number; kind: ToastKind; message: string }>>([]);
+  const toastIdRef = useRef(0);
+
+  const pushToast = useCallback((message: string, kind: ToastKind = 'info', duration = 4000) => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, kind, message }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
+  }, []);
+
+  // Keep setGlobalError as a compat wrapper → routes to toast
+  const setGlobalError = useCallback((msg: string) => {
+    setGlobalErrorRaw(msg); // keep existing logic that clears on success
+    if (msg) pushToast(msg, 'error', 5000);
+  }, [pushToast]);
+  // ─────────────────────────────────────────────────────────────────────────
   const [pushSubmitting, setPushSubmitting] = useState(false);
   const [pushStatusText, setPushStatusText] = useState('');
   const [pushError, setPushError] = useState('');
@@ -752,6 +770,11 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyMessages, setHistoryMessages] = useState<ConversationHistoryMessage[]>([]);
+
+  const [sourcePreviewOpen, setSourcePreviewOpen] = useState(false);
+  const [sourcePreviewFile, setSourcePreviewFile] = useState<KnowledgeFile | null>(null);
+  const [sourcePreviewContent, setSourcePreviewContent] = useState('');
+  const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
 
   const [pushPopover, setPushPopover] = useState<PushPopoverState>({
     show: false,
@@ -1138,7 +1161,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
 
   const refreshOutputs = async (preferredId?: string) => {
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2?${notebookQuery}`);
+      const response = await apiFetch(`/api/v1/kb/outputs?${notebookQuery}`);
       const data = await parseJson<{ outputs: ThinkFlowOutput[] }>(response);
       const items = data.outputs || [];
       setOutputs(items);
@@ -1182,9 +1205,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
 
   useEffect(() => {
     if (!captureFeedback) return;
+    pushToast(captureFeedback, 'success', 2500);
     const timer = window.setTimeout(() => setCaptureFeedback(''), 2200);
     return () => window.clearTimeout(timer);
-  }, [captureFeedback]);
+  }, [captureFeedback, pushToast]);
 
   useEffect(() => {
     if (!pptPageStatus) return;
@@ -1283,6 +1307,74 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     } catch {}
   };
 
+  const handlePreviewSource = async (file: KnowledgeFile) => {
+    setSourcePreviewFile(file);
+    setSourcePreviewOpen(true);
+    setSourcePreviewContent('');
+    setSourcePreviewLoading(true);
+    try {
+      const response = await apiFetch('/api/v1/kb/get-source-display-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          user_id: effectiveUser?.id || 'local',
+          path: file.url || file.id,
+          email: effectiveUser?.email || '',
+        }),
+      });
+      const data = await parseJson<{ content?: string }>(response);
+      setSourcePreviewContent(data?.content || '（无内容）');
+    } catch (error: any) {
+      setSourcePreviewContent(`加载失败: ${error?.message || '未知错误'}`);
+    } finally {
+      setSourcePreviewLoading(false);
+    }
+  };
+
+  const handleDeleteSource = async (file: KnowledgeFile) => {
+    const confirmed = window.confirm(`确定要删除来源「${file.name}」吗？此操作不可撤销。`);
+    if (!confirmed) return;
+    try {
+      await apiFetch('/api/v1/kb/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          user_id: effectiveUser?.id || 'local',
+          file_paths: [file.url || file.id],
+          email: effectiveUser?.email || '',
+        }),
+      });
+      setSelectedIds((previous) => {
+        const next = new Set(previous);
+        next.delete(file.id);
+        return next;
+      });
+      await refreshFiles();
+    } catch (error: any) {
+      setGlobalError(error?.message || '删除来源失败');
+    }
+  };
+
+  const handleReEmbedSource = async (file: KnowledgeFile) => {
+    try {
+      await apiFetch('/api/v1/kb/reembed-source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+          file_path: file.url || file.id,
+        }),
+      });
+      await refreshFiles();
+    } catch {
+      pushToast('入库失败，请稍后重试', 'error', 4000);
+    }
+  };
+
   const openHistoryPanel = async () => {
     setHistoryOpen(true);
     setHistoryLoading(true);
@@ -1340,6 +1432,22 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     } finally {
       setHistoryLoading(false);
     }
+  };
+
+  const handleNewConversation = () => {
+    setConversationId('');
+    setChatMessages([
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: '请先围绕左侧已选素材提问。对话是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成摘要、整理进文档，或者加入产出指导。',
+        time: new Date().toLocaleTimeString(),
+      },
+    ]);
+    setChatInput('');
+    setSelectedMessageIds([]);
+    setMultiSelectPrompt('');
+    setBoundDocIds([]);
   };
 
   const enterOutputWorkspace = (mode: WorkspaceMode = 'output_focus') => {
@@ -2732,7 +2840,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         enable_images: targetType === 'ppt' ? true : undefined,
       };
       console.info('[ThinkFlow] createOutline payload', outlinePayload);
-      const response = await apiFetch('/api/v1/kb/outputs-v2/outline', {
+      const response = await apiFetch('/api/v1/kb/outputs/outline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(outlinePayload),
@@ -2961,7 +3069,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     if (!activeOutputId || !activeOutput) return;
     setOutlineSaving(true);
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${activeOutputId}/outline`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/outline`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3001,7 +3109,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
     setPptRefiningOutline(true);
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${activeOutputId}/outline-refine`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/outline-refine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3041,7 +3149,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       prompt,
     });
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${activeOutput.id}/pages/${activePptSlide.index}/regenerate`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutput.id}/pages/${activePptSlide.index}/regenerate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3084,7 +3192,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       versionId,
     });
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${activeOutput.id}/pages/${activePptSlide.index}/versions/${versionId}/select`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutput.id}/pages/${activePptSlide.index}/versions/${versionId}/select`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3124,7 +3232,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
     setPptPageBusyAction('confirm');
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${activeOutput.id}/pages/${activePptSlide.index}/confirm`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutput.id}/pages/${activePptSlide.index}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3156,7 +3264,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     if (!outputId) return;
     setGeneratingOutput(true);
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${outputId}/generate`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${outputId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3240,7 +3348,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const importOutputToSource = async () => {
     if (!activeOutputId) return;
     try {
-      const response = await apiFetch(`/api/v1/kb/outputs-v2/${activeOutputId}/import-source`, {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/import-source`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4195,38 +4303,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     if (cards.length === 0) return null;
     return (
       <div className="thinkflow-output-preview thinkflow-flashcard-preview">
-        <div className="thinkflow-card-board">
-          {cards.map((card, index) => (
-            <article key={card.id || `card_${index}`} className="thinkflow-study-card">
-              <div className="thinkflow-study-card-top">
-                <span className="thinkflow-study-card-kicker">
-                  {card.type === 'fill_blank' ? '填空卡' : card.type === 'concept' ? '概念卡' : '问答卡'}
-                </span>
-                {card.difficulty ? <span className="thinkflow-study-card-chip">{card.difficulty}</span> : null}
-              </div>
-              <h4>{card.question || '未生成问题'}</h4>
-              <div className="thinkflow-study-card-answer">
-                <span>答案</span>
-                <p>{card.answer || '未生成答案'}</p>
-              </div>
-              {card.source_excerpt ? (
-                <div className="thinkflow-study-card-quote">
-                  <strong>依据</strong>
-                  <p>{card.source_excerpt}</p>
-                </div>
-              ) : null}
-              {card.tags && card.tags.length > 0 ? (
-                <div className="thinkflow-study-card-tags">
-                  {card.tags.map((tag) => (
-                    <span key={tag} className="thinkflow-study-card-chip">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </article>
-          ))}
-        </div>
+        <ThinkFlowFlashcardStudy cards={cards} />
       </div>
     );
   };
@@ -4235,48 +4312,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     if (questions.length === 0) return null;
     return (
       <div className="thinkflow-output-preview thinkflow-flashcard-preview">
-        <div className="thinkflow-card-board">
-          {questions.map((question, index) => (
-            <article key={question.id || `question_${index}`} className="thinkflow-study-card thinkflow-quiz-card">
-              <div className="thinkflow-study-card-top">
-                <span className="thinkflow-study-card-kicker">选择题</span>
-                <div className="thinkflow-study-card-tags">
-                  {question.category ? <span className="thinkflow-study-card-chip">{question.category}</span> : null}
-                  {question.difficulty ? <span className="thinkflow-study-card-chip">{question.difficulty}</span> : null}
-                </div>
-              </div>
-              <h4>{question.question || '未生成题目'}</h4>
-              {question.options && question.options.length > 0 ? (
-                <div className="thinkflow-quiz-options">
-                  {question.options.map((option, optionIndex) => {
-                    const isCorrect = option.label === question.correct_answer;
-                    return (
-                      <div
-                        key={`${question.id || index}_${option.label || optionIndex}`}
-                        className={`thinkflow-quiz-option ${isCorrect ? 'is-correct' : ''}`}
-                      >
-                        <strong>{option.label || String.fromCharCode(65 + optionIndex)}</strong>
-                        <span>{option.text || '未提供选项内容'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {question.explanation ? (
-                <div className="thinkflow-study-card-answer">
-                  <span>解析</span>
-                  <p>{question.explanation}</p>
-                </div>
-              ) : null}
-              {question.source_excerpt ? (
-                <div className="thinkflow-study-card-quote">
-                  <strong>依据</strong>
-                  <p>{question.source_excerpt}</p>
-                </div>
-              ) : null}
-            </article>
-          ))}
-        </div>
+        <ThinkFlowQuizStudy questions={questions} />
       </div>
     );
   };
@@ -4322,6 +4358,8 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   };
 
   const isOutputWorkspace = workspaceMode !== 'normal';
+  // Only hide left sidebar for PPT (output_focus); keep it for non-PPT (output_immersive)
+  const hideLeftSidebar = workspaceMode === 'output_focus';
   const layoutClassName = [
     'thinkflow-layout',
     !rightPanelOpen ? 'is-right-collapsed' : '',
@@ -4333,12 +4371,13 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const layoutStyle =
     workspaceMode === 'output_immersive'
       ? {
+          // Non-PPT: left sidebar + chat (compressed but visible) + 45vw output panel
           display: 'grid',
-          gridTemplateColumns: '0px 0px minmax(0, 1fr)',
-          width: 'max(100%, 1120px)',
-          minWidth: 1120,
+          gridTemplateColumns: '280px minmax(0, 1fr) 45vw',
+          width: '100%',
+          minWidth: 'unset' as const,
           minHeight: 'calc(100dvh - 48px)',
-          height: 'auto',
+          height: 'calc(100dvh - 48px)',
         }
       : workspaceMode === 'output_focus'
         ? {
@@ -4347,15 +4386,15 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             width: 'max(100%, 1320px)',
             minWidth: 1320,
             minHeight: 'calc(100dvh - 48px)',
-            height: 'auto',
+            height: 'calc(100dvh - 48px)',
           }
         : {
             display: 'grid',
-            gridTemplateColumns: rightPanelOpen ? '236px minmax(0, 1fr) 392px' : '236px minmax(0, 1fr)',
-            width: rightPanelOpen ? 'max(100%, 1180px)' : 'max(100%, 920px)',
-            minWidth: rightPanelOpen ? 1180 : 920,
+            gridTemplateColumns: rightPanelOpen ? '280px minmax(0, 1fr) 392px' : '280px minmax(0, 1fr)',
+            width: rightPanelOpen ? 'max(100%, 1220px)' : 'max(100%, 960px)',
+            minWidth: rightPanelOpen ? 1220 : 960,
             minHeight: 'calc(100dvh - 48px)',
-            height: 'auto',
+            height: 'calc(100dvh - 48px)',
           };
 
   const summaryPanelProps = {
@@ -4447,15 +4486,23 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     <div className="thinkflow-root">
       <ThinkFlowTopBar notebookTitle={notebookTitle} onBack={onBack} onOpenHistory={openHistoryPanel} />
 
-      {captureFeedback ? <div className="thinkflow-capture-toast">{captureFeedback}</div> : null}
-      {globalError ? (
-        <div className="thinkflow-global-error">
-          {globalError}
-          <button type="button" className="thinkflow-global-error-close" onClick={() => setGlobalError('')}>
-            <X size={14} />
-          </button>
+      {/* ── Toast stack ─────────────────────────────────────────────── */}
+      {toasts.length > 0 && (
+        <div className="thinkflow-toast-stack">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`thinkflow-toast thinkflow-toast-${toast.kind}`}>
+              <span className="thinkflow-toast-msg">{toast.message}</span>
+              <button
+                type="button"
+                className="thinkflow-toast-close"
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
         </div>
-      ) : null}
+      )}
 
       <div
         ref={layoutRef}
@@ -4467,11 +4514,13 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           files={files}
           getFileEmoji={fileEmoji}
           getOutputEmoji={outputEmoji}
-          isOutputWorkspace={isOutputWorkspace}
+          isOutputWorkspace={hideLeftSidebar}
           leftTab={leftTab}
           loadingFiles={loadingFiles}
           onLeftTabChange={setLeftTab}
           onOpenOutput={openExistingOutput}
+          onPreviewSource={handlePreviewSource}
+          onDeleteSource={(file) => void handleDeleteSource(file)}
           onRefreshFiles={refreshFiles}
           onToggleSource={toggleSource}
           outputs={outputs}
@@ -4479,6 +4528,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           uploading={uploading}
           onUpload={handleUpload}
           onAddSource={() => setShowAddSourceModal(true)}
+          onReEmbedSource={handleReEmbedSource}
         />
 
         <ThinkFlowCenterPanel
@@ -4517,6 +4567,8 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           toggleBoundDoc={toggleBoundDoc}
           toggleMessageSelection={toggleMessageSelection}
           workspaceMode={workspaceMode}
+          onOpenHistory={openHistoryPanel}
+          onNewConversation={handleNewConversation}
         />
 
         {rightPanelOpen ? (
@@ -5005,6 +5057,31 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                       </div>
                     </article>
                   ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {sourcePreviewOpen ? (
+        <>
+          <div className="thinkflow-popover-overlay" onClick={() => setSourcePreviewOpen(false)} />
+          <div className="thinkflow-source-preview-modal">
+            <div className="thinkflow-source-preview-header">
+              <div>
+                <h3>来源预览</h3>
+                <p>{sourcePreviewFile?.name || ''}</p>
+              </div>
+              <button type="button" className="thinkflow-push-close" onClick={() => setSourcePreviewOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="thinkflow-source-preview-body">
+              {sourcePreviewLoading ? <div className="thinkflow-empty">正在加载来源内容...</div> : null}
+              {!sourcePreviewLoading ? (
+                <div className="thinkflow-source-preview-content">
+                  <ReactMarkdown>{sourcePreviewContent}</ReactMarkdown>
                 </div>
               ) : null}
             </div>

@@ -27,7 +27,84 @@ class OutputV2Service:
     PPT_STAGE_GENERATED = "generated"
 
     def _base_dir(self, notebook_id: str, notebook_title: str, user_id: str) -> Path:
-        return get_notebook_paths(notebook_id, notebook_title, user_id).root / "outputs_v2"
+        """Return the canonical outputs directory.
+
+        The workspace migration (``ensure_workspace_migrated``) may have moved
+        ``outputs_v2/`` into ``workspace/outputs/``.  When that has happened we
+        must read/write from the migrated location.  If *both* locations exist
+        (post-migration writes created a new ``outputs_v2/``), we merge the
+        orphaned items back into the workspace location once.
+        """
+        notebook_root = get_notebook_paths(notebook_id, notebook_title, user_id).root
+        workspace_dir = notebook_root / "workspace" / "outputs"
+        legacy_dir = notebook_root / "outputs_v2"
+
+        # Fast path: workspace location exists (migration happened)
+        if workspace_dir.exists():
+            self._merge_orphaned_legacy_items(legacy_dir, workspace_dir)
+            return workspace_dir
+
+        # No migration yet – use legacy location
+        return legacy_dir
+
+    # ------------------------------------------------------------------
+    # One-time merge of orphaned outputs_v2 items after workspace migration
+    # ------------------------------------------------------------------
+    def _merge_orphaned_legacy_items(self, legacy_dir: Path, workspace_dir: Path) -> None:
+        """Merge any items created in the old ``outputs_v2/`` dir after the
+        workspace migration moved data to ``workspace/outputs/``.
+
+        This can happen when ``OutputV2Service`` was still writing to the old
+        path while the rest of the workspace code already migrated.  The merge
+        is idempotent: once done a marker file prevents repeat work.
+        """
+        legacy_manifest = legacy_dir / "items.json"
+        if not legacy_manifest.exists():
+            return
+
+        merge_marker = legacy_dir / ".merged_to_workspace"
+        if merge_marker.exists():
+            return
+
+        try:
+            legacy_items = self._read_manifest(legacy_manifest)
+            if not legacy_items:
+                # Empty manifest — just mark as done
+                merge_marker.write_text("merged", encoding="utf-8")
+                return
+
+            workspace_manifest = workspace_dir / "items.json"
+            workspace_items = self._read_manifest(workspace_manifest)
+            existing_ids = {item.get("id") for item in workspace_items}
+
+            merged_count = 0
+            for item in legacy_items:
+                if item.get("id") in existing_ids:
+                    continue
+                workspace_items.append(item)
+                existing_ids.add(item.get("id"))
+                merged_count += 1
+
+                # Move the item subdirectory if it exists
+                item_id = item.get("id", "")
+                if item_id:
+                    src_item_dir = legacy_dir / item_id
+                    dst_item_dir = workspace_dir / item_id
+                    if src_item_dir.exists() and src_item_dir.is_dir() and not dst_item_dir.exists():
+                        shutil.move(str(src_item_dir), str(dst_item_dir))
+
+            if merged_count > 0:
+                self._write_manifest(workspace_manifest, workspace_items)
+                log.info(
+                    "[outputs_v2] merged %d orphaned items from legacy outputs_v2 into workspace/outputs",
+                    merged_count,
+                )
+
+            merge_marker.write_text("merged", encoding="utf-8")
+        except Exception as exc:
+            log.warning(
+                "[outputs_v2] failed to merge orphaned legacy items: %s", exc,
+            )
 
     def _manifest_path(self, notebook_id: str, notebook_title: str, user_id: str) -> Path:
         return self._base_dir(notebook_id, notebook_title, user_id) / "items.json"
@@ -249,6 +326,202 @@ class OutputV2Service:
             })
         return outline
 
+    # ------------------------------------------------------------------
+    # Legacy output scanning
+    # ------------------------------------------------------------------
+
+    _LEGACY_SCAN_CONFIG: Dict[str, Dict[str, Any]] = {
+        "flashcard": {
+            "data_file": "flashcards.json",
+            "result_keys": {"flashcards"},
+        },
+        "quiz": {
+            "data_file": "quiz.json",
+            "result_keys": {"questions"},
+        },
+        "podcast": {
+            "audio_exts": {".wav", ".mp3", ".m4a"},
+            "script_file": "script.txt",
+        },
+        "mindmap": {
+            "file_exts": {".mmd", ".mermaid", ".html", ".svg", ".png"},
+        },
+        "ppt": {
+            "file_exts": {".pdf", ".pptx"},
+        },
+    }
+
+    def _scan_legacy_outputs(
+        self,
+        *,
+        notebook_id: str,
+        notebook_title: str,
+        user_id: str,
+        v2_ids: set[str],
+    ) -> List[Dict[str, Any]]:
+        """Scan legacy feature directories and return v2-compatible items.
+
+        Legacy outputs live in ``{notebook_root}/{feature}/{timestamp}/``.
+        They are **not** registered in the v2 manifest.  This method converts
+        them into read-only v2-shaped dicts so the frontend can display them.
+        """
+        notebook_root = get_notebook_paths(notebook_id, notebook_title, user_id).root
+        if not notebook_root.exists():
+            return []
+
+        legacy_items: List[Dict[str, Any]] = []
+
+        for feature, config in self._LEGACY_SCAN_CONFIG.items():
+            feature_dir = notebook_root / feature
+            if not feature_dir.exists():
+                continue
+
+            for ts_dir in feature_dir.iterdir():
+                if not ts_dir.is_dir():
+                    continue
+
+                legacy_id = f"legacy_{feature}_{ts_dir.name}"
+                if legacy_id in v2_ids:
+                    continue
+
+                try:
+                    ts_int = int(ts_dir.name)
+                    created_at = datetime.fromtimestamp(ts_int, tz=timezone.utc).isoformat()
+                except (ValueError, OSError):
+                    created_at = ""
+
+                item = self._build_legacy_item(
+                    feature=feature,
+                    config=config,
+                    ts_dir=ts_dir,
+                    legacy_id=legacy_id,
+                    created_at=created_at,
+                    notebook_id=notebook_id,
+                )
+                if item is not None:
+                    legacy_items.append(item)
+
+        return legacy_items
+
+    def _build_legacy_item(
+        self,
+        *,
+        feature: str,
+        config: Dict[str, Any],
+        ts_dir: Path,
+        legacy_id: str,
+        created_at: str,
+        notebook_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Build a single v2-compatible item dict from a legacy timestamp dir."""
+        result: Dict[str, Any] = {}
+        title = ""
+
+        if feature in ("flashcard", "quiz"):
+            data_file = ts_dir / config["data_file"]
+            if not data_file.exists():
+                return None
+            try:
+                data = json.loads(data_file.read_text(encoding="utf-8"))
+            except Exception:
+                return None
+            title = str(data.get("title") or data.get("id") or f"{feature}_{ts_dir.name}")
+            result = {"data_path": _to_outputs_url(str(data_file))}
+            for key in config.get("result_keys", set()):
+                if key in data:
+                    result[key] = data[key]
+            result["total_count"] = data.get("total_count", 0)
+            result["source_files"] = data.get("source_files", [])
+            result["download_url"] = _to_outputs_url(str(data_file))
+            # Preserve created_at from data if available
+            created_at = data.get("created_at") or created_at
+
+        elif feature == "podcast":
+            audio_file = None
+            for child in ts_dir.iterdir():
+                if child.suffix.lower() in config["audio_exts"]:
+                    audio_file = child
+                    break
+            script_file = ts_dir / config["script_file"]
+            if audio_file is None and not script_file.exists():
+                return None
+            title = f"播客_{ts_dir.name}"
+            if audio_file is not None:
+                result["audio_path"] = _to_outputs_url(str(audio_file))
+                result["download_url"] = result["audio_path"]
+            if script_file.exists():
+                result["script_path"] = _to_outputs_url(str(script_file))
+                if "download_url" not in result:
+                    result["download_url"] = result["script_path"]
+
+        elif feature == "mindmap":
+            found_file = None
+            for child in ts_dir.iterdir():
+                if child.suffix.lower() in config["file_exts"]:
+                    found_file = child
+                    break
+            if found_file is None:
+                # Empty mindmap dir — skip
+                return None
+            title = f"思维导图_{ts_dir.name}"
+            result["mindmap_path"] = _to_outputs_url(str(found_file))
+            result["download_url"] = result["mindmap_path"]
+
+        elif feature == "ppt":
+            pdf_path = ts_dir / "paper2ppt.pdf"
+            pptx_path = ts_dir / "paper2ppt_editable.pptx"
+            if not pdf_path.exists() and not pptx_path.exists():
+                # Check for any matching file
+                found = False
+                for child in ts_dir.iterdir():
+                    if child.suffix.lower() in config["file_exts"]:
+                        result["download_url"] = _to_outputs_url(str(child))
+                        found = True
+                        break
+                if not found:
+                    return None
+            else:
+                if pdf_path.exists():
+                    result["ppt_pdf_path"] = _to_outputs_url(str(pdf_path))
+                    result["download_url"] = result["ppt_pdf_path"]
+                if pptx_path.exists():
+                    result["ppt_pptx_path"] = _to_outputs_url(str(pptx_path))
+                    if "download_url" not in result:
+                        result["download_url"] = result["ppt_pptx_path"]
+            title = f"PPT_{ts_dir.name}"
+            # Scan for page images
+            pages_dir = ts_dir / "ppt_pages"
+            if pages_dir.exists():
+                result["result_path"] = str(ts_dir)
+        else:
+            return None
+
+        return {
+            "id": legacy_id,
+            "document_id": "",
+            "title": title,
+            "target_type": feature,
+            "prompt": "",
+            "status": "generated",
+            "pipeline_stage": "generated",
+            "outline": [],
+            "page_reviews": [],
+            "page_versions": [],
+            "page_count": 0,
+            "guidance_item_ids": [],
+            "source_paths": [],
+            "source_names": [],
+            "bound_document_ids": [],
+            "enable_images": False,
+            "created_at": created_at,
+            "updated_at": created_at,
+            "result": result,
+            "result_path": str(ts_dir),
+            "legacy": True,
+        }
+
+    # ------------------------------------------------------------------
+
     def list_outputs(
         self,
         *,
@@ -257,16 +530,36 @@ class OutputV2Service:
         user_id: str,
     ) -> List[Dict[str, Any]]:
         manifest_path = self._manifest_path(notebook_id, notebook_title, user_id)
+        base_dir = self._base_dir(notebook_id, notebook_title, user_id)
         items = self._read_manifest(manifest_path)
         changed = False
         hydrated_items: List[Dict[str, Any]] = []
         for item in items:
-            next_item, item_changed = self._hydrate_ppt_item_from_disk(item)
+            next_item, item_changed = self._hydrate_ppt_item_from_disk(item, base_dir)
             hydrated_items.append(next_item)
             changed = changed or item_changed
         if changed:
             self._write_manifest(manifest_path, hydrated_items)
-        return sorted(hydrated_items, key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+
+        # Merge legacy outputs that are not in the v2 manifest
+        v2_ids = {str(item.get("id") or "") for item in hydrated_items}
+        try:
+            legacy_items = self._scan_legacy_outputs(
+                notebook_id=notebook_id,
+                notebook_title=notebook_title,
+                user_id=user_id,
+                v2_ids=v2_ids,
+            )
+        except Exception as exc:
+            log.warning(
+                "[outputs_v2] legacy output scan failed notebook_id=%s error=%s",
+                notebook_id,
+                exc,
+            )
+            legacy_items = []
+
+        all_items = hydrated_items + legacy_items
+        return sorted(all_items, key=lambda item: str(item.get("updated_at") or ""), reverse=True)
 
     def get_output(
         self,
@@ -278,12 +571,31 @@ class OutputV2Service:
     ) -> Dict[str, Any]:
         manifest_path = self._manifest_path(notebook_id, notebook_title, user_id)
         manifest = self._read_manifest(manifest_path)
-        index, item = self._find_output(manifest, output_id)
-        next_item, changed = self._hydrate_ppt_item_from_disk(item)
-        if changed:
-            manifest[index] = next_item
-            self._write_manifest(manifest_path, manifest)
-        return next_item
+        base_dir = self._base_dir(notebook_id, notebook_title, user_id)
+
+        # Try manifest first
+        for index, item in enumerate(manifest):
+            if item.get("id") == output_id:
+                next_item, changed = self._hydrate_ppt_item_from_disk(item, base_dir)
+                if changed:
+                    manifest[index] = next_item
+                    self._write_manifest(manifest_path, manifest)
+                return next_item
+
+        # Fallback: check legacy outputs for items with "legacy_" prefix
+        if output_id.startswith("legacy_"):
+            v2_ids = {str(item.get("id") or "") for item in manifest}
+            legacy_items = self._scan_legacy_outputs(
+                notebook_id=notebook_id,
+                notebook_title=notebook_title,
+                user_id=user_id,
+                v2_ids=v2_ids,
+            )
+            for legacy_item in legacy_items:
+                if legacy_item.get("id") == output_id:
+                    return legacy_item
+
+        raise HTTPException(status_code=404, detail="Output not found")
 
     def _truncate_text(self, text: str, max_chars: int) -> str:
         cleaned = str(text or "").strip()
@@ -431,13 +743,47 @@ class OutputV2Service:
                 slide["generated_img_path"] = _to_outputs_url(str(image_path))
         return normalized
 
-    def _hydrate_ppt_item_from_disk(self, item: Dict[str, Any]) -> tuple[Dict[str, Any], bool]:
+    def _remap_legacy_pipeline_dir(self, pipeline_dir: Optional[Path], base_dir: Path) -> Optional[Path]:
+        """Remap a stale outputs_v2/{out_id}/ppt_pipeline path to workspace/outputs/{out_id}/ppt_pipeline.
+
+        After workspace migration the physical files live under workspace/outputs/ but older
+        manifest entries still carry the pre-migration outputs_v2/ absolute path.  When that
+        path does not exist on disk we try to find the equivalent directory under the current
+        canonical base_dir (workspace/outputs/).
+        """
+        if pipeline_dir is None:
+            return None
+        if pipeline_dir.exists():
+            return pipeline_dir
+        # Try to re-anchor: extract the out_* segment and rebuild under base_dir
+        parts = pipeline_dir.parts
+        for i, part in enumerate(parts):
+            if part.startswith("out_"):
+                # Rebuild: base_dir / out_* / rest...
+                tail = Path(*parts[i:])
+                candidate = base_dir / tail
+                if candidate.exists():
+                    log.info(
+                        "[outputs_v2] remapped legacy pipeline_dir %s → %s",
+                        pipeline_dir,
+                        candidate,
+                    )
+                    return candidate
+                break
+        return pipeline_dir
+
+    def _hydrate_ppt_item_from_disk(
+        self, item: Dict[str, Any], base_dir: Optional[Path] = None
+    ) -> tuple[Dict[str, Any], bool]:
         if item.get("target_type") != "ppt":
             return item, False
 
         changed = False
         pipeline_dir_raw = str(item.get("result_path") or item.get("result", {}).get("result_path") or "").strip()
         pipeline_dir = Path(pipeline_dir_raw) if pipeline_dir_raw else None
+        # Remap stale outputs_v2 paths that were not updated after workspace migration
+        if base_dir is not None:
+            pipeline_dir = self._remap_legacy_pipeline_dir(pipeline_dir, base_dir)
         output_dir = pipeline_dir.parent if pipeline_dir is not None else None
 
         outline = self._normalize_ppt_outline(item.get("outline") or [])
@@ -1786,8 +2132,9 @@ class OutputV2Service:
     ) -> Dict[str, Any]:
         manifest_path = self._manifest_path(notebook_id, notebook_title, user_id)
         manifest = self._read_manifest(manifest_path)
+        base_dir = self._base_dir(notebook_id, notebook_title, user_id)
         index, item = self._find_output(manifest, output_id)
-        item, item_changed = self._hydrate_ppt_item_from_disk(item)
+        item, item_changed = self._hydrate_ppt_item_from_disk(item, base_dir)
         if item_changed:
             manifest[index] = item
             self._write_manifest(manifest_path, manifest)
@@ -1910,8 +2257,9 @@ class OutputV2Service:
     ) -> Dict[str, Any]:
         manifest_path = self._manifest_path(notebook_id, notebook_title, user_id)
         manifest = self._read_manifest(manifest_path)
+        base_dir = self._base_dir(notebook_id, notebook_title, user_id)
         index, item = self._find_output(manifest, output_id)
-        item, item_changed = self._hydrate_ppt_item_from_disk(item)
+        item, item_changed = self._hydrate_ppt_item_from_disk(item, base_dir)
         if item_changed:
             manifest[index] = item
             self._write_manifest(manifest_path, manifest)
@@ -1950,8 +2298,9 @@ class OutputV2Service:
     ) -> Dict[str, Any]:
         manifest_path = self._manifest_path(notebook_id, notebook_title, user_id)
         manifest = self._read_manifest(manifest_path)
+        base_dir = self._base_dir(notebook_id, notebook_title, user_id)
         index, item = self._find_output(manifest, output_id)
-        item, item_changed = self._hydrate_ppt_item_from_disk(item)
+        item, item_changed = self._hydrate_ppt_item_from_disk(item, base_dir)
         if item_changed:
             manifest[index] = item
             self._write_manifest(manifest_path, manifest)

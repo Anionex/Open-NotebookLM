@@ -33,7 +33,11 @@ async def get_source_display_content(
     email: Optional[str] = Body(None, embed=True),
 ) -> Dict[str, Any]:
     del notebook_id, email
-    return source_service.get_source_display_content(path)
+    result = source_service.get_source_display_content(path)
+    # Fallback: if manifest-based lookup returned no content, parse the file directly
+    if not result.get("content"):
+        result = source_service.parse_local_file(path)
+    return result
 
 
 @router.post("/parse-local-file")

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from fastapi_app.services.output_v2_service import OutputV2Service
 
-router = APIRouter(prefix="/kb/outputs-v2", tags=["Knowledge Base Outputs V2"])
+router = APIRouter(prefix="/kb/outputs", tags=["Knowledge Base Outputs V2"])
 service = OutputV2Service()
 
 

@@ -1,6 +1,6 @@
 import { ChevronLeft, FileText, PanelRightOpen, Pencil, Target } from 'lucide-react';
 
-import type { ThinkFlowOutput, ThinkFlowOutputButton, WorkspaceMode } from '../types';
+import type { ThinkFlowOutput, ThinkFlowOutputButton, WorkspaceMode } from './thinkflow-types';
 import { DocumentPanelSection } from './DocumentPanelSection';
 import { GuidancePanelSection } from './GuidancePanelSection';
 import { OutputWorkspaceSection } from './OutputWorkspaceSection';

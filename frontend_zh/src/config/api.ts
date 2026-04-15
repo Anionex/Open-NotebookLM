@@ -13,7 +13,7 @@ function getApiBaseUrl(): string {
   if (configuredUrl.includes('localhost') || configuredUrl.includes('127.0.0.1')) {
     const currentHost = window.location.hostname;
     if (currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-      console.info('[API] 检测到公网访问，使用相对路径而非 localhost');
+      // Public network access detected, using relative path instead of localhost
       return ''; // Use relative path (current domain)
     }
   }

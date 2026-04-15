@@ -8,7 +8,7 @@
 *.log
 logs/
 
-# Outputs
+# Outputs (generated files)
 outputs/
 dataflow_agent/
 
@@ -62,5 +62,31 @@ chroma_db/
 # Static uploads
 static/uploads/
 uploads/
+
+# Claude / AI tooling
 .claude/
 .codex/
+.gemini/
+.playwright-mcp/
+.ace-tool/
+# Test screenshots (Playwright / QA)
+test-*.png
+test-*.jpg
+test-*.jpeg
+test-*.webp
+
+# Ad-hoc test scripts (use fastapi_app/tests/ for structured tests)
+test_*.py
+*_test.py
+scripts/test_*.py
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Model / large binary artifacts
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors

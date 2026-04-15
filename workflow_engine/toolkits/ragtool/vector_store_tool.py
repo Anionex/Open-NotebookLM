@@ -24,7 +24,7 @@ from fastapi_app.services.embedding_service import EmbeddingService
 log = get_logger(__name__)
 
 
-def _chunk_text(text: str, chunk_size: int = 500, chunk_overlap: int = 80) -> List[str]:
+def _chunk_text(text: str, chunk_size: int = 1500, chunk_overlap: int = 150) -> List[str]:
     """
     使用 LangChain RecursiveCharacterTextSplitter 分块；未安装时返回空列表，由调用方回退到简单分块。
     """

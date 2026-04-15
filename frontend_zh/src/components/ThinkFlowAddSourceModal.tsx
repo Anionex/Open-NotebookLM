@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react';
 
-import { apiFetch } from '../../config/api';
+import { apiFetch } from '../config/api';
 
 type Props = {
   notebookId: string;

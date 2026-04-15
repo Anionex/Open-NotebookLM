@@ -19,7 +19,17 @@ class DocumentService:
     STATUS_TOKENS = ("[待确认]", "[待补充]", "[仅大纲]")
 
     def _base_dir(self, notebook_id: str, notebook_title: str, user_id: str) -> Path:
-        return get_notebook_paths(notebook_id, notebook_title, user_id).root / "documents"
+        """Return the documents directory, preferring workspace/documents/ if it exists.
+
+        The workspace migration may have moved ``documents/`` into
+        ``workspace/documents/``.  We check the migrated location first so
+        that previously-created documents remain accessible.
+        """
+        notebook_root = get_notebook_paths(notebook_id, notebook_title, user_id).root
+        workspace_dir = notebook_root / "workspace" / "documents"
+        if workspace_dir.exists():
+            return workspace_dir
+        return notebook_root / "documents"
 
     def _manifest_path(self, notebook_id: str, notebook_title: str, user_id: str) -> Path:
         return self._base_dir(notebook_id, notebook_title, user_id) / "documents.json"

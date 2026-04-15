@@ -452,6 +452,54 @@ async def upload_kb_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/reembed-source")
+async def reembed_source(
+    notebook_id: str = Body(..., embed=True),
+    email: str = Body(..., embed=True),
+    file_path: str = Body(..., embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
+):
+    """Re-embed a single source file into the notebook vector store."""
+    if not notebook_id:
+        raise HTTPException(status_code=400, detail="notebook_id is required")
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="file_path is required")
+
+    try:
+        paths = get_notebook_paths(notebook_id, "", email or user_id or "")
+        project_root = get_project_root()
+        resolved_path = Path(file_path)
+
+        # /outputs/... paths are relative to project root, not filesystem root
+        if not resolved_path.is_absolute() or not resolved_path.exists():
+            candidate = project_root / file_path.lstrip("/")
+            if candidate.exists():
+                resolved_path = candidate
+
+        if not resolved_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        filename = resolved_path.name
+        vector_base = str(paths.vector_store_dir)
+        mineru_base = str(paths.source_mineru_dir(filename))
+        file_list = [{"path": str(resolved_path)}]
+
+        await process_knowledge_base_files(
+            file_list=file_list,
+            base_dir=vector_base,
+            mineru_output_base=mineru_base,
+        )
+        log.info("[reembed-source] done: %s", filename)
+        return {"success": True, "filename": filename}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("[reembed-source] failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _sanitize_md_filename(title: str, prefix: str = "doc") -> str:
     """生成安全的 .md 文件名，避免路径注入与非法字符。"""
     safe = re.sub(r'[^\w\u4e00-\u9fff\s\-.]', "", (title or "").strip())
@@ -1189,7 +1237,7 @@ async def append_conversation_messages(
 
 
 # ---------- 1.2 生成记录持久化：列表与写入 ----------
-@router.get("/outputs")
+@router.get("/outputs-legacy")
 async def list_outputs(
     email: Optional[str] = None,
     user_id: Optional[str] = None,

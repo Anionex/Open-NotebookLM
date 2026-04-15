@@ -1,7 +1,7 @@
-import React from 'react';
-import { FolderOpen, Package, Plus, RefreshCw, Upload } from 'lucide-react';
+import React, { useState } from 'react';
+import { Eye, FolderOpen, Loader2, Package, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 
-import type { KnowledgeFile } from '../../types';
+import type { KnowledgeFile } from '../types';
 
 type OutputType = 'ppt' | 'report' | 'mindmap' | 'podcast' | 'flashcard' | 'quiz';
 
@@ -23,8 +23,11 @@ type Props = {
   loadingFiles: boolean;
   onLeftTabChange: (next: 'materials' | 'outputs') => void;
   onOpenOutput: (output: SidebarOutput) => void | Promise<void>;
+  onPreviewSource: (file: KnowledgeFile) => void;
+  onDeleteSource: (file: KnowledgeFile) => void;
   onRefreshFiles: () => void | Promise<void>;
   onToggleSource: (fileId: string) => void;
+  onReEmbedSource: (file: KnowledgeFile) => Promise<void> | void;
   outputs: SidebarOutput[];
   selectedIds: Set<string>;
   uploading: boolean;
@@ -68,8 +71,11 @@ export function ThinkFlowLeftSidebar({
   loadingFiles,
   onLeftTabChange,
   onOpenOutput,
+  onPreviewSource,
+  onDeleteSource,
   onRefreshFiles,
   onToggleSource,
+  onReEmbedSource,
   outputs,
   selectedIds,
   uploading,
@@ -78,6 +84,22 @@ export function ThinkFlowLeftSidebar({
 }: Props) {
   const pendingCount = files.filter((file) => file.vectorStatus === 'pending').length;
   const selectedCount = selectedIds.size > 0 ? selectedIds.size : files.length;
+  // 正在重新入库的文件 ID 集合（本地 loading 状态）
+  const [embeddingIds, setEmbeddingIds] = useState<Set<string>>(new Set());
+
+  const handleReEmbed = async (file: KnowledgeFile) => {
+    if (embeddingIds.has(file.id)) return;
+    setEmbeddingIds((prev) => new Set([...prev, file.id]));
+    try {
+      await onReEmbedSource(file);
+    } finally {
+      setEmbeddingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(file.id);
+        return next;
+      });
+    }
+  };
 
   return (
     <aside className={`thinkflow-left-panel ${isOutputWorkspace ? 'is-hidden' : ''}`}>
@@ -125,25 +147,78 @@ export function ThinkFlowLeftSidebar({
           <div className="thinkflow-left-scroll">
             {loadingFiles ? <div className="thinkflow-empty thinkflow-left-empty">正在加载素材...</div> : null}
             {!loadingFiles && files.length === 0 ? <div className="thinkflow-empty thinkflow-left-empty">暂无素材</div> : null}
-            {files.map((file) => (
-              <button
-                key={file.id}
-                type="button"
-                className={`thinkflow-file-item ${selectedIds.has(file.id) ? 'is-active' : ''}`}
-                onClick={() => onToggleSource(file.id)}
-                title={file.vectorError || file.name}
-              >
-                <div className="thinkflow-file-icon">{getFileEmoji(file.type)}</div>
-                <div className="thinkflow-file-body">
-                  <div className="thinkflow-file-name">{file.name}</div>
-                  <div className="thinkflow-file-meta">
-                    <span>{file.size || '已入库'}</span>
-                    <span className={`thinkflow-source-status ${statusClassName(file)}`}>{statusLabel(file)}</span>
+            {files.map((file) => {
+              const isEmbedded = file.vectorStatus === 'embedded' || file.vectorReady || file.isEmbedded;
+              const isPending = file.vectorStatus === 'pending';
+              const isReEmbedding = embeddingIds.has(file.id);
+              return (
+                <div
+                  key={file.id}
+                  className={`thinkflow-file-item ${selectedIds.has(file.id) ? 'is-active' : ''}`}
+                >
+                  {/* 左侧 emoji */}
+                  <div className="thinkflow-file-icon" onClick={() => onToggleSource(file.id)}>
+                    {getFileEmoji(file.type)}
                   </div>
-                  {file.vectorError ? <div className="thinkflow-file-error">{file.vectorError}</div> : null}
+
+                  {/* 中间：两行内容区 */}
+                  <button
+                    type="button"
+                    className="thinkflow-file-body"
+                    onClick={() => onToggleSource(file.id)}
+                  >
+                    {/* 第一行：文件名 */}
+                    <div className="thinkflow-file-name" title={file.name}>{file.name}</div>
+                    {/* 第二行：状态 */}
+                    <div className="thinkflow-file-meta">
+                      {isReEmbedding ? (
+                        <span className="thinkflow-file-status is-pending">入库中…</span>
+                      ) : isEmbedded ? (
+                        <span className="thinkflow-file-status is-ready">已入库</span>
+                      ) : isPending ? (
+                        <span className="thinkflow-file-status is-pending">解析中…</span>
+                      ) : (
+                        <span className="thinkflow-file-status is-idle">待入库</span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* 右侧：常驻操作按钮组 */}
+                  <div className="thinkflow-file-actions">
+                    {/* 未入库：重新入库按钮（转圈 loading） */}
+                    {!isEmbedded && !isPending && (
+                      <button
+                        type="button"
+                        className="thinkflow-file-action-icon"
+                        onClick={(e) => { e.stopPropagation(); void handleReEmbed(file); }}
+                        disabled={isReEmbedding}
+                        title={isReEmbedding ? '入库中…' : '重新入库'}
+                      >
+                        {isReEmbedding
+                          ? <Loader2 size={12} className="is-spinning" />
+                          : <Upload size={12} />}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="thinkflow-file-action-icon"
+                      onClick={(e) => { e.stopPropagation(); onPreviewSource(file); }}
+                      title="预览"
+                    >
+                      <Eye size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="thinkflow-file-action-icon is-danger"
+                      onClick={(e) => { e.stopPropagation(); onDeleteSource(file); }}
+                      title="删除"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           <button

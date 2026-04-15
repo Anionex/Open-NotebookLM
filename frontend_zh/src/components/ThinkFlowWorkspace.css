@@ -33,11 +33,13 @@
   display: flex;
   align-items: center;
   gap: 0;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
   user-select: none;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: -apple-system, 'SF Pro Display', Inter, 'Segoe UI', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
 .thinkflow-brand-main {
@@ -73,39 +75,85 @@
   flex: 1;
 }
 
-.thinkflow-capture-toast {
+/* ── Toast stack ─────────────────────────────────────────────────────────── */
+
+.thinkflow-toast-stack {
   position: fixed;
-  top: 62px;
-  right: 18px;
-  z-index: 90;
-  padding: 10px 14px;
-  border: 1px solid rgba(23, 163, 74, 0.18);
-  border-radius: 12px;
-  background: rgba(245, 255, 249, 0.92);
-  color: #166534;
-  box-shadow: 0 16px 34px rgba(22, 101, 52, 0.12);
-  backdrop-filter: blur(14px);
-  font-size: 13px;
-  font-weight: 600;
+  bottom: 28px;
+  right: 24px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
 }
 
-.thinkflow-global-error {
-  position: fixed;
-  top: 62px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 91;
-  width: min(760px, calc(100vw - 32px));
-  padding: 10px 14px;
-  border: 1px solid rgba(220, 38, 38, 0.18);
-  border-radius: 12px;
-  background: rgba(254, 242, 242, 0.96);
-  color: #b91c1c;
-  box-shadow: 0 16px 34px rgba(185, 28, 28, 0.12);
-  backdrop-filter: blur(14px);
+.thinkflow-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px 11px 16px;
+  border-radius: 14px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.5;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 28px rgba(22, 38, 66, 0.14), 0 1px 4px rgba(22, 38, 66, 0.08);
+  max-width: min(420px, calc(100vw - 48px));
+  pointer-events: auto;
+  animation: tf-toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+@keyframes tf-toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.thinkflow-toast-error {
+  background: rgba(255, 245, 245, 0.97);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  color: #b91c1c;
+}
+
+.thinkflow-toast-success {
+  background: rgba(240, 253, 244, 0.97);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  color: #15803d;
+}
+
+.thinkflow-toast-info {
+  background: rgba(239, 246, 255, 0.97);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: #1d4ed8;
+}
+
+.thinkflow-toast-msg {
+  flex: 1;
+  min-width: 0;
+}
+
+.thinkflow-toast-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.thinkflow-toast-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.07);
+}
+
 
 .thinkflow-push-status {
   margin-bottom: 12px;
@@ -213,7 +261,6 @@
   padding: 8px;
 }
 
-.thinkflow-file-item,
 .thinkflow-output-card {
   width: 100%;
   display: flex;
@@ -229,17 +276,16 @@
   transition: all 150ms ease;
 }
 
-.thinkflow-file-item:hover,
 .thinkflow-output-card:hover {
   background: rgba(255, 255, 255, 0.78);
   border-color: var(--tf-border);
 }
 
-.thinkflow-file-item.is-active,
 .thinkflow-output-card.is-active {
   background: #dfeafe;
   border-color: #bfd6ff;
 }
+
 
 .thinkflow-file-icon {
   width: 30px;
@@ -459,6 +505,27 @@
 
 .thinkflow-center-panel.is-output-focus .thinkflow-message-shell.user {
   max-width: min(92%, 480px);
+}
+
+/* Non-PPT output: chat compressed on the left, output panel slides in from right */
+.thinkflow-center-panel.is-output-immersive {
+  border-right: 1px solid rgba(229, 228, 225, 0.86);
+  background: rgba(255, 255, 255, 0.62);
+  opacity: 0.85;
+  transition: opacity 180ms ease;
+}
+
+.thinkflow-center-panel.is-output-immersive:hover,
+.thinkflow-center-panel.is-output-immersive:focus-within {
+  opacity: 1;
+}
+
+.thinkflow-center-panel.is-output-immersive .thinkflow-message-shell {
+  max-width: min(96%, 480px);
+}
+
+.thinkflow-center-panel.is-output-immersive .thinkflow-message-shell.user {
+  max-width: min(92%, 440px);
 }
 
 .thinkflow-chat-scroll {
@@ -806,6 +873,7 @@
 .thinkflow-source-chip:hover .thinkflow-source-tooltip,
 .thinkflow-source-chip:focus-visible .thinkflow-source-tooltip {
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(0);
 }
 
@@ -986,6 +1054,12 @@
 
 .thinkflow-right-panel.is-output-workspace {
   background: var(--tf-bg-secondary);
+}
+
+/* Non-PPT output panel slides in from right — subtle shadow to separate from chat */
+.thinkflow-layout.is-output-immersive .thinkflow-right-panel {
+  border-left: 1px solid rgba(200, 210, 230, 0.9);
+  box-shadow: -8px 0 32px rgba(22, 38, 66, 0.08);
 }
 
 .thinkflow-collapse-btn {
@@ -1717,9 +1791,9 @@
 }
 
 .thinkflow-output-workspace-body {
-  flex: 0 0 auto;
+  flex: 1;
   min-height: 0;
-  overflow: visible;
+  overflow-y: auto;
   padding-bottom: 18px;
 }
 
@@ -3612,3 +3686,765 @@
     justify-content: flex-start;
   }
 }
+
+/* ═══════════════════════════════════════════
+   Left Sidebar — section head, refresh, add source button, source status
+   ═══════════════════════════════════════════ */
+
+.thinkflow-left-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--tf-border);
+}
+
+.thinkflow-left-section-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.thinkflow-left-section-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-text);
+}
+
+.thinkflow-left-section-copy span {
+  font-size: 11px;
+  color: var(--tf-muted);
+}
+
+.thinkflow-left-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--tf-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--tf-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.thinkflow-left-refresh-btn:hover {
+  background: var(--tf-bg);
+  color: var(--tf-subtle);
+}
+
+.thinkflow-left-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinkflow-add-source-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--tf-accent);
+  border-radius: 10px;
+  background: var(--tf-accent-soft);
+  color: var(--tf-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.thinkflow-add-source-btn:hover {
+  background: rgba(51, 154, 240, 0.18);
+}
+
+.thinkflow-source-status {
+  font-weight: 500;
+}
+
+.thinkflow-source-status.is-ready {
+  color: var(--tf-success);
+}
+
+.thinkflow-source-status.is-pending {
+  color: #e8a817;
+}
+
+.thinkflow-source-status.is-failed {
+  color: #dc3545;
+}
+
+.thinkflow-file-error {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #dc3545;
+  word-break: break-word;
+}
+
+/* ═══════════════════════════════════════════
+   File Item — two-line card layout
+   ═══════════════════════════════════════════ */
+
+.thinkflow-file-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.thinkflow-file-item:hover,
+.thinkflow-file-item:focus-within {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: var(--tf-border);
+}
+
+.thinkflow-file-item.is-active {
+  background: #dfeafe;
+  border-color: #bfd6ff;
+}
+
+/* emoji 图标 */
+.thinkflow-file-item > .thinkflow-file-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.05);
+  transition: background 120ms ease;
+}
+
+.thinkflow-file-item:hover > .thinkflow-file-icon {
+  background: rgba(255, 255, 255, 1);
+}
+
+/* 中间两行内容区（button） */
+.thinkflow-file-body {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 第一行：文件名 */
+.thinkflow-file-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--tf-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* 第二行：状态区 */
+.thinkflow-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 状态 pill */
+.thinkflow-file-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.thinkflow-file-status::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.thinkflow-file-status.is-ready {
+  color: #2f9e44;
+  background: rgba(47, 158, 68, 0.1);
+}
+
+.thinkflow-file-status.is-ready::before {
+  background: #40c057;
+}
+
+.thinkflow-file-status.is-pending {
+  color: #d08700;
+  background: rgba(248, 160, 15, 0.1);
+}
+
+.thinkflow-file-status.is-pending::before {
+  background: #f59f00;
+  animation: tf-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.thinkflow-file-status.is-idle {
+  color: #868e96;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.thinkflow-file-status.is-idle::before {
+  background: #ced4da;
+}
+
+.thinkflow-file-status.is-error {
+  color: #c92a2a;
+  background: rgba(201, 42, 42, 0.08);
+}
+
+.thinkflow-file-status.is-error::before {
+  background: #fa5252;
+}
+
+@keyframes tf-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 右侧操作按钮组 — 常驻显示 */
+.thinkflow-file-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.thinkflow-file-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tf-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.thinkflow-file-action-icon:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--tf-subtle);
+}
+
+.thinkflow-file-action-icon.is-danger:hover {
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+}
+
+/* ═══════════════════════════════════════════
+   Source Preview Modal
+   ═══════════════════════════════════════════ */
+
+.thinkflow-source-preview-modal {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 131;
+  width: min(860px, calc(100vw - 36px));
+  max-height: min(80vh, 800px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(223, 229, 239, 0.94);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 28px 72px rgba(20, 28, 45, 0.18);
+  backdrop-filter: blur(22px);
+  overflow: hidden;
+}
+
+.thinkflow-source-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid rgba(229, 228, 225, 0.92);
+  background: linear-gradient(180deg, rgba(248, 250, 255, 0.94), rgba(255, 255, 255, 0.84));
+}
+
+.thinkflow-source-preview-header h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--tf-text);
+}
+
+.thinkflow-source-preview-header p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-source-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px 22px;
+}
+
+.thinkflow-source-preview-content {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--tf-text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ═══════════════════════════════════════════
+   Chat Header Bar (conversation history trigger)
+   ═══════════════════════════════════════════ */
+
+.thinkflow-chat-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--tf-border);
+  background: rgba(255, 255, 255, 0.72);
+  flex-shrink: 0;
+}
+
+.thinkflow-chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tf-text);
+}
+
+.thinkflow-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.thinkflow-chat-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--tf-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--tf-subtle);
+  font-size: 12px;
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.thinkflow-chat-header-btn:hover {
+  background: var(--tf-accent-soft);
+  color: var(--tf-accent);
+}
+
+/* ═══════════════════════════════════════════
+   Add Source Modal — tabs, form fields, messages
+   ═══════════════════════════════════════════ */
+
+.thinkflow-add-source-modal {
+  width: min(720px, calc(100vw - 36px));
+}
+
+.thinkflow-add-source-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--tf-border);
+  overflow-x: auto;
+}
+
+.thinkflow-add-source-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--tf-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.thinkflow-add-source-tab:hover {
+  color: var(--tf-subtle);
+  background: rgba(248, 249, 250, 0.6);
+}
+
+.thinkflow-add-source-tab.is-active {
+  color: var(--tf-accent);
+  background: var(--tf-bg);
+}
+
+.thinkflow-add-source-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--tf-accent);
+}
+
+.thinkflow-add-source-msg {
+  margin: 0 22px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.thinkflow-add-source-msg.is-error {
+  border: 1px solid rgba(220, 38, 38, 0.16);
+  background: rgba(254, 242, 242, 0.94);
+  color: #b91c1c;
+}
+
+.thinkflow-add-source-msg.is-success {
+  border: 1px solid rgba(23, 163, 74, 0.16);
+  background: rgba(240, 253, 244, 0.94);
+  color: #166534;
+}
+
+.thinkflow-add-source-drop {
+  min-height: 180px;
+  border-width: 2px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.thinkflow-add-source-drop.is-drag-over {
+  border-color: var(--tf-accent);
+  background: var(--tf-accent-soft);
+}
+
+.thinkflow-add-source-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.thinkflow-add-source-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-add-source-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--tf-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  color: var(--tf-text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 160ms ease;
+}
+
+.thinkflow-add-source-input:focus {
+  border-color: var(--tf-accent);
+}
+
+.thinkflow-add-source-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--tf-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--tf-text);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 160ms ease;
+}
+
+.thinkflow-add-source-textarea:focus {
+  border-color: var(--tf-accent);
+}
+
+.thinkflow-add-source-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.thinkflow-add-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinkflow-add-source-row .thinkflow-add-source-input {
+  flex: 1;
+}
+
+.thinkflow-add-source-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.thinkflow-add-source-hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tf-muted);
+}
+
+/* ═══════════════════════════════════════════
+   Study Shell — shared by Quiz & Flashcard
+   ═══════════════════════════════════════════ */
+
+.thinkflow-study-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.thinkflow-study-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.thinkflow-study-head h4 {
+  margin: 6px 0 0;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--tf-text);
+}
+
+.thinkflow-study-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(47, 103, 239, 0.1);
+  color: var(--tf-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.thinkflow-study-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(64, 192, 87, 0.12);
+  color: var(--tf-success);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.thinkflow-study-progress-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.thinkflow-study-progress-meta strong {
+  font-size: 14px;
+  color: var(--tf-text);
+}
+
+.thinkflow-study-progress-meta span {
+  font-size: 11px;
+  color: var(--tf-muted);
+}
+
+.thinkflow-study-progress {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(229, 228, 225, 0.6);
+  overflow: hidden;
+}
+
+.thinkflow-study-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tf-accent);
+  transition: width 300ms ease;
+}
+
+.thinkflow-study-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ═══════════════════════════════════════════
+   Quiz — summary grid, review list, selected option
+   ═══════════════════════════════════════════ */
+
+.thinkflow-quiz-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.thinkflow-quiz-summary-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(223, 230, 240, 0.92);
+  background: var(--tf-bg-secondary);
+}
+
+.thinkflow-quiz-summary-card span {
+  font-size: 12px;
+  color: var(--tf-muted);
+}
+
+.thinkflow-quiz-summary-card strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.thinkflow-quiz-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.thinkflow-quiz-option.is-selected {
+  border-color: rgba(47, 103, 239, 0.34);
+  background: rgba(244, 247, 255, 0.96);
+  color: var(--tf-accent);
+}
+
+.thinkflow-quiz-option.is-selected strong {
+  color: var(--tf-accent);
+}
+
+/* ═══════════════════════════════════════════
+   Flashcard — flip stage, faces, hint
+   ═══════════════════════════════════════════ */
+
+.thinkflow-flashcard-stage {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+  perspective: 1000px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.thinkflow-flashcard-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(223, 230, 240, 0.98);
+  background: var(--tf-bg-secondary);
+  box-shadow: 0 12px 30px rgba(25, 34, 52, 0.06);
+  backface-visibility: hidden;
+  transition: transform 500ms ease;
+}
+
+.thinkflow-flashcard-face.is-front {
+  transform: rotateY(0deg);
+}
+
+.thinkflow-flashcard-face.is-back {
+  transform: rotateY(180deg);
+}
+
+.thinkflow-flashcard-stage.is-flipped .thinkflow-flashcard-face.is-front {
+  transform: rotateY(-180deg);
+}
+
+.thinkflow-flashcard-stage.is-flipped .thinkflow-flashcard-face.is-back {
+  transform: rotateY(0deg);
+}
+
+.thinkflow-flashcard-face h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--tf-text);
+}
+
+.thinkflow-flashcard-face-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinkflow-flashcard-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--tf-muted);
+}
+
+/* ═══════════════════════════════════════════
+   Source Re-embed Button
+   ═══════════════════════════════════════════ */
+
+/* (source-reembed-btn removed — now uses thinkflow-file-action-icon + Upload icon) */
+

@@ -20,7 +20,17 @@ class ThinkFlowWorkspaceService:
     }
 
     def _base_dir(self, notebook_id: str, notebook_title: str, user_id: str) -> Path:
-        return get_notebook_paths(notebook_id, notebook_title, user_id).root / "workspace_items"
+        """Return the workspace items directory, preferring workspace/notes/ if it exists.
+
+        The workspace migration may have moved ``workspace_items/`` into
+        ``workspace/notes/``.  We check the migrated location first so
+        that previously-created workspace items remain accessible.
+        """
+        notebook_root = get_notebook_paths(notebook_id, notebook_title, user_id).root
+        workspace_dir = notebook_root / "workspace" / "notes"
+        if workspace_dir.exists():
+            return workspace_dir
+        return notebook_root / "workspace_items"
 
     def _manifest_path(self, notebook_id: str, notebook_title: str, user_id: str) -> Path:
         return self._base_dir(notebook_id, notebook_title, user_id) / "items.json"

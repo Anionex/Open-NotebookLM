@@ -25,7 +25,7 @@ let authConfigured = false;
 export async function initSupabase(): Promise<boolean> {
   try {
     const url = `${API_BASE_URL}/api/v1/auth/config`;
-    console.info('[Auth] 正在获取配置:', url);
+    console.info('[Auth] Fetching config:', url);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -33,22 +33,22 @@ export async function initSupabase(): Promise<boolean> {
     });
 
     if (!response.ok) {
-      console.error('[Auth] 配置请求失败:', response.status);
+      console.error('[Auth] Config request failed:', response.status);
       return false;
     }
 
     const data = await response.json();
     authConfigured = data.supabaseConfigured;
-    console.info('[Auth] 配置响应:', { configured: authConfigured, mode: data.authMode });
+    console.info('[Auth] Config response:', { configured: authConfigured, mode: data.authMode });
 
-    // 如果配置了认证，尝试获取当前会话
+    // If auth is configured, try to get current session
     if (authConfigured) {
       await refreshSession();
     }
 
     return authConfigured;
   } catch (error) {
-    console.error('[Auth] 初始化失败:', error);
+    console.error('[Auth] Initialization failed:', error);
     return false;
   }
 }

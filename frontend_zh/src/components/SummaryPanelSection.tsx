@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Save, Trash2 } from 'lucide-react';
 
-import type { WorkspaceItemType } from '../types';
+import type { WorkspaceItemType } from './thinkflow-types';
 
 type SummaryPanelSectionProps = {
   summaryItems: Array<{ id: string; title: string }>;
