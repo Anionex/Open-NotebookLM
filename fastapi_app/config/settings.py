@@ -113,6 +113,9 @@ class AppSettings(BaseSettings):
     LOCAL_EMBEDDING_CUDA_VISIBLE_DEVICES: Optional[str] = None
     LOCAL_EMBEDDING_GPU_MEMORY_UTILIZATION: float = 0.3
 
+    USE_LOCAL_MINERU: int = 0
+    LOCAL_MINERU_CUDA_VISIBLE_DEVICES: Optional[str] = None
+
     class Config:
         env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
