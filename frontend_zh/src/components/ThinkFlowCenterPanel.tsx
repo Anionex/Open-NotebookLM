@@ -7,7 +7,10 @@ import type {
   ThinkFlowMessage,
   ThinkFlowOutput,
   WorkspaceMode,
+  ChatMode,
 } from './thinkflow-types';
+import type { KnowledgeFile } from '../types';
+import { TableAnalysisPanel, type NotebookContext } from './TableAnalysisPanel';
 
 type ThinkFlowCenterPanelProps = {
   workspaceMode: WorkspaceMode;
@@ -41,6 +44,12 @@ type ThinkFlowCenterPanelProps = {
   openRightPanelForActiveOutput: () => void;
   onOpenHistory: () => void;
   onNewConversation: () => void;
+  // ─── 表格分析模式 ────────────────────────────────────────────────────────
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
+  activeDataset: KnowledgeFile | null;
+  dataSessionId: string | null;
+  notebookContext: NotebookContext;
 };
 
 export function ThinkFlowCenterPanel({
@@ -75,12 +84,45 @@ export function ThinkFlowCenterPanel({
   openRightPanelForActiveOutput,
   onOpenHistory,
   onNewConversation,
+  chatMode,
+  onChatModeChange,
+  activeDataset,
+  dataSessionId,
+  notebookContext,
 }: ThinkFlowCenterPanelProps) {
   return (
     <main className={`thinkflow-center-panel ${workspaceMode === 'output_immersive' ? 'is-output-immersive' : ''} ${workspaceMode === 'output_focus' ? 'is-output-focus' : ''}`}>
       <div className="thinkflow-chat-header-bar">
         <div className="thinkflow-chat-header-left">
-          💬 对话
+          {activeDataset ? (
+            // 有 dataset 选中时：显示对话/表格分析切换器
+            <div className="flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5">
+              <button
+                type="button"
+                onClick={() => onChatModeChange('chat')}
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                  chatMode === 'chat'
+                    ? 'bg-white shadow-sm text-gray-900 font-medium'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                💬 对话
+              </button>
+              <button
+                type="button"
+                onClick={() => onChatModeChange('table-analysis')}
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                  chatMode === 'table-analysis'
+                    ? 'bg-white shadow-sm text-indigo-600 font-medium'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                📊 表格分析
+              </button>
+            </div>
+          ) : (
+            <span>💬 对话</span>
+          )}
         </div>
         <div className="thinkflow-chat-header-actions">
           <button
@@ -104,6 +146,16 @@ export function ThinkFlowCenterPanel({
         </div>
       </div>
       <div className="thinkflow-chat-scroll" ref={chatScrollRef} onMouseUp={handleChatSelectionMouseUp}>
+        {/* 表格分析模式 */}
+        {chatMode === 'table-analysis' && activeDataset ? (
+          <TableAnalysisPanel
+            sessionId={dataSessionId}
+            dataset={activeDataset}
+            notebookContext={notebookContext}
+          />
+        ) : (
+          /* 原有聊天消息列表 */
+          <>
         {chatMessages.map((message) => (
           <div
             key={message.id}
@@ -154,6 +206,8 @@ export function ThinkFlowCenterPanel({
             </div>
           </div>
         ))}
+          </>
+        )}
       </div>
 
       {selectionToolbar.show ? (
@@ -198,6 +252,8 @@ export function ThinkFlowCenterPanel({
         </div>
       ) : null}
 
+      {/* 表格分析模式下隐藏原有聊天输入区 */}
+      {chatMode !== 'table-analysis' && (
       <div className="thinkflow-chat-input-area">
         <div className="thinkflow-chat-input-box">
           <textarea
@@ -248,6 +304,7 @@ export function ThinkFlowCenterPanel({
           </div>
         </div>
       </div>
+      )}
 
       {!rightPanelOpen && workspaceMode === 'normal' ? (
         <button

@@ -92,6 +92,26 @@ def get_source_records(
     records = _read_json(sources_file)
     return sorted(records, key=lambda x: x.get("created_at", 0), reverse=True)
 
+
+def remove_source_record(
+    user_email: str,
+    notebook_id: str,
+    static_url: str,
+) -> bool:
+    """Remove a source record by its static_url. Returns True if a record was removed."""
+    notebook_dir = _get_notebook_dir(user_email, notebook_id)
+    if not notebook_dir:
+        return False
+
+    sources_file = notebook_dir / "_sources.json"
+    records = _read_json(sources_file)
+    before = len(records)
+    records = [r for r in records if r.get("static_url") != static_url]
+    if len(records) < before:
+        _write_json(sources_file, records)
+        return True
+    return False
+
 # ============ Output Records ============
 
 def add_output_record(

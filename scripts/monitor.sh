@@ -45,7 +45,7 @@ fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> logs/monitor.log; }
 
-is_port_up()   { lsof -tiTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+is_port_up()   { ss -tlnH "sport = :$1" 2>/dev/null | grep -q LISTEN; }
 http_ok()       { curl --max-time 5 -fsS -o /dev/null "$1"; }
 proc_age()      { ps -o etimes= -p "$1" 2>/dev/null | awk '{print $1}'; }
 find_backend()  { pgrep -f "uvicorn fastapi_app.main:app.*--port ${BACKEND_PORT}" | head -1; }
@@ -53,7 +53,6 @@ find_frontend() { pgrep -f "vite.*--port ${FRONTEND_PORT}" | head -1; }
 
 restart_backend() {
     log "Backend down — restarting"
-    lsof -ti:"$BACKEND_PORT" | xargs kill -9 2>/dev/null || true
     pkill -9 -f "uvicorn fastapi_app.main:app" 2>/dev/null || true
     sleep 2
     nohup "$PYTHON_BIN" -m uvicorn fastapi_app.main:app \
@@ -63,7 +62,6 @@ restart_backend() {
 
 restart_frontend() {
     log "Frontend down — restarting"
-    lsof -ti:"$FRONTEND_PORT" | xargs kill -9 2>/dev/null || true
     pkill -9 -f "vite.*--port ${FRONTEND_PORT}" 2>/dev/null || true
     sleep 2
     (

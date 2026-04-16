@@ -17,4 +17,6 @@ def _from_outputs_url(url: str) -> str:
     """Convert /outputs URL to absolute file path."""
     if url.startswith("http"):
         url = url.split("/outputs/", 1)[-1]
+    # Strip leading slash: Path(root) / "/outputs/..." would override root due to pathlib semantics
+    url = url.lstrip("/")
     return str(PROJECT_ROOT / url)

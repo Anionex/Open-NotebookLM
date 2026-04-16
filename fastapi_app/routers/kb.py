@@ -751,6 +751,44 @@ async def import_url_as_source(
     }
 
 
+@router.post("/delete-source")
+async def delete_source(
+    notebook_id: str = Body(..., embed=True),
+    notebook_title: str = Body("", embed=True),
+    user_id: str = Body("local", embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    file_path: str = Body(..., embed=True),
+):
+    """Delete a source file, its directory, and the kb_records entry."""
+    from fastapi_app.kb_records import remove_source_record
+
+    try:
+        local = Path(_from_outputs_url(file_path))
+        if not local.exists():
+            return {"success": False, "message": "File not found"}
+
+        # Delete the source directory (parent of 'original/')
+        source_dir = local.parent
+        if source_dir.name == "original":
+            source_dir = source_dir.parent
+        if source_dir.exists() and source_dir.is_dir():
+            shutil.rmtree(source_dir)
+        elif local.is_file():
+            os.remove(local)
+
+        # Clean up kb_records
+        effective_email = (email or user_id or "local").strip() or "local"
+        remove_source_record(
+            user_email=effective_email,
+            notebook_id=notebook_id,
+            static_url=file_path,
+        )
+
+        return {"success": True, "message": "Source deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/delete")
 async def delete_kb_file(
     storage_path: str = Form(...)

@@ -91,6 +91,7 @@ export type PanelGuideKey = 'summary' | 'doc' | 'guidance';
 export type ThinkFlowLeftTab = 'materials' | 'outputs';
 export type ThinkFlowRightMode = 'summary' | 'doc' | 'guidance' | 'outline';
 export type WorkspaceMode = 'normal' | 'output_focus' | 'output_immersive';
+export type ChatMode = 'chat' | 'table-analysis';
 export type PptPipelineStage = 'outline_ready' | 'pages_ready' | 'generated';
 
 export type ConversationHistoryMessage = {

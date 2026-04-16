@@ -37,6 +37,8 @@ import { ThinkFlowOutputContextModal } from './ThinkFlowOutputContextModal';
 import { ThinkFlowQuizStudy } from './ThinkFlowQuizStudy';
 import { ThinkFlowTopBar } from './ThinkFlowTopBar';
 import { ThinkFlowRightPanel } from './ThinkFlowRightPanel';
+import type { ChatMode } from './thinkflow-types';
+import type { NotebookContext } from './TableAnalysisPanel';
 
 import './ThinkFlowWorkspace.css';
 
@@ -678,6 +680,13 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [uploading, setUploading] = useState(false);
   const [showAddSourceModal, setShowAddSourceModal] = useState(false);
 
+  // ─── 表格分析模式状态 ──────────────────────────────────────────────────────
+  const [chatMode, setChatMode] = useState<ChatMode>('chat');
+  const [activeDataset, setActiveDataset] = useState<KnowledgeFile | null>(null);
+  const [dataSessionId, setDataSessionId] = useState<string | null>(null);
+  // ref 防重注册：fileId → datasource_id (int)，不触发重渲染
+  const registeredDatasourceIds = useRef<Record<string, number>>({});
+
   const [documents, setDocuments] = useState<ThinkFlowDocument[]>([]);
   const [activeDocumentId, setActiveDocumentId] = useState('');
   const [documentTitle, setDocumentTitle] = useState('');
@@ -1178,6 +1187,77 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
   };
 
+  // ─── 表格分析：选中 dataset 文件时自动注册 datasource + 开启会话 ────────────
+  useEffect(() => {
+    if (!activeDataset) return;
+    // 已注册过则跳过，ref 防重，不触发重渲染
+    if (registeredDatasourceIds.current[activeDataset.id] !== undefined) {
+      // 仅重新开启会话（同一文件重新选中时）
+      const datasourceId = registeredDatasourceIds.current[activeDataset.id];
+      const startSession = async () => {
+        try {
+          const sessResp = await apiFetch('/api/v1/data-extract/sessions/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              notebook_id: notebook.id,
+              notebook_title: notebookTitle,
+              user_id: effectiveUser?.id || 'local',
+              email: effectiveUser?.email || '',
+              datasource_id: datasourceId,
+            }),
+          });
+          const sessData = await parseJson<{ session: { id: string } }>(sessResp);
+          setDataSessionId(sessData.session.id);
+        } catch (err) {
+          console.error('[TableAnalysis] session start failed', err);
+        }
+      };
+      void startSession();
+      return;
+    }
+
+    const initDataset = async () => {
+      try {
+        // 1. 注册 datasource（file.url = static_url，后端 _from_outputs_url 自动转本地路径）
+        const regResp = await apiFetch('/api/v1/data-extract/datasources/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notebook_id: notebook.id,
+            notebook_title: notebookTitle,
+            user_id: effectiveUser?.id || 'local',
+            email: effectiveUser?.email || '',
+            file_path: activeDataset.url,
+            display_name: activeDataset.name,
+          }),
+        });
+        const regData = await parseJson<{ datasource: { datasource_id: number } }>(regResp);
+        const datasourceId = regData.datasource.datasource_id;
+        registeredDatasourceIds.current[activeDataset.id] = datasourceId;
+
+        // 2. 开启会话
+        const sessResp = await apiFetch('/api/v1/data-extract/sessions/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notebook_id: notebook.id,
+            notebook_title: notebookTitle,
+            user_id: effectiveUser?.id || 'local',
+            email: effectiveUser?.email || '',
+            datasource_id: datasourceId,
+          }),
+        });
+        const sessData = await parseJson<{ session: { id: string } }>(sessResp);
+        setDataSessionId(sessData.session.id);
+      } catch (err) {
+        console.error('[TableAnalysis] init failed', err);
+      }
+    };
+    void initDataset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDataset]);
+
   useEffect(() => {
     void (async () => {
       setGlobalError('');
@@ -1333,27 +1413,36 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   };
 
   const handleDeleteSource = async (file: KnowledgeFile) => {
-    const confirmed = window.confirm(`确定要删除来源「${file.name}」吗？此操作不可撤销。`);
-    if (!confirmed) return;
+    // 乐观删除：先从前端列表移除，再异步调后端
+    setFiles((prev) => prev.filter((f) => f.id !== file.id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(file.id);
+      return next;
+    });
+    // 如果删的是当前激活的 dataset，退出表格分析模式
+    if (activeDataset?.id === file.id) {
+      setActiveDataset(null);
+      setChatMode('chat');
+      setDataSessionId(null);
+    }
+
     try {
-      await apiFetch('/api/v1/kb/delete', {
+      await apiFetch('/api/v1/kb/delete-source', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           notebook_id: notebook.id,
+          notebook_title: notebookTitle,
           user_id: effectiveUser?.id || 'local',
-          file_paths: [file.url || file.id],
           email: effectiveUser?.email || '',
+          file_path: file.url || file.id,
         }),
       });
-      setSelectedIds((previous) => {
-        const next = new Set(previous);
-        next.delete(file.id);
-        return next;
-      });
-      await refreshFiles();
     } catch (error: any) {
+      // 删除失败，恢复列表
       setGlobalError(error?.message || '删除来源失败');
+      await refreshFiles();
     }
   };
 
@@ -1739,6 +1828,14 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       else next.add(fileId);
       return next;
     });
+
+    // 当选中 dataset（CSV/Excel）时，自动激活表格分析模式
+    const selected = files.find((f) => f.id === fileId);
+    if (selected?.type === 'dataset') {
+      setActiveDataset(selected);
+      setChatMode('table-analysis');
+      setDataSessionId(null); // 重置，等待新会话
+    }
   };
 
   const toggleBoundDoc = (documentId: string) => {
@@ -4569,6 +4666,16 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           workspaceMode={workspaceMode}
           onOpenHistory={openHistoryPanel}
           onNewConversation={handleNewConversation}
+          chatMode={chatMode}
+          onChatModeChange={setChatMode}
+          activeDataset={activeDataset}
+          dataSessionId={dataSessionId}
+          notebookContext={{
+            notebookId: notebook.id,
+            notebookTitle,
+            userId: effectiveUser?.id || 'local',
+            userEmail: effectiveUser?.email || '',
+          }}
         />
 
         {rightPanelOpen ? (

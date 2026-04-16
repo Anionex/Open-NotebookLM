@@ -188,6 +188,7 @@ class EmbeddedSQLBotAdapter:
             from sqlmodel import Session, select
 
             from fastapi_app.adapters.csv_datasource import CSVDataSource
+            from fastapi_app.adapters.excel_datasource import ExcelDataSource
             from fastapi_app.agents.tools.datasource_manager import (
                 get_datasource_handler,
                 set_datasource_handler,
@@ -212,6 +213,7 @@ class EmbeddedSQLBotAdapter:
             select=select,
             engine=engine,
             CSVDataSource=CSVDataSource,
+            ExcelDataSource=ExcelDataSource,
             DataSourceMetadata=DataSourceMetadata,
             DataSourceType=DataSourceType,
             Datasource=Datasource,
@@ -587,7 +589,8 @@ class EmbeddedSQLBotAdapter:
             "export_data": export_data if result.success else {"format": "data", "data": [], "columns": [], "row_count": 0},
         }
 
-    def _store_csv(self, path: Path, target_dir: Path) -> Path:
+    def _store_file(self, path: Path, target_dir: Path) -> Path:
+        """Copy a data file into the upload dir with a unique name to avoid collisions."""
         target_dir.mkdir(parents=True, exist_ok=True)
         if path.parent.resolve() == target_dir.resolve():
             return path
@@ -598,6 +601,10 @@ class EmbeddedSQLBotAdapter:
         if path.resolve() != dest.resolve():
             dest.write_bytes(path.read_bytes())
         return dest
+
+    # Keep backward-compat alias
+    def _store_csv(self, path: Path, target_dir: Path) -> Path:
+        return self._store_file(path, target_dir)
 
     async def register_csv(self, file_path: str) -> Dict[str, Any]:
         runtime = self._ensure_runtime()
@@ -648,6 +655,71 @@ class EmbeddedSQLBotAdapter:
 
         preview_result = csv_datasource.get_sample_data(
             tables[0].name if tables else "data",
+            limit=runtime.sqlbot_settings.CSV_PREVIEW_ROWS,
+        )
+        preview = preview_result.data if preview_result.success else []
+
+        return {
+            "datasource_id": datasource_db.id,
+            "filename": target_path.name,
+            "filepath": str(target_path),
+            "rows": rows,
+            "columns": columns,
+            "file_size": target_path.stat().st_size,
+            "preview": preview,
+        }
+
+    async def register_excel(self, file_path: str) -> Dict[str, Any]:
+        """Register an Excel (.xlsx/.xls) file as a datasource using DuckDB ExcelDataSource."""
+        runtime = self._ensure_runtime()
+        source_path = Path(file_path)
+        if not source_path.exists():
+            raise FileNotFoundError(f"Excel file not found: {file_path}")
+
+        target_path = self._store_file(source_path, runtime.sqlbot_settings.CSV_UPLOAD_DIR)
+
+        with runtime.Session(runtime.engine) as session:
+            datasource_db = runtime.Datasource(
+                name=target_path.stem,
+                type="excel",
+                file_path=str(target_path),
+                config="{}",
+            )
+            session.add(datasource_db)
+            session.commit()
+            session.refresh(datasource_db)
+
+        ds_metadata = runtime.DataSourceMetadata(
+            id=str(datasource_db.id),
+            name=datasource_db.name,
+            type=runtime.DataSourceType.EXCEL,
+            connection_config={
+                "file_path": str(target_path),
+                "sheet_name": None,
+                "header_row": 0,
+                "skip_rows": 0,
+            },
+        )
+        excel_datasource = runtime.ExcelDataSource(ds_metadata)
+        excel_datasource.connect()
+
+        tables = excel_datasource.get_tables()
+        if tables:
+            table = tables[0]
+            rows = table.row_count or 0
+            columns = len(table.columns)
+        else:
+            rows = 0
+            columns = 0
+
+        runtime.set_datasource_handler(datasource_db.id, excel_datasource, bootstrap=False)
+        try:
+            runtime.bootstrap_datasource(datasource_db.id, excel_datasource)
+        except Exception as exc:
+            logger.warning("Embedded Excel datasource bootstrap skipped/failed for %s: %s", datasource_db.id, exc)
+
+        preview_result = excel_datasource.get_sample_data(
+            tables[0].name if tables else "Sheet1",
             limit=runtime.sqlbot_settings.CSV_PREVIEW_ROWS,
         )
         preview = preview_result.data if preview_result.success else []

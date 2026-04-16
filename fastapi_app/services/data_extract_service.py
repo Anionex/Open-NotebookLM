@@ -22,7 +22,7 @@ from workflow_engine.utils import get_project_root
 class DataExtractService:
     """Notebook-scoped datasource/session/artifact manager for SQLBot integration."""
 
-    SUPPORTED_SUFFIXES = {".csv"}
+    SUPPORTED_SUFFIXES = {".csv", ".xlsx", ".xls"}
     REUSABLE_ARTIFACT_TYPES = {"csv"}
     PREVIEW_ROWS = 20
     TEXT_PREVIEW_CHARS = 4000
@@ -92,7 +92,7 @@ class DataExtractService:
         if not local.exists() or not local.is_file():
             raise HTTPException(status_code=404, detail="Datasource file not found")
         if local.suffix.lower() not in self.SUPPORTED_SUFFIXES:
-            raise HTTPException(status_code=400, detail="Only CSV datasource registration is supported for now")
+            raise HTTPException(status_code=400, detail="仅支持 CSV 和 Excel 格式（.csv/.xlsx/.xls）")
         return local
 
     def _dedupe_ints(self, values: Optional[List[int]]) -> List[int]:
@@ -301,7 +301,12 @@ class DataExtractService:
                 return item
 
         try:
-            upload_result = await self.adapter.register_csv(str(local_path))
+            is_excel = local_path.suffix.lower() in (".xlsx", ".xls")
+            upload_result = (
+                await self.adapter.register_excel(str(local_path))
+                if is_excel
+                else await self.adapter.register_csv(str(local_path))
+            )
             datasource_id = int(upload_result["datasource_id"])
             preview = await self.adapter.get_preview(datasource_id)
         except httpx.HTTPError as exc:
