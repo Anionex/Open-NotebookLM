@@ -761,23 +761,31 @@ async def delete_source(
 ):
     """Delete a source file, its directory, and the kb_records entry."""
     from fastapi_app.kb_records import remove_source_record
+    from fastapi_app.services.source_service import SourceService
+
+    effective_email = (email or user_id or "local").strip() or "local"
 
     try:
+        # 1. Delete from new layout: sources/{name}/original/{file}
         local = Path(_from_outputs_url(file_path))
-        if not local.exists():
-            return {"success": False, "message": "File not found"}
+        file_name = local.name
+        if local.exists():
+            source_dir = local.parent
+            if source_dir.name == "original":
+                source_dir = source_dir.parent
+            if source_dir.exists() and source_dir.is_dir():
+                shutil.rmtree(source_dir)
+            elif local.is_file():
+                os.remove(str(local))
 
-        # Delete the source directory (parent of 'original/')
-        source_dir = local.parent
-        if source_dir.name == "original":
-            source_dir = source_dir.parent
-        if source_dir.exists() and source_dir.is_dir():
-            shutil.rmtree(source_dir)
-        elif local.is_file():
-            os.remove(local)
+        # 2. Delete from legacy layout: kb_data/{email}/{notebook_id}/{file}
+        svc = SourceService()
+        legacy_dir = svc._legacy_notebook_dir(effective_email, notebook_id)
+        legacy_file = legacy_dir / file_name
+        if legacy_file.exists() and legacy_file.is_file():
+            os.remove(str(legacy_file))
 
-        # Clean up kb_records
-        effective_email = (email or user_id or "local").strip() or "local"
+        # 3. Clean up _sources.json record
         remove_source_record(
             user_email=effective_email,
             notebook_id=notebook_id,
