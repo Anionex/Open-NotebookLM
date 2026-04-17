@@ -256,7 +256,7 @@ def _build_map_prompt(chunk: Dict[str, Any], language: str) -> str:
 - **1分**：细枝末节、过渡性文字、重复信息
 
 ## 提取要求
-1. 根据内容密度提取 8-25 个知识节点，确保充分覆盖片段中的所有重要信息
+1. 提取 8-20 个知识节点（严禁超过 20 个）。聚焦该片段最核心的主题和关键信息，不要为每个细节都创建节点
 2. 节点 topic 使用简洁短语（适合放入思维导图）
 3. 正确设置 parent_topic 反映层级关系：最顶层节点设为 "ROOT"，子节点指向其上层 topic
 4. **定量数据强制保留**：凡是原文中出现的具体数字、年份、百分比、金额、数量、实验数据，必须作为独立节点或写入 summary。例如原文提到 "47% of jobs"，应出现在 topic 或 summary 中。含定量数据的节点 importance_score 至少为 3
@@ -294,7 +294,7 @@ def _build_collapse_prompt(group_a_json: str, group_b_json: str, language: str) 
 1. **去重合并**：将主题相同或高度相似的节点合并为一个，保留更完整的 summary
 2. **建立父子关系**：如果一个节点是另一个的子概念（如"深度学习"是"机器学习"的分支），正确设置 parent_topic
 3. **重要度校准**：根据合并后的全局视角重新评估 importance_score，确保评分一致性
-4. **保守剪枝**：只有在合并后节点总数超过 60 时才进行剪枝，且只移除 importance_score = 1 的纯过渡性节点。宁可保留更多节点，也不要过度精简导致信息丢失
+4. **积极精简**：合并后目标节点数为两组输入总数的 50%-70%。优先移除 importance_score ≤ 1 的过渡性节点和重复信息；importance_score = 2 的补充性节点如果内容与其他节点高度重叠也可合并。关键原则：保留独特信息，合并重叠信息
 5. **定量数据保护**：topic 或 summary 中包含具体数字、百分比、金额、年份的节点，importance_score 不得低于 3，不得在剪枝中移除。合并节点时，如果被合并的节点含有定量数据，必须将数据保留到合并后节点的 summary 中
 6. **保留关键信息**：importance_score ≥ 2 的节点必须保留
 7. **主题多样性保护**：parent_topic 为 ROOT 的顶层主题节点不得被合并或删除，以确保最终输出覆盖文档所有方面
@@ -329,12 +329,12 @@ def _build_reduce_prompt(nodes_json: str, language: str, max_depth: int) -> str:
 1. 从所有 importance_score=5 的节点中归纳出一个覆盖全文的根节点（# 一级标题），根节点命名控制在 15 字以内
 2. 将 importance_score ≥ 4 的节点组织为主分支（## 二级标题），**硬性约束：必须恰好 5-8 个**。生成前先规划好所有主分支标题，确认数量在 5-8 范围内再展开。如果输入节点的顶层主题不足 5 个，请根据内容将较大的主题拆分为更具体的子方向；如果超过 8 个，请将相近主题归并
 3. 将 importance_score ≥ 3 的节点分配为子主题（### 三级标题），每个主分支 2-5 个
-4. **必须充分利用深度**：importance_score ≥ 2 的节点以及含定量数据的节点，应作为 #### 或更深层级展开。整体最多 {max_depth} 层，目标是至少使用到第 {max_depth - 1} 层
+4. **必须充分利用深度**：含定量数据的节点和重要细节应作为 #### 或更深层级展开。整体最多 {max_depth} 层，目标是在 3-{max_depth} 层之间均匀分布节点
 5. 尊重节点间的 parent_topic 层级关系，合理组织树结构
 6. 节点命名简洁有信息量，使用 3-12 字短语。**禁止使用括号补充说明**——如需补充数据或细节，作为下一级子节点展开
-7. **定量数据必须保留**：节点 summary 中的具体数字、百分比、金额、年份，必须出现在最终思维导图的对应节点中（可作为子节点）。例如：summary 中有 "47% of jobs at risk"，应出现为一个节点
-8. **分支均衡性**：各主分支的子节点数量应大致均衡。如果某分支展开后的子节点数量超过最小分支的 3 倍，必须将该分支拆分为 2 个独立主分支
-9. **节点充分性**：总节点数应不少于 80 个。每个 importance_score ≥ 2 的输入节点都应在最终导图中有对应体现，不要过度精简
+7. **定量数据必须保留**：节点 summary 中的具体数字、百分比、金额、年份，必须出现在最终思维导图的对应节点中（可作为子节点）
+8. **分支均衡性硬约束**：每个主分支（##）下的总节点数（含所有子层级）必须控制在 12-25 个之间。如果某主题内容特别丰富，选 20-25 个节点；内容较薄则选 12-15 个。严禁任何单个分支超过 30 个节点或少于 8 个节点
+9. **总节点数硬约束**：最终输出总节点数必须控制在 80-150 个之间。这是一个信息压缩步骤——你需要从输入节点中提炼最核心的结构和信息，而不是逐条复制所有输入节点。优先保留高 importance_score 的节点，低分节点只在有助于理解结构时才保留
 10. 使用{language}语言
 
 ## 自适应组织框架
@@ -672,14 +672,19 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 
         serialized = json.dumps(state.collapsed_nodes, ensure_ascii=False)
         current_tokens = _count_tokens(serialized, model)
-        log.info(f"[MindMap Collapse] 轮次 {state.collapse_iterations}, 节点数 {len(state.collapsed_nodes)}, token {current_tokens}/{limit}")
+        node_count = len(state.collapsed_nodes)
+        # 节点数上限：即使 token 量可控，过多节点也会让 Reduce 产出过于膨胀
+        MAX_NODES_FOR_REDUCE = 100
+        log.info(f"[MindMap Collapse] 轮次 {state.collapse_iterations}, 节点数 {node_count}, token {current_tokens}/{limit}, 节点上限 {MAX_NODES_FOR_REDUCE}")
 
-        if current_tokens <= limit:
-            log.info("[MindMap Collapse] 已在上限内，进入 Reduce")
-            # 保存 Collapse 最终状态（可能是初始收集就在上限内，未经合并）
+        if current_tokens <= limit and node_count <= MAX_NODES_FOR_REDUCE:
+            log.info("[MindMap Collapse] token 和节点数均在上限内，进入 Reduce")
             if state.collapse_iterations == 0:
                 _save_debug(state, "03_collapse_skipped_all_nodes.json", state.collapsed_nodes)
             return state
+
+        if current_tokens <= limit and node_count > MAX_NODES_FOR_REDUCE:
+            log.info(f"[MindMap Collapse] token 在上限内但节点数 {node_count} > {MAX_NODES_FOR_REDUCE}，需要合并精简")
 
         state.collapse_iterations += 1
 
@@ -738,7 +743,9 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             return "reduce_phase"
         serialized = json.dumps(state.collapsed_nodes, ensure_ascii=False)
         tokens = _count_tokens(serialized, state.request.model or "")
-        if tokens <= state.context_window_limit:
+        node_count = len(state.collapsed_nodes)
+        MAX_NODES_FOR_REDUCE = 100
+        if tokens <= state.context_window_limit and node_count <= MAX_NODES_FOR_REDUCE:
             return "reduce_phase"
         return "collapse_phase"
 
