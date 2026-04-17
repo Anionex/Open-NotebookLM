@@ -473,7 +473,7 @@ class KBMindMapRequest(MainRequest):
     """
     file_ids: List[str] = field(default_factory=list)  # 引入层处理后的文件ID列表
     mindmap_style: str = "default"  # default | flowchart | tree
-    max_depth: int = 3  # 思维导图最大深度
+    max_depth: int = 6  # 思维导图最大深度
     vector_store_base_dir: Optional[str] = None  # 向量库根目录（manifest所在目录）
 
 @dataclass
@@ -485,8 +485,17 @@ class KBMindMapState(MainState):
     result_path: str = ""
     file_contents: List[Dict[str, Any]] = field(default_factory=list)
     content_structure: str = ""  # LLM提取的内容结构
-    mermaid_code: str = ""  # 生成的Mermaid代码
+    mermaid_code: str = ""  # 生成的Mermaid代码（最终输出 Markdown 标题树转 mermaid）
     mindmap_svg_path: str = ""  # SVG输出路径（可选）
+
+    # ---- MapReduce 中间状态 ----
+    use_mapreduce: bool = False
+    chunks: List[Dict[str, Any]] = field(default_factory=list)
+    map_results: List[Dict[str, Any]] = field(default_factory=list)
+    collapsed_nodes: List[Dict[str, Any]] = field(default_factory=list)
+    collapse_iterations: int = 0
+    total_content_tokens: int = 0
+    context_window_limit: int = 0
 
 
 # ==================== Paper2Drawio 相关 State ====================

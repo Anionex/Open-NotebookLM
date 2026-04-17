@@ -2522,6 +2522,8 @@ async def generate_mindmap_from_kb(
         mindmap_req.email = email
 
         state = KBMindMapState(request=mindmap_req)
+        # Use thinkflow notebook path layout: outputs/{title}_{id}/mindmap/{ts}/
+        state.result_path = str(output_dir)
 
         # Run workflow via registry (统一使用 run_workflow)
         result_state = await run_workflow("kb_mindmap", state)
