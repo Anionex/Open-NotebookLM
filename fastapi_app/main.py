@@ -494,8 +494,9 @@ def create_app() -> FastAPI:
                     continue
                 if file_path.is_file():
                     resp = FileResponse(path=str(file_path), filename=file_path.name)
-                    # PDF 使用 inline 以便浏览器内嵌预览，不触发下载
-                    if file_path.suffix.lower() == ".pdf":
+                    # 以下格式在浏览器中 inline 预览，不触发下载
+                    inline_suffixes = {".pdf", ".html", ".htm", ".json", ".md", ".mmd", ".txt", ".svg"}
+                    if file_path.suffix.lower() in inline_suffixes:
                         resp.headers["Content-Disposition"] = "inline"
                     return resp
             except Exception as e:
