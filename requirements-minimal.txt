@@ -1,0 +1,73 @@
+# Minimal deps for running backend + mindmap generation
+# Core Framework
+fastapi==0.135.1
+uvicorn==0.29.0
+starlette==0.52.1
+pydantic>=2.11.0
+pydantic-settings>=2.12.0
+typing-extensions==4.15.0
+python-dotenv==1.0.1
+python-multipart>=0.0.22
+httpx[socks]==0.28.1
+requests==2.32.5
+charset-normalizer==3.4.4
+supabase==2.27.2
+
+# LLM / LangChain (relax openai to avoid conflict)
+openai>=1.50.0,<2.0.0
+langchain==0.3.27
+langchain-core==0.3.76
+langchain-openai==0.3.33
+langchain-text-splitters==0.3.11
+langchain-community==0.3.29
+langchain-chroma==0.2.6
+langgraph==0.6.7
+langgraph-checkpoint==2.1.1
+langgraph-prebuilt==0.6.4
+langgraph-sdk==0.2.6
+sseclient-py>=1.8.0
+
+# Vector Store / Embedding
+chromadb==1.5.5
+faiss-cpu==1.12.0
+
+# Document Parsing
+PyMuPDF==1.26.7
+pdfplumber==0.11.9
+pdfminer.six==20251230
+PyPDF2>=3.0.1
+trafilatura>=2.0.0
+lxml_html_clean>=0.4.0
+
+# Office
+python-pptx>=1.0.2
+python-docx>=1.2.0
+openpyxl>=3.1.5
+
+# Image (minimal)
+pillow>=10.4.0
+cairosvg>=2.8.0
+matplotlib>=3.10.0
+
+# Workflow Engine
+open-dataflow>=1.0.8
+cloudpickle>=3.1.0
+psutil>=7.2.0
+pyfiglet>=1.0.4
+pyyaml>=6.0.0
+termcolor>=3.2.0
+colorlog>=6.10.0
+colorama>=0.4.6
+rich>=14.0.0
+tqdm>=4.67.0
+jinja2>=3.1.0
+
+# Misc needed by imports
+appdirs>=1.4.4
+addict>=2.4.0
+numpy<2.0.0
+pandas>=2.3.0
+sqlalchemy==2.0.25
+beautifulsoup4>=4.14.0
+tiktoken>=0.12.0
+loguru>=0.7.3
