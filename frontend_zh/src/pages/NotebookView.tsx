@@ -2402,7 +2402,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
         };
         setOutputFeed(prev => [outputItem, ...prev]);
         // 同时在工具输出区域显示
-        setToolOutput({ ...data, mermaid_code: mermaidCode });
+        setToolOutput({ ...data, mermaid_code: mermaidCode, mindmap_code: mermaidCode });
       } else if (tool === 'podcast') {
         const url = data.audio_path || data.audio_url;
         setOutputFeed(prev => [
@@ -4095,19 +4095,40 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             )}
 
             {toolOutput && activeTool === 'mindmap' && toolOutput.mindmap_code && (
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                {toolOutput.result_path && (
-                  <div className="flex justify-end mb-2">
+              <div className="bg-green-50/30 p-4 rounded-2xl border border-green-100/50">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-800 mb-3">思维导图生成完成</p>
+                  <div className="flex items-center justify-center gap-2">
                     <button
-                      onClick={() => setShowPipelineDebug(true)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-600 transition-colors"
+                      onClick={() => {
+                        const selectedFiles = files.filter(f => selectedIds.has(f.id));
+                        const selectedNames = selectedFiles.map(f => f.name).filter(Boolean);
+                        setPreviewOutput({
+                          id: toolOutput.output_file_id || `mindmap_${Date.now()}`,
+                          type: 'mindmap',
+                          title: '思维导图',
+                          sources: selectedNames.length ? selectedNames.join('、') : `来源 ${selectedIds.size}`,
+                          url: toolOutput.mindmap_path || toolOutput.result_path,
+                          createdAt: new Date().toLocaleString(),
+                          mermaidCode: toolOutput.mindmap_code,
+                        });
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm"
                     >
-                      <GitBranch size={14} />
-                      Pipeline Debug
+                      <FileText size={16} />
+                      查看思维导图
                     </button>
+                    {toolOutput.result_path && (
+                      <button
+                        onClick={() => setShowPipelineDebug(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-600 transition-colors"
+                      >
+                        <GitBranch size={14} />
+                        Pipeline Debug
+                      </button>
+                    )}
                   </div>
-                )}
-                <MindMapPreview mermaidCode={toolOutput.mindmap_code} title="思维导图" onNodeClick={handleMindmapNodeClick} />
+                </div>
               </div>
             )}
             {showPipelineDebug && toolOutput?.result_path && (
