@@ -5,7 +5,7 @@ import {
   BarChart2, Zap, AudioLines, Video, FileText,
   Filter, MoreVertical, Search, Image as ImageIcon, FileStack, Sparkles,
   Mic2, Video as VideoIcon, BrainCircuit, Send, Bot, User, Loader2, Upload, X,
-  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain
+  Globe, Link2, Cloud, ChevronRight, LayoutGrid, Download, BookOpen, Brain, GitBranch
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { apiFetch } from '../config/api';
@@ -13,6 +13,7 @@ import { getApiSettings } from '../services/apiSettingsService';import { fetchWi
 import type { KnowledgeFile, ChatMessage, ToolType } from '../types';
 import ReactMarkdown from 'react-markdown';
 import { MermaidPreview } from '../components/knowledge-base/tools/MermaidPreview';
+import { PipelineDebugModal } from '../components/knowledge-base/tools/pipeline-debug/PipelineDebugModal';
 import { SettingsModal } from '../components/SettingsModal';
 import DrawioInlineEditor from '../components/DrawioInlineEditor';
 import { FlashcardViewer } from '../components/flashcards/FlashcardViewer';
@@ -116,6 +117,7 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
   
   // Tool outputs
   const [toolOutput, setToolOutput] = useState<any>(null);
+  const [showPipelineDebug, setShowPipelineDebug] = useState(false);
   const [toolLoading, setToolLoading] = useState(false);
   const [outputFeed, setOutputFeed] = useState<Array<{
     id: string;
@@ -3262,7 +3264,25 @@ const NotebookView = ({ notebook, onBack }: { notebook: any, onBack: () => void 
             {toolOutput && activeTool === 'mindmap' && toolOutput.mindmap_code && (
               <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <MermaidPreview mermaidCode={toolOutput.mindmap_code} title="思维导图" />
+                {toolOutput.result_path && (
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={() => setShowPipelineDebug(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-600 transition-colors"
+                    >
+                      <GitBranch size={14} />
+                      Pipeline Debug
+                    </button>
+                  </div>
+                )}
               </div>
+            )}
+            {showPipelineDebug && toolOutput?.result_path && (
+              <PipelineDebugModal
+                isOpen={showPipelineDebug}
+                onClose={() => setShowPipelineDebug(false)}
+                resultPath={toolOutput.result_path}
+              />
             )}
 
             {toolOutput && activeTool === 'ppt' && (
