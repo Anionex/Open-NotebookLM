@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from workflow_engine.logger import get_logger
+from workflow_engine.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
 from workflow_engine.utils import get_project_root
 
 from fastapi_app.notebook_paths import NotebookPaths
@@ -297,92 +298,11 @@ class SourceManager:
     # ------------------------------------------------------------------
 
     async def _run_mineru(self, pdf_path: Path, output_dir: Path) -> None:
-        """Run MinerU on a PDF file — cloud API first, local CLI fallback."""
-        from fastapi_app.config.settings import settings
-
-        if settings.MINERU_API_TOKEN:
-            await self._run_mineru_cloud(pdf_path, output_dir)
-        else:
-            from workflow_engine.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
-            await asyncio.to_thread(
-                run_mineru_pdf_extract,
-                str(pdf_path),
-                str(output_dir),
-                "modelscope",
-                None,
-                "pipeline",
-            )
-
-    async def _run_mineru_cloud(self, pdf_path: Path, output_dir: Path) -> None:
-        """Submit PDF to MinerU cloud API and download the result markdown."""
-        import httpx, zipfile, io, asyncio as _asyncio
-        from fastapi_app.config.settings import settings
-
-        token = settings.MINERU_API_TOKEN
-        base_url = settings.MINERU_API_URL.rstrip("/")
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        file_size = pdf_path.stat().st_size
-
-        async with httpx.AsyncClient(timeout=60) as client:
-            # 1. Get pre-signed upload URL
-            up = await client.post(
-                f"{base_url}/file-urls/batch",
-                headers=headers,
-                json={"files": [{"name": pdf_path.name, "size": file_size}]},
-            )
-            up.raise_for_status()
-            up_data = up.json()
-            if up_data.get("code") != 0:
-                raise RuntimeError(f"MinerU get-upload-url failed: {up_data}")
-
-            batch_id = up_data["data"]["batch_id"]
-            upload_url = up_data["data"]["file_urls"][0]
-
-            # 2. Upload the file
-            with open(pdf_path, "rb") as f:
-                put_resp = await client.put(upload_url, content=f.read(),
-                                            headers={"Content-Type": "application/octet-stream"})
-            put_resp.raise_for_status()
-
-            # 3. Submit extract task
-            task_resp = await client.post(
-                f"{base_url}/extract/task",
-                headers=headers,
-                json={"batch_id": batch_id, "enable_formula": True, "enable_table": True, "language": "ch"},
-            )
-            task_resp.raise_for_status()
-            task_data = task_resp.json()
-            if task_data.get("code") != 0:
-                raise RuntimeError(f"MinerU submit task failed: {task_data}")
-            task_id = task_data["data"]["task_id"]
-            log.info("[MinerU cloud] task_id=%s for %s", task_id, pdf_path.name)
-
-        # 4. Poll for completion (max 10 min)
-        async with httpx.AsyncClient(timeout=30) as client:
-            for _ in range(120):
-                await _asyncio.sleep(5)
-                poll = await client.get(f"{base_url}/extract/task/{task_id}", headers=headers)
-                poll.raise_for_status()
-                poll_data = poll.json()
-                state = poll_data.get("data", {}).get("state", "")
-                log.debug("[MinerU cloud] task %s state=%s", task_id, state)
-                if state == "done":
-                    zip_url = poll_data["data"]["full_zip_url"]
-                    break
-                if state in ("failed", "error"):
-                    raise RuntimeError(f"MinerU cloud task failed: {poll_data}")
-            else:
-                raise RuntimeError(f"MinerU cloud task {task_id} timed out")
-
-        # 5. Download zip and extract
-        async with httpx.AsyncClient(timeout=120) as client:
-            zip_resp = await client.get(zip_url)
-            zip_resp.raise_for_status()
-
-        output_dir.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:
-            zf.extractall(output_dir)
-        log.info("[MinerU cloud] extracted to %s", output_dir)
+        """Run MinerU on a PDF file."""
+        await run_mineru_pdf_extract_http(
+            str(pdf_path),
+            str(output_dir),
+        )
 
     def _generate_markdown(
         self, file_path: Path, ext: str, mineru_dir: Optional[Path]
