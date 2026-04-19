@@ -121,6 +121,10 @@ class AppSettings(BaseSettings):
     MINERU_API_POLL_INTERVAL_SECONDS: float = 5.0
     MINERU_API_TIMEOUT_SECONDS: float = 900.0
 
+    # MinerU Cloud API (https://mineru.net)
+    MINERU_API_URL: str = "https://mineru.net/api/v4"
+    MINERU_API_TOKEN: Optional[str] = None
+
     class Config:
         env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
