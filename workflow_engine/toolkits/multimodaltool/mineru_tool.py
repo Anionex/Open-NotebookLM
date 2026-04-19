@@ -25,7 +25,10 @@ import subprocess
 import re
 import random
 from PIL import Image
-from mineru_vl_utils import MinerUClient
+try:
+    from mineru_vl_utils import MinerUClient
+except ImportError:
+    MinerUClient = None
 
 
 # ---------------------------------------

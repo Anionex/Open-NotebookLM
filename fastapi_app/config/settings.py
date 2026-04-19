@@ -116,6 +116,10 @@ class AppSettings(BaseSettings):
     USE_LOCAL_MINERU: int = 0
     LOCAL_MINERU_CUDA_VISIBLE_DEVICES: Optional[str] = None
 
+    # MinerU Cloud API (https://mineru.net)
+    MINERU_API_URL: str = "https://mineru.net/api/v4"
+    MINERU_API_TOKEN: Optional[str] = None
+
     class Config:
         env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"

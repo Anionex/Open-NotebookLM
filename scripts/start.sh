@@ -11,8 +11,8 @@ cd "$PROJECT_ROOT"
 # ── Python 解析 ───────────────────────────────────────────────────────────────
 resolve_python() {
     local candidates=(
+        "/mnt/paper2any/conda-envs/envs/thinkflow/bin/python"
         "${CONDA_PREFIX:-}/bin/python"
-        "/root/miniconda3/envs/szl-dev/bin/python"
         "$(command -v python3 2>/dev/null || true)"
         "$(command -v python 2>/dev/null || true)"
     )

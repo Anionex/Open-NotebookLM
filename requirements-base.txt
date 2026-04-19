@@ -1,33 +1,37 @@
 # ============================================
-# OpenNotebookLM - 核心依赖（精简版）
+# Open-NotebookLM - 核心依赖
+# 环境: conda env thinkflow (Python 3.11)
 # ============================================
 
 # ------ Core Framework ------
-fastapi==0.135.1
-uvicorn==0.29.0
+fastapi==0.115.0
+uvicorn[standard]==0.29.0
 pydantic>=2.11.0
 pydantic-settings>=2.12.0
 python-dotenv==1.0.1
 python-multipart>=0.0.22
-httpx[socks]==0.28.1
-requests==2.32.5
-supabase==2.27.2
+httpx[socks]>=0.28.0
+requests>=2.32.0
+supabase>=2.0.0
 
-# ------ LLM / LangChain ------
-openai==2.16.0
+# ------ LLM / LangChain / LangGraph ------
+openai>=1.50.0
 langchain==0.3.27
-langchain-chroma==0.2.6
-langchain-community==0.3.29
-langchain-text-splitters==0.3.11
+langchain-openai>=0.3.0
+langchain-chroma>=0.2.0
+langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
+langgraph>=0.3.0
+tiktoken>=0.7.0
 
 # ------ Vector Store / Embedding ------
-chromadb==1.5.5
-faiss-cpu==1.12.0
-numpy<2.0.0
+chromadb>=1.5.0
+faiss-cpu>=1.8.0
+numpy<2.5.0
 
 # ------ Document Parsing ------
-PyMuPDF==1.26.7
-pdfplumber==0.11.9
+PyMuPDF>=1.24.0
+pdfplumber>=0.11.0
 trafilatura>=2.0.0
 
 # ------ Office / Export ------
@@ -36,21 +40,21 @@ openpyxl>=3.1.5
 
 # ------ Image ------
 pillow>=10.4.0
-matplotlib>=3.10.0
+matplotlib>=3.9.0
 
-# ------ Database ------
-sqlalchemy==2.0.25
-sqlmodel==0.0.37
-duckdb==1.5.0
-pandas>=2.3.0
+# ------ Database / Data ------
+sqlalchemy>=2.0.0
+sqlmodel>=0.0.21
+duckdb>=1.1.0
+pandas>=2.2.0
 
 # ------ Web Scraping ------
-beautifulsoup4>=4.14.0
+beautifulsoup4>=4.12.0
 
-# ------ Workflow Engine ------
+# ------ Workflow / Utilities ------
 pyyaml>=6.0.0
 jinja2>=3.1.0
-loguru>=0.7.3
-
-# ------ Dev / Test ------
-pytest>=9.0.0
+loguru>=0.7.0
+rank-bm25>=0.2.2
+tabulate>=0.9.0
+json5>=0.9.0
