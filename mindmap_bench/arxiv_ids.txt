@@ -1,0 +1,2 @@
+# Optional: one arxiv ID per line. Lines starting with # or blank are ignored.
+# Leaving this empty uses only the search queries in 01_collect_papers.py.

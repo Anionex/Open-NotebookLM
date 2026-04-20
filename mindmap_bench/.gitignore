@@ -1,0 +1,21 @@
+# Heavy / generated artifacts (not tracked)
+papers/
+papers_md/
+results/
+scores/
+scores_v3/
+_staging/
+_logs/
+_v1_scores/
+_v2_mapreduce/
+_v2_original/
+_v2_original_md/
+_v2_scores/
+*.log
+
+# Floating "latest" report is rebuilt each run — only versioned reports are tracked
+report.md
+report.csv
+report.html
+
+# Track versioned reports explicitly (report_v1.md etc. are not ignored)
