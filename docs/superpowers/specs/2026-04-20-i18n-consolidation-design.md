@@ -50,7 +50,7 @@ interface I18nState {
 ```
 
 - Init: read `localStorage.getItem('locale')` → fallback to `navigator.language` detection
-- `setLocale()`: updates state + writes `localStorage.setItem('locale', value)`
+- `setLocale()`: updates state + writes `localStorage.setItem('locale', value)` + sets `document.documentElement.lang = locale` for accessibility
 
 ### 4.3 Translation Hook (`index.ts`)
 
@@ -60,13 +60,27 @@ function useT(): (key: TranslationKey, params?: Record<string, string>) => strin
 
 - Reads `locale` from Zustand store via selector
 - Looks up key in the corresponding translation object
-- Simple interpolation: replaces `{param}` placeholders
+- Simple interpolation: replaces `{param}` placeholders; unmatched placeholders are stripped (replaced with empty string) and a console.warn is emitted in dev mode
 - Falls back to key string if translation missing (dev safety)
-- Type-safe: `TranslationKey` is a union of all valid keys
+- Type-safe: `TranslationKey` is derived from `keyof typeof zh`, ensuring compile-time key validation
 
 ### 4.4 Translation Files (`zh.ts`, `en.ts`)
 
-Flat key-value objects, namespaced by component/page:
+Flat key-value objects, namespaced by component/page. Type safety enforced via shared type:
+
+```ts
+// types.ts — single source of truth for key set
+import zh from './zh'
+export type TranslationKey = keyof typeof zh
+export type Translations = Record<TranslationKey, string>
+
+// en.ts — must satisfy Translations, TS errors if keys mismatch
+import type { Translations } from './types'
+const en: Translations = { ... }
+export default en
+```
+
+Example keys:
 
 ```ts
 export default {
@@ -84,15 +98,15 @@ export default {
 
 ### 4.5 Language Switcher Component
 
-Location: `ThinkFlowTopBar.tsx` right-side controls area.
+Location: `ThinkFlowTopBar.tsx` right-side controls area + `Dashboard.tsx` top bar.
 
-Minimal toggle showing current language label. Clicking cycles between zh/en. Instant effect — Zustand state change triggers re-render of all `useT()` consumers.
-
-Also add a switcher to `Dashboard.tsx` top bar for pre-notebook pages.
+A text button showing `中文` or `EN` (matching current locale). Clicking toggles to the other language. Styled consistently with existing topbar button classes. Instant effect — Zustand state change triggers re-render of all `useT()` consumers. No page reload needed.
 
 ## 5. Translation Scope
 
-### Files to translate (~19 files, ~170 keys)
+### Files to translate
+
+The table below is an estimate. Before implementation, run `grep -rn '[\u4e00-\u9fff]' frontend_zh/src/ --include='*.tsx' --include='*.ts'` to produce the definitive file list. Chinese in code comments does not need translation — only user-visible strings.
 
 | File | Key count (est.) | Content type |
 |---|---|---|
@@ -115,6 +129,9 @@ Also add a switcher to `Dashboard.tsx` top bar for pre-notebook pages.
 | TableResultCard.tsx | ~4 | Buttons, labels |
 | ThinkFlowWorkspace.tsx | ~15 | Various prompts and status |
 | MermaidPreview.tsx | ~3 | Labels |
+| index.html | ~1 | Page title (`<title>`) |
+
+Dynamic count strings (e.g., "3 个笔记本") use interpolation: `t('dashboard.notebookCount', { count: '3' })` → "3 个笔记本" / "3 notebooks".
 
 ### NOT translated
 
@@ -131,9 +148,9 @@ Also add a switcher to `Dashboard.tsx` top bar for pre-notebook pages.
 
 ### Clean up references
 
-- `scripts/start.sh`, `scripts/start_frontend.sh` — remove frontend_en launch logic if present
-- `docs/development-architecture-guide.md` — remove Section 7 (frontend_en description)
-- Any other docs referencing frontend_en
+- `docs/development-architecture-guide.md` — remove Section 7 (frontend_en description) and update any cross-references
+- Other docs referencing frontend_en (if any, verify with grep)
+- Note: `scripts/` directory does not reference frontend_en (verified) — no changes needed there
 
 ### Do NOT migrate
 
@@ -146,4 +163,5 @@ Also add a switcher to `Dashboard.tsx` top bar for pre-notebook pages.
 - Manual: switch language in ThinkFlow workspace → verify all panels update
 - Manual: refresh page → verify language persists
 - Manual: clear localStorage → verify browser language detection works
-- Build: `npm run build` must pass with no TS errors (type-safe translation keys catch missing translations at compile time)
+- Build: `npm run build` must pass with no TS errors — the `Translations` type constraint ensures `en.ts` and `zh.ts` have identical key sets at compile time
+- CI guard (optional): a script asserting `Object.keys(zh).sort()` equals `Object.keys(en).sort()` to prevent key drift
