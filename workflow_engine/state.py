@@ -475,6 +475,7 @@ class KBMindMapRequest(MainRequest):
     mindmap_style: str = "default"  # default | flowchart | tree
     max_depth: int = 6  # 思维导图最大深度
     vector_store_base_dir: Optional[str] = None  # 向量库根目录（manifest所在目录）
+    beautify: bool = False  # 是否对最终思维导图做美化（结构重平衡 + 命名优化）
 
 @dataclass
 class KBMindMapState(MainState):
@@ -496,6 +497,10 @@ class KBMindMapState(MainState):
     collapse_iterations: int = 0
     total_content_tokens: int = 0
     context_window_limit: int = 0
+
+    # ---- v7 Per-article 中间状态 ----
+    # 每项: {filename, route: "direct"|"mapreduce", markdown, chunk_summaries, retained_nodes, headings}
+    per_article_results: List[Dict[str, Any]] = field(default_factory=list)
 
 
 # ==================== Paper2Drawio 相关 State ====================

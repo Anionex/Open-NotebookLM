@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A 基本覆盖了论文主线：RL 基础、预训练/对齐/推理全生命周期、RLVR、多模态、自适应推理、Agent、数据基准、工具框架、挑战与趋势，整体与原文 taxonomy 较一致。层级上从理论到生命周期再到资源与挑战，主干清晰，子节点也大多归属合理。不足在于若干重要内容缺失或弱化：未单独体现 related surveys、贡献总结、奖励模型设计单列、合成数据生成单列，也基本未覆盖论文中对内部反馈 RL 的完整展开。准确性方面有少量表述不严谨，如将 DAPO 放入“RL 理论基础与核心范式”略偏，GRPO 优势写成“组内奖励均值”而正文公式和描述更复杂，‘Yi-Optimal’命名不够忠实。整体较强，但仍有压缩导致的信息损失。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "B 对全文覆盖更完整，除 RL 基础、对齐、RLVR、 多模态、自适应推理、框架与基准外，还专门纳入了奖励模型设计、合成数据、机制分析、内部反馈与无监督学习，较好对应论文第3-7章的重点。结构上各主分支规模较均衡，层级清晰，节点多为短语，简洁度优于 A。其不足是生命周期视角不如论文原文那样突出：预训练阶段没有单独成主分支，‘偏好对齐’与‘RLVR 推理增强’并列虽合理，但弱化了论文强调的 full lifecycle 组织方式；同时将部分评测集与应用混放，如 VisuLogic 更偏 benchmark 而非方法。准确性总体较好，但也有个别失真：Text2Reward 被放在‘合成数据生成技术’下不准确，它本质是奖励函数生成；具身/视频/工具调用节点间也有少量边界混杂。总体上 B 更全面、均衡、精炼。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 34.7
+}

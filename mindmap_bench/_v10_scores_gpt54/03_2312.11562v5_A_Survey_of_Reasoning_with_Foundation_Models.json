@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "覆盖面较广，包含背景中的推理分类、数学/逻辑/因果、常识/视觉/音频/多模态、智能体、预训练/微调/对齐、若干垂直应用，主干比 B 更完整。但对论文原文的忠实度较差：加入了大量文中未重点出现或未出现的内容，如 RWKV、RetNet、Mamba、Pile、C4、Galactica、Tree-of-Thought、Graph-of-Thought、DPO、RRHF、QLoRA 等；同时缺少论文明确的大章节如 challenges/limitations/risks、future directions、安全与隐私、可解释性与透明性、super alignment 的独立呈现。层级总体合理，分支规模也较均衡，节点多为短语。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 2,
+      "rationale": "结构紧凑，主干层级清晰，能概括推理定义、若干任务、技术路径、智能体、评估与前沿方向。但覆盖不如 A，遗漏较多论文重点内容：缺少 foundation models 背景中的语言/视觉/多模态模型进展与应用潜力，较少体现 benchmarks/datasets 的系统整理，也未充分展开音频推理、医学/生物信息、天气、长链/抽象/可废止推理等章节。忠实度同样偏低，混入多项原文未重点涉及或未出现的内容，如 RWKV、RetNet、Proof-Pile、Self-Instruct、Evol-Instruct、Reflexion、HuggingGPT、HumanEval、DrugGPT；个别表述还带解释性括注，简洁性略差。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 40.9
+}

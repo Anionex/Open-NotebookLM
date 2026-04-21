@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "A 覆盖了背景、few-shot 主要方法族、探索/Bayes、自适应、many-shot、应用与监督等大块内容，但对论文明确章节的覆盖不完整，缺少 Related Work、Open Problems、Conclusion，以及 many-shot 内部三小节和应用仅两类的更明确展开。层级上总体清晰，能从理论基础→方法→探索→many-shot→应用递进。分支规模较均衡。表述多为短语，较简洁。主要问题在忠实度：加入了原文未突出或未在给定内容中明确支持的节点，如 PAC 泛化误差界限、任务相似度度量、遗憾度分析、工作记忆与情境记忆集成、自修改神经网络、多平台硬件适配、跨领域泛化能力验证等；同时遗漏了论文中非常核心的 problem categories、related work、supervision/model-based/theory 作为独立章节结构。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "B 对论文主线的覆盖更完整：包含定义与POMDP、few-shot 三大类方法、探索与 Bayes-adaptive optimality、many-shot、监督/无监督/Meta-IL、应用与开放问题，且点到了代表算法如 MAML、CAVIA、RL2、PEARL、VariBAD、DREAM、LPG、MetaGenRL、STAC/FRODO、DIAYN。层级结构合理，主分支之间较均衡，节点表述普遍简短凝练。相比 A，B 更忠实于原文组织和术语。小缺点是仍缺少 Related Work、Model-based Meta-RL、Theory of Meta-RL、Conclusion 的独立体现；并把“离线 Meta-RL”提前并入监督扩展，更接近开放问题 6.3 而非前文主体章节，但整体仍基本准确。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 30.3
+}

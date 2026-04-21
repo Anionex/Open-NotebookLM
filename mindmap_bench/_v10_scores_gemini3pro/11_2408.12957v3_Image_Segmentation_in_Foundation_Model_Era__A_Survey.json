@@ -1,0 +1,28 @@
+{
+  "stem": "11_2408.12957v3_Image_Segmentation_in_Foundation_Model_Era__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "Mind map A fails to capture the paper's core taxonomy (Generic vs. Promptable Image Segmentation) and completely omits the Background section. It arbitrarily elevates specific sub-topics, such as medical imaging and data synthesis, to top-level branches, which severely disrupts the logical hierarchy of the survey. While the nodes are concise and factually accurate, the overall structure does not reflect the paper's systematic organization."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Mind map B excellently captures the paper's comprehensive structure, accurately reflecting the progression from Background and Knowledge Emergence to GIS, PIS, and Future Directions. The hierarchy is highly logical and strictly follows the authors' taxonomy. The branches are well-balanced, and the terminology is faithfully retained with concise explanations, providing a perfect structural summary of the survey."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 16.6
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "19_2201.12150v2_Learning_Curves_for_Decision_Making_in_Supervised_Machine_Learning__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Mind Map A comprehensively covers all core aspects of the paper, including the three axes of the proposed framework (decision situations, technical questions with explicit complexity levels, and data resources) as well as the open research directions. The hierarchy perfectly mirrors the paper's logical flow. The branches are well-balanced and terminology is highly accurate. Conciseness is slightly reduced due to a few longer descriptive phrases."
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind Map B captures the main concepts, decision scenarios, and modeling techniques accurately and with excellent conciseness. However, it completely misses the final section on open research directions and fails to explicitly represent the 6-level framework of technical questions, which is a core contribution of the paper. The hierarchy is logical but slightly fragments the modeling and extrapolation techniques compared to the paper's structure."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.8
+}

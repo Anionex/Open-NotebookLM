@@ -19,12 +19,18 @@ from pathlib import Path
 BENCH_DIR = Path(__file__).resolve().parents[1]
 MD_DIR = BENCH_DIR / "papers_md"
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BENCH_DIR / ".env", override=False)
+except ImportError:
+    pass
+
 API_URL = os.getenv("BENCH_GEN_API_URL", "")
 API_KEY = os.getenv("BENCH_GEN_API_KEY", "")
 MODEL = os.getenv("BENCH_GEN_MODEL", "gemini-3-flash-preview")
 LANGUAGE = "zh"
 MAX_DEPTH = 6
-CONCURRENCY = 3
+CONCURRENCY = int(os.getenv("BENCH_GEN_CONCURRENCY", "3"))
 
 
 async def run_one(md_path: Path, out_md: Path, run_workflow, KBMindMapState, KBMindMapRequest,

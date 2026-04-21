@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Map A captures the core narrative and key stages of the paper but restructures the original sections into thematic blocks, losing some of the detailed taxonomy (especially in Stage 1 and datasets) present in the text. Some nodes are slightly wordy, though the extracted information remains highly accurate."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Map B perfectly mirrors the paper's comprehensive hierarchical structure, providing excellent depth across all sections from modular reasoning to N-LMRMs and benchmarks. The branches are well-balanced, and the nodes are highly concise, accurately capturing a vast amount of specific models and paradigms without unnecessary filler."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.8
+}

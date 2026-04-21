@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A较好覆盖了论文主线：传统FL局限、query-based FL、许可证与法律、批量模型复用 taxonomy、contract-based FL、微任务设计、模型保护等核心内容都在。层级总体清晰，query-based 与 contract-based 两大方案拆分合理，taxonomy 下四类机制也完整。不足在于对论文前部的 related surveys、FL基本定义与四类角色、query-based/contract-based 的性质与限制、结论等覆盖不够；一些具体论文强调点如许可证选择流程、混合模型复用与表格总结、query-based FL 的局限没有明显体现。表述较简洁，多为短语，但仍有少量偏长节点。术语基本准确，保留了 Model Community、Combination/Amalgamation/Distillation/Generation、OpenRAIL、FedAvg 等关键名词，但数字、角色定义和部分关键属性缺失。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "B对全文覆盖更完整，除了传统FL局限、query-based 与 contract-based 两种开放平台、批量模型重用四分类、法律许可体系、微任务设计、模型保护外，还补入了平台属性、许可选择指南、审计与第三方评估、DP/拜占庭/后门等相关问题，整体更接近论文全景。层级组织也较合理，先平台范式再技术机制与法律、最后微任务和保护，逻辑顺畅。缺点是部分节点把多个信息点压在同一条里，层级利用不如A细致，且加入了少量泛化安全点，和原文主线有一定松散。简洁性稍弱，存在括号、斜杠、长句式节点，如“模型社区：提供索引/自动重用/许可管理”等，不完全符合短语化要求。忠实度总体较高，关键术语、方法名和典型例子较准确，但仍缺少论文中特别强调的FL四角色、许可证表中的关键细节与部分数字信息。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 22.7
+}

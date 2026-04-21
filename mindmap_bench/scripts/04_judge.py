@@ -25,29 +25,38 @@ import httpx
 
 BENCH_DIR = Path(__file__).resolve().parents[1]
 MD_DIR = BENCH_DIR / "papers_md"
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BENCH_DIR / ".env", override=False)
+except ImportError:
+    pass
+
 RESULTS = {
     "mapreduce": BENCH_DIR / "results" / "mapreduce",
     "original": BENCH_DIR / "results" / "original_md",  # format-normalized (Mermaid → MD headings)
 }
 SCORES_DIR = BENCH_DIR / "scores"
 
-JUDGE_MODEL = "gemini-3-pro-preview"
+JUDGE_MODEL = os.getenv("BENCH_JUDGE_MODEL", "gemini-3-pro-preview")
 API_URL = os.getenv("BENCH_JUDGE_API_URL", "https://aihubmix.com/v1/chat/completions")
 API_KEY = os.getenv("BENCH_JUDGE_API_KEY", "")
 DIMENSIONS = ["coverage", "hierarchy", "balance", "conciseness", "accuracy"]
 SOURCE_CHAR_CAP = 180000  # plenty of room for gemini-3-pro's long context
 
-CONCURRENCY = 4
+CONCURRENCY = int(os.getenv("BENCH_JUDGE_CONCURRENCY", "4"))
 MAX_RETRIES = 2
 
 
-def load_paper_set() -> list[tuple[str, Path, Path, Path]]:
-    """Return list of (stem, source_md, mapreduce_md, original_md) for papers with both results."""
+def load_paper_set(results: dict[str, Path] | None = None) -> list[tuple[str, Path, Path, Path]]:
+    """Return list of (stem, source_md, algo_a_md, algo_b_md) for papers with both results."""
+    results = results or RESULTS
+    algo_names = list(results.keys())
     out = []
     for src in sorted(MD_DIR.glob("*.md")):
         stem = src.stem
-        a = RESULTS["mapreduce"] / f"{stem}.md"
-        b = RESULTS["original"] / f"{stem}.md"
+        a = results[algo_names[0]] / f"{stem}.md"
+        b = results[algo_names[1]] / f"{stem}.md"
         if a.exists() and b.exists():
             out.append((stem, src, a, b))
     return out
@@ -148,19 +157,22 @@ async def call_judge(client: httpx.AsyncClient, prompt: str) -> tuple[dict | Non
 
 
 async def judge_one(stem: str, src: Path, a_path: Path, b_path: Path,
-                    client: httpx.AsyncClient, sem: asyncio.Semaphore, force: bool) -> tuple[str, str]:
-    out = SCORES_DIR / f"{stem}.json"
+                    client: httpx.AsyncClient, sem: asyncio.Semaphore, force: bool,
+                    algo_a_name: str = "mapreduce", algo_b_name: str = "original",
+                    scores_dir: Path | None = None) -> tuple[str, str]:
+    scores_dir = scores_dir or SCORES_DIR
+    out = scores_dir / f"{stem}.json"
     if out.exists() and not force:
         return stem, "skip (already scored)"
 
     async with sem:
         rng = random.Random(hash(stem) & 0xFFFFFFFF)
         if rng.random() < 0.5:
-            a_algo, a_md = "mapreduce", a_path.read_text(encoding="utf-8")
-            b_algo, b_md = "original", b_path.read_text(encoding="utf-8")
+            a_algo, a_md = algo_a_name, a_path.read_text(encoding="utf-8")
+            b_algo, b_md = algo_b_name, b_path.read_text(encoding="utf-8")
         else:
-            a_algo, a_md = "original", b_path.read_text(encoding="utf-8")
-            b_algo, b_md = "mapreduce", a_path.read_text(encoding="utf-8")
+            a_algo, a_md = algo_b_name, b_path.read_text(encoding="utf-8")
+            b_algo, b_md = algo_a_name, a_path.read_text(encoding="utf-8")
 
         source = src.read_text(encoding="utf-8")
         prompt = build_prompt(source, a_md, b_md)
@@ -185,18 +197,29 @@ async def judge_one(stem: str, src: Path, a_path: Path, b_path: Path,
 
 
 async def main_async(args: argparse.Namespace) -> int:
-    SCORES_DIR.mkdir(parents=True, exist_ok=True)
-    papers = load_paper_set()
+    algo_a_name = getattr(args, "algo_a_name", "mapreduce")
+    algo_b_name = getattr(args, "algo_b_name", "original")
+    results_dict = {
+        algo_a_name: Path(args.algo_a_dir) if getattr(args, "algo_a_dir", None) else RESULTS["mapreduce"],
+        algo_b_name: Path(args.algo_b_dir) if getattr(args, "algo_b_dir", None) else RESULTS["original"],
+    }
+    scores_dir = Path(args.scores_dir) if getattr(args, "scores_dir", None) else SCORES_DIR
+    scores_dir.mkdir(parents=True, exist_ok=True)
+
+    papers = load_paper_set(results_dict)
     if not papers:
         print("No papers have both results yet.")
         return 1
     if args.only:
         papers = [p for p in papers if args.only in p[0]]
-    print(f"Judging {len(papers)} papers with {JUDGE_MODEL}")
+    print(f"Judging {len(papers)} papers with {JUDGE_MODEL} ({algo_a_name} vs {algo_b_name})")
 
     sem = asyncio.Semaphore(CONCURRENCY)
     async with httpx.AsyncClient() as client:
-        tasks = [judge_one(stem, src, a, b, client, sem, args.force) for stem, src, a, b in papers]
+        tasks = [
+            judge_one(stem, src, a, b, client, sem, args.force, algo_a_name, algo_b_name, scores_dir)
+            for stem, src, a, b in papers
+        ]
         results = await asyncio.gather(*tasks)
 
     ok = sum(1 for _, msg in results if msg.startswith("OK"))
@@ -215,6 +238,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", default=None, help="Only judge papers whose stem contains this substring")
     parser.add_argument("--force", action="store_true", help="Re-judge papers that already have scores")
+    parser.add_argument("--algo-a-dir", default=None, help="Dir for algo A results (default: results/mapreduce)")
+    parser.add_argument("--algo-a-name", default="mapreduce", help="Name for algo A (default: mapreduce)")
+    parser.add_argument("--algo-b-dir", default=None, help="Dir for algo B results (default: results/original_md)")
+    parser.add_argument("--algo-b-name", default="original", help="Name for algo B (default: original)")
+    parser.add_argument("--scores-dir", default=None, help="Dir to write scores JSON (default: scores/)")
     args = parser.parse_args()
     return asyncio.run(main_async(args))
 

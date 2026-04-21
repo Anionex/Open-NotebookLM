@@ -1,0 +1,28 @@
+{
+  "stem": "13_2502.12128v5_LaM-SLidE_Latent_Space_Modeling_of_Spatial_Dynamical_Systems_via_Linked_Entities",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "A 覆盖了论文的核心问题、ID 机制、编解码器与潜空间流模型、跨领域实验、效率与扩展性，并吸收了部分附录中的消融与注意力分析，整体覆盖最完整。层级总体清晰，但少数节点把方法主干与消融细节混放，如“池大小对重构误差影响”“Atom14 表征”嵌在主机制下，层级纯度略受影响。分支规模较均衡，表述多为短语，简洁度高。内容基本忠实，但缺少训练流程、评价指标、局限性等显式主分支，且少量表述偏概括，未保留关键数值。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B 抓住了论文主线：建模挑战、ID 结构保持、两阶段架构、实验结果、效率鲁棒性和潜在基础模型意义，主干完整但覆盖面略窄，未充分体现问题形式化、训练流程、评价指标、消融细节与讨论中的限制。层级组织较自然，主分支划分清楚，但末尾“系统通用性与演进”略偏总结化。分支总体均衡。措辞较精炼，但部分节点已接近完整句。忠实度总体不错，也保留了若干关键结论和数字范围，不过个别实验结论提炼较选择性，细节保真度略逊于 A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 36.0
+}

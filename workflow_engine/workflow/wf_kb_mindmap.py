@@ -12,8 +12,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from workflow_engine.workflow.registry import register
 from workflow_engine.workflow.prompts_kb_mindmap import (
     _build_single_pass_prompt,
+    _build_analyze_structure_prompt,
+    _build_render_structure_prompt,
     _build_map_prompt,
     _build_collapse_prompt,
+    _build_plan_prompt,
     _build_reduce_prompt,
     _build_merge_prompt,
     _build_beautify_prompt,
@@ -82,6 +85,10 @@ _MODEL_CONTEXT_WINDOWS = {
     "gemini-2.5-flash": 1048576,
     "gemini-2.5-pro": 1048576,
     "gemini-2.0-flash": 1048576,
+    "gemini-3-flash": 1048576,
+    "gemini-3-pro": 1048576,
+    "gemini-3": 1048576,
+    "gpt-5": 400000,
     "qwen-plus": 131072,
     "qwen-max": 131072,
     "qwen-turbo": 131072,
@@ -191,6 +198,68 @@ def _parse_map_json_safe(raw_text: str, chunk_id: str) -> dict:
 
     log.warning(f"Map JSON 解析失败 (chunk={chunk_id})，使用 fallback")
     return {"summary": "", "nodes": [_make_fallback_node(chunk_id, raw_text[:500])]}
+
+
+# ==================== 节点名净化（demote 数字 / 年份 / 百分比） ====================
+
+_BAD_TOPIC_PATTERNS = [
+    re.compile(r"^\s*\d{4}\s*年?\s*$"),                          # 2013, 2013年
+    re.compile(r"^\s*\d+(\.\d+)?\s*%\s*$"),                      # 76.0%
+    re.compile(r"^\s*\d+(\.\d+)?\s*(倍|次|篇|个|项|章|节|页|卷|期)\s*$"),
+    re.compile(r"^\s*\$\s*\d+(\.\d+)?\s*$"),                     # $100
+    re.compile(r"^\s*\d+\s*[xX×]\s*\d+\s*$"),                    # 19x19 (无后续文字)
+    re.compile(r"^\s*\d+\s*[-\u2013:：]\s*\d+\s*$"),             # 4-1, 4:1
+    re.compile(r"^[\s\d\.,\-:：%年月日]+$"),                      # 纯数字/标点/年月日
+]
+
+_BAD_TOPIC_KEYWORDS = {
+    "引言", "简介", "概述", "背景", "研究背景", "文章结构", "章节概览", "章节安排",
+    "致谢", "参考文献", "附录", "索引", "图表目录",
+    "研究方法", "研究内容", "主要内容", "主要贡献", "论文组织", "论文结构",
+    "arxiv 编号", "IEEE", "期刊", "作者信息",
+}
+
+
+def _is_bad_topic(topic: str) -> bool:
+    """检测 topic 是否是纯数字 / 年份 / 百分比 / 元信息（这类不应作为节点名）。"""
+    if not topic:
+        return True
+    t = topic.strip()
+    if not t:
+        return True
+    for pat in _BAD_TOPIC_PATTERNS:
+        if pat.match(t):
+            return True
+    if t in _BAD_TOPIC_KEYWORDS:
+        return True
+    return False
+
+
+def _sanitize_nodes(nodes: List[dict]) -> List[dict]:
+    """把 topic 为数字 / 年份 / 百分比 / 空泛容器词的节点剔除（其信息合并到 parent 的 summary）。"""
+    if not nodes:
+        return nodes
+    topic_to_idx = {n.get("topic", "").strip(): i for i, n in enumerate(nodes)}
+    good: List[dict] = []
+    bad_count = 0
+    for n in nodes:
+        topic = str(n.get("topic", "")).strip()
+        if _is_bad_topic(topic):
+            bad_count += 1
+            parent = str(n.get("parent_topic", "")).strip()
+            if parent and parent != "ROOT" and parent in topic_to_idx:
+                pidx = topic_to_idx[parent]
+                if pidx < len(nodes):
+                    parent_node = nodes[pidx]
+                    extra = n.get("summary", "") or topic
+                    if extra:
+                        cur = str(parent_node.get("summary", "")).strip()
+                        parent_node["summary"] = (cur + (" " if cur else "") + str(extra)).strip()
+            continue
+        good.append(n)
+    if bad_count:
+        log.info(f"[Sanitize] 剔除 {bad_count} 个数字/年份/空壳节点")
+    return good
 
 
 def _make_fallback_node(chunk_id: str, summary: str) -> dict:
@@ -578,14 +647,41 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
     # ==================== Per-article 内部管线 ====================
 
     async def _run_article_direct(article: Dict[str, Any], state: KBMindMapState) -> str:
-        """短文本 direct 路径：单次 LLM 调用。"""
+        """短文本 direct 路径：两阶段 analyze → render（人类画图思路）。"""
         contents_str = f"=== {article['filename']} ===\n{article['content']}\n\n"
-        prompt = _build_single_pass_prompt(contents_str, state.request.language, state.request.max_depth)
+        language = state.request.language
+        max_depth = state.request.max_depth
+        article_name = re.sub(r"[^\w\-]", "_", article["filename"])[:40]
+
+        # 阶段 1：分析全文 → 层级化知识结构（缩进文本）
         try:
-            raw = await _call_llm(prompt, state, temperature=0.3)
-            return _clean_markdown_output(raw)
+            analyze_prompt = _build_analyze_structure_prompt(contents_str, language, max_depth)
+            structure = await _call_llm(analyze_prompt, state, temperature=0.3)
+            structure = (structure or "").strip()
+            _save_debug(state, f"direct_01_structure_{article_name}.txt", structure)
         except Exception as e:
-            log.error(f"[MindMap Direct] {article['filename']} 失败: {e}")
+            log.error(f"[Direct Analyze] {article['filename']} 失败: {e}")
+            structure = ""
+
+        # 阶段 2：渲染为 Markdown 思维导图
+        if not structure:
+            # fallback：单次直接生成
+            prompt = _build_single_pass_prompt(contents_str, language, max_depth)
+            try:
+                raw = await _call_llm(prompt, state, temperature=0.3)
+                return _clean_markdown_output(raw)
+            except Exception as e:
+                log.error(f"[Direct Single] {article['filename']} 失败: {e}")
+                return f"# {article['filename']}\n## Error\n### {e}"
+
+        try:
+            render_prompt = _build_render_structure_prompt(structure, language, max_depth)
+            raw = await _call_llm(render_prompt, state, temperature=0.2)
+            md = _clean_markdown_output(raw)
+            _save_debug(state, f"direct_02_markdown_{article_name}.md", md)
+            return md
+        except Exception as e:
+            log.error(f"[Direct Render] {article['filename']} 失败: {e}")
             return f"# {article['filename']}\n## Error\n### {e}"
 
     def _chunk_article(article: Dict[str, Any], limit: int, model: str) -> List[Dict[str, Any]]:
@@ -658,15 +754,44 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         flat_nodes: List[dict] = []
         for mr in map_results:
             flat_nodes.extend(mr.get("nodes", []))
+        # 先净化：去掉 Map 阶段漏网的数字 / 年份 / 空壳节点
+        flat_nodes = _sanitize_nodes(flat_nodes)
         retained_nodes = await _smart_collapse(article_name, flat_nodes, limit, state)
+        retained_nodes = _sanitize_nodes(retained_nodes)
 
-        # ---- Reduce ----
+        # ---- Plan：基于 chunk_summaries + headings + top_topics 规划骨架 ----
         chunk_summaries = [
             {"chunk_id": mr.get("chunk_id", ""), "summary": mr.get("summary", "")}
             for mr in map_results
         ]
         headings_md = _extract_md_headings(article["content"]) if article["filename"].lower().endswith(".md") else ""
-        # 为 Reduce 输出一份精简的 nodes（去掉 importance_score 以避免它再次参与层级决策）
+        # 高分主题（importance_score ≥ 4）作为 Plan 的候选
+        top_topics = [
+            n.get("topic", "") for n in retained_nodes
+            if isinstance(n.get("importance_score"), (int, float)) and n.get("importance_score", 0) >= 4
+        ]
+        # 去重并保序
+        seen = set()
+        top_topics_uniq: List[str] = []
+        for t in top_topics:
+            t = str(t).strip()
+            if t and t not in seen:
+                seen.add(t)
+                top_topics_uniq.append(t)
+
+        plan_prompt = _build_plan_prompt(chunk_summaries, headings_md, top_topics_uniq, language)
+        skeleton_json = ""
+        try:
+            raw = await _call_llm(plan_prompt, state, temperature=0.2)
+            parsed = _parse_json_safe(raw, f"plan_{article_name}")
+            if isinstance(parsed, list) and parsed:
+                skeleton_json = json.dumps(parsed, ensure_ascii=False, indent=2)
+            _save_debug(state, f"03b_plan_{article_name}.json", parsed if parsed else raw)
+            log.info(f"[Plan {article_name}] 骨架 {len(parsed) if isinstance(parsed, list) else '?'} 个主分支")
+        except Exception as e:
+            log.error(f"[Plan {article_name}] 失败: {e}")
+
+        # ---- Reduce ----
         reduce_nodes = [
             {
                 "topic": n.get("topic", ""),
@@ -680,6 +805,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         _save_debug(state, f"04_reduce_input_{article_name}.json", {
             "chunk_summaries": chunk_summaries,
             "headings": headings_md,
+            "skeleton": skeleton_json,
             "retained_nodes": reduce_nodes,
         })
 
@@ -689,6 +815,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             retained_nodes_json=reduce_nodes_json,
             language=language,
             max_depth=state.request.max_depth,
+            skeleton_json=skeleton_json,
         )
         try:
             raw = await _call_llm(prompt, state, temperature=0.3)

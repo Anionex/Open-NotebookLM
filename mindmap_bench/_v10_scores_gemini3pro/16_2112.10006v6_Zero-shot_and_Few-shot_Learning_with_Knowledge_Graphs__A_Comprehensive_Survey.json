@@ -1,0 +1,28 @@
+{
+  "stem": "16_2112.10006v6_Zero-shot_and_Few-shot_Learning_with_Knowledge_Graphs__A_Comprehensive_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图A较好地覆盖了论文的核心内容，但在少样本学习（FSL）范式部分遗漏了数据增强、映射等与ZSL共享的范式，且对第六章的评测基准（Benchmarks）提取不够全面。层级结构清晰，但部分分支深度和广度不够均衡。节点语言相对较长，部分使用了短句而非精简词组。术语提取准确，保留了MetaR、GraIL等关键模型。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B全面且精准地覆盖了论文的所有重要章节，特别是将第六章的应用与评测基准（Benchmarks）进行了独立且详细的拆分，非常契合原论文结构。层级关系严谨，各主分支及其子分支的规模高度均衡，没有出现某一分支过载或单薄的情况。节点命名极其精炼，全部采用高质量的短语，毫无冗余。关键术语、分类框架和论点均忠实于原文，质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.9
+}

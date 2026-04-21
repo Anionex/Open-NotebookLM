@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图A完整覆盖了论文的主要章节，层级结构与原文的章节组织高度一致，逻辑清晰，且准确保留了关键术语和模型名称。但其在简洁性上表现较差，大量使用了括号进行补充说明，严重违反了无括号补充或冗词的评分标准。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B在简洁性上表现极佳，节点全部采用精炼的短语，无任何括号或冗余词汇，且各分支规模非常均衡。但在层级合理性上存在缺陷，将原论文中同属“3D形状分类”的多视图/体素方法与点基方法强行拆分为两个主分支，破坏了原文的分类体系，且将背景知识（数据集与指标）移至最后，与原文结构不符。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 22.0
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 A 提供了论文宏观结构的良好概述，准确反映了主要章节（包括开放问题）。其层级逻辑清晰，与论文的整体架构高度一致。但在具体算法、理论概念和技术细节的覆盖深度上略显不足，部分节点的概括较为宽泛。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 在技术深度上表现出色，极其精准且简洁地捕捉了具体的算法、理论细节和专业术语（如 sampling-correction、BAMDP、PEARL、VariBAD 等）。分支内容详实且分布均衡。唯一的微小瑕疵是将“监督信号变体”（论文的 3.6 节）放在了“机器人控制与多智能体应用”（第 5 节）分支下，略微偏离了原文结构，但整体质量和全面性依然非常卓越。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 57.5
+}

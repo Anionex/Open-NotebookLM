@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Map A captures the core technical methods well but compresses the connections and applications sections, omitting key topics like VAEs, GANs, NLP, and Medical Imaging. The hierarchy is logical but deviates slightly from the paper's comprehensive structure, leading to a slightly imbalanced representation of the paper's later half. However, the nodes are highly concise and the terminology is accurate."
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Map B provides an excellent and highly balanced representation of the paper's structure. It covers almost all major sections, including detailed connections to other generative models and diverse application domains (though it slightly overlooks the standalone NLP section and Future Directions). The hierarchical depth is fully utilized, aligning perfectly with the paper's sections, and the nodes are concise and faithful to the source text."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.1
+}

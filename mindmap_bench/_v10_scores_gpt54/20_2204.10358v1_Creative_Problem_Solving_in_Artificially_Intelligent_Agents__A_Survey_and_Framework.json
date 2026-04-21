@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "覆盖了论文的大部分核心内容：定义、表示、知识操纵、概念空间类型、架构、评估与基准均有体现。但对第2节已有定义对比、4.1中other paradigms、7节开放问题覆盖不足，且未显式体现论文“四组件框架=问题表述/知识表示/知识操纵/评估”的顶层组织。层级整体清晰，先机制后对象再动作与评估，基本合理；但把“环境状态与智能体形态操纵”与“动作空间”并列于知识操纵之后，弱化了第5节是对conceptual spaces的再分类这一关系。分支规模较均衡。表述多为短语，较简洁。术语大体准确，保留了C_X、Boden分类、OROC、FGS、GLIB等关键点，但有少量泛化，例如“过程模型演化机制”较空泛，且未保留论文中problem formulation中的planning/learning二分。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "较完整覆盖论文主线：核心定义与impasse-incubation-insight、问题建模（planning/learning）、知识表示（symbolic/non-symbolic/hybrid）、知识操纵（三类）、概念域（states/actions）、评估与benchmark，以及开放问题，基本对应论文框架与后续扩展。层级设计最贴近原文结构，先定义再4大组件，再到第5节类型与第7节挑战，父子关系明确。各主分支体量均衡，没有明显失衡。节点总体简洁，但部分节点稍长，如“核心定义：操纵知识发现新概念…”。忠实度高，保留了C'_X=f(C_X)、Impasse/Incubation/Insight、TAMP、AUT、POET、NovelGridWorlds等关键术语；“环境修改”虽较原文“terrain modification”略宽，但解释中补足了地形可达性，整体准确。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 83.5
+}

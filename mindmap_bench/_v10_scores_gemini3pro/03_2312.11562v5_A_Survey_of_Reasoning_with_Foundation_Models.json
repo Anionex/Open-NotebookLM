@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图 A 涵盖了论文的基础概念，但遗漏了原文中详细分类的多个推理任务（如音频推理、医学推理、独立的逻辑推理章节等）。其层级结构略显随意，未能严格贴合原论文详尽的分类体系。此外，部分节点使用了较长的解释性短句和括号补充（如“系统1：直觉与无意识处理（Transformer软注意力）”），降低了简洁性。不过整体内容提取较为准确，各分支规模相对均衡。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 极好地映射了原论文宏大的分类体系，完整覆盖了几乎所有的推理任务（数学、逻辑、因果、常识、视觉、音频、智能体、医学、代码等）以及基础模型技术（预训练、提示工程、微调等）。层级划分深入且逻辑严密，高度忠实于原文的目录结构。节点命名极其精炼，全部采用短语形式，无冗余词汇，准确保留了论文中的关键术语和模型名称，质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 99.5
+}

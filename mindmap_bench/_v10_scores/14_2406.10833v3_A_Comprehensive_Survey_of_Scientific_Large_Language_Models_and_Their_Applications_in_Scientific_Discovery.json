@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "覆盖了预训练范式、数学、化学材料、生物医学、地球科学、跨模态、科学发现应用与挑战，主干较完整，但缺少物理学专节、一般科学章节细分和局限性。层级基本合理，按领域与主题展开清晰。分支规模较均衡。表述多为短语，较简洁。准确性上有少量偏差，如CrystallLLM写法、引入HyenaDNA和DNABERT-2等未在正文主体重点展开的内容，个别表述略泛化。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "概括了范式、多模态序列化、部分领域评估、应用和挑战，但对论文按学科展开的主体结构覆盖不足，缺少物理学、一般科学、医学视觉语言、蛋白/DNA/RNA/多组学等大量关键章节。层级组织尚清楚，有从技术到应用的逻辑。分支数量较均衡。简洁性一般，多个节点是较长短句。准确性存在若干混合与泛化，如将不同领域/模态技术合并表述、把MultiMedBench与蛋白结构预测并列、对共同数据底座和参数规模的概括不够严谨。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 32.8
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "A 抓住了论文中较核心的算法、机制与应用主线，覆盖了 DQN、策略梯度、模仿学习、模型与规划、元学习、游戏、机器人、NLP 等重要内容，但明显遗漏了背景章节、资源章节、更多主题、总结与讨论，也弱化了论文强调的六大核心要素/六类机制/十二类应用的整体框架。层级组织较清晰，按主题聚类合理，分支规模也较均衡。表达总体偏短语化，简洁度较好。但忠实度不足，加入了原文未重点展开或未出现为该处主项的内容，如 I2A、Progressive Networks、SLAM 增强型感知机制等，并且对若干原文章节边界有重新拼接，导致准确性偏低。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "B 对论文整体结构的还原更完整，除核心算法、机制与应用外，还补入了 RL 理论基础，如 MDP、贝尔曼方程、DP/MC/TD、多步自举、致命三元组，整体覆盖明显优于 A。主干层次较符合论文从基础到核心方法、再到机制、应用与前沿挑战的展开方式，父子关系基本合理，分支也较均衡。缺点是仍未覆盖资源章节、更多主题、简要总结与讨论等后半部分内容，因此未到满分。表述上常使用解释性短句和括号，较 A 更冗长，简洁性一般。准确性总体较好，关键术语如 DQN、A3C、DDPG、VIN、Predictron、Horde、UNREAL、AlphaGo、NFSP 等基本忠实；但加入了 PPO、将 Bootstrapped DQN 与参数噪声并列混述等，存在少量超出原文或轻微泛化。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 49.4
+}
