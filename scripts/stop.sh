@@ -3,8 +3,9 @@
 
 echo "停止服务..."
 
-BACKEND_PORT=18213
-FRONTEND_PORT=13001
+BACKEND_PORT=8000
+FRONTEND_PORT=3001
+EMBEDDING_PORT=8899
 
 kill_port() {
     local port="$1"
@@ -19,9 +20,11 @@ kill_port() {
 
 kill_port "${BACKEND_PORT}"
 kill_port "${FRONTEND_PORT}"
+kill_port "${EMBEDDING_PORT}"
 pkill -9 -f "uvicorn fastapi_app.main:app" 2>/dev/null || true
 pkill -9 -f "vite.*--port ${FRONTEND_PORT}" 2>/dev/null || true
-pkill -9 -f "bash scripts/monitor.sh"      2>/dev/null || true
+pkill -9 -f "start_embedding_4b.sh"         2>/dev/null || true
+pkill -9 -f "bash scripts/monitor.sh"       2>/dev/null || true
 tmux kill-session -t thinkflow             2>/dev/null || true
 
 echo "已停止。"

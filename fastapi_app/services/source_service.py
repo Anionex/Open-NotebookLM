@@ -12,6 +12,7 @@ from fastapi_app.kb_records import get_source_records
 from fastapi_app.notebook_paths import _sanitize_user_id, get_notebook_paths
 from fastapi_app.utils import _from_outputs_url
 from workflow_engine.logger import get_logger
+from workflow_engine.toolkits.ragtool.vector_store_tool import VectorStoreManager
 from workflow_engine.toolkits.research_tools import fetch_page_text
 from workflow_engine.utils import get_project_root
 
@@ -383,6 +384,45 @@ class SourceService:
             break
 
         return {"content": None, "from_mineru": False}
+
+    def remove_source_from_vector_store(self, storage_path: str) -> bool:
+        """Remove one source from the notebook vector store if it exists there."""
+        if not storage_path or not storage_path.strip():
+            return False
+
+        manifest_path = self._manifest_path_for_storage_path(storage_path.strip())
+        if not manifest_path or not manifest_path.exists():
+            return False
+
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            log.warning("Failed to read vector manifest %s: %s", manifest_path, exc)
+            return False
+
+        try:
+            resolved_target = self._resolve_local_path(storage_path.strip()).resolve()
+        except Exception:
+            resolved_target = None
+
+        target_file_id: Optional[str] = None
+        for file_record in manifest.get("files") or []:
+            original_path = str(file_record.get("original_path") or "").strip()
+            file_id = str(file_record.get("id") or "").strip()
+            if not original_path or not file_id:
+                continue
+            try:
+                if resolved_target and Path(original_path).resolve() == resolved_target:
+                    target_file_id = file_id
+                    break
+            except Exception:
+                continue
+
+        if not target_file_id:
+            return False
+
+        manager = VectorStoreManager(base_dir=str(manifest_path.parent))
+        return bool(manager.remove_file(target_file_id))
 
     def parse_local_file(self, path_or_url: str) -> Dict[str, Any]:
         if not path_or_url or not path_or_url.strip():

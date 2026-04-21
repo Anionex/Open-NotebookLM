@@ -16,7 +16,7 @@ class OutlineRequest(BaseModel):
     notebook_title: str = ""
     user_id: str = "local"
     email: Optional[str] = None
-    document_id: str
+    document_id: str = ""
     target_type: str
     title: str = ""
     prompt: str = ""

@@ -26,8 +26,8 @@ PYTHON_BIN="$(resolve_python)"
 NPM_BIN="$(command -v npm 2>/dev/null)" || { echo "错误: 找不到 npm"; exit 1; }
 
 # ── 清理旧进程 ────────────────────────────────────────────────────────────────
-BACKEND_PORT=18213
-FRONTEND_PORT=13001
+BACKEND_PORT=8000
+FRONTEND_PORT=3001
 
 kill_port() {
     local port="$1"
@@ -58,11 +58,21 @@ nohup "$PYTHON_BIN" -m uvicorn fastapi_app.main:app \
 BACKEND_PID=$!
 
 echo "启动前端 (port ${FRONTEND_PORT})..."
-cd frontend_zh
+cd frontend
 nohup "$NPM_BIN" run dev -- --port "${FRONTEND_PORT}" --host 0.0.0.0 \
     > ../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
+
+EMBEDDING_PORT=8899
+echo "启动 Embedding (port ${EMBEDDING_PORT})..."
+if ! ss -tlnH "sport = :${EMBEDDING_PORT}" 2>/dev/null | grep -q LISTEN; then
+    nohup bash scripts/start_embedding_4b.sh "${EMBEDDING_PORT}" 0.8 \
+        > logs/embedding.log 2>&1 &
+    EMBEDDING_PID=$!
+else
+    EMBEDDING_PID="(already running)"
+fi
 
 echo "启动监控..."
 nohup env PYTHON_BIN="$PYTHON_BIN" NPM_BIN="$NPM_BIN" \
@@ -77,7 +87,7 @@ echo "  ThinkFlow 已启动"
 echo "======================================="
 echo "  后端: http://localhost:${BACKEND_PORT}"
 echo "  前端: http://localhost:${FRONTEND_PORT}"
-echo "  PID:  backend=$BACKEND_PID  frontend=$FRONTEND_PID  monitor=$MONITOR_PID"
-echo "  日志: logs/backend.log  logs/frontend.log"
+echo "  PID:  backend=$BACKEND_PID  frontend=$FRONTEND_PID  embedding=$EMBEDDING_PID  monitor=$MONITOR_PID"
+echo "  日志: logs/backend.log  logs/frontend.log  logs/embedding.log"
 echo "  停止: ./scripts/stop.sh"
 echo "======================================="

@@ -9,14 +9,17 @@ cd "$PROJECT_ROOT"
 
 mkdir -p logs
 
-BACKEND_PORT=18213
-FRONTEND_PORT=13001
+BACKEND_PORT=8000
+FRONTEND_PORT=3001
+EMBEDDING_PORT=8899
 BACKEND_HEALTH_URL="http://127.0.0.1:${BACKEND_PORT}/health"
 FRONTEND_HEALTH_URL="http://127.0.0.1:${FRONTEND_PORT}/"
+EMBEDDING_HEALTH_URL="http://127.0.0.1:${EMBEDDING_PORT}/health"
 LOCK_FILE="$PROJECT_ROOT/logs/monitor.lock"
 STARTUP_GRACE_SECONDS=15
 BACKEND_STARTUP_TIMEOUT=120
 FRONTEND_STARTUP_TIMEOUT=60
+EMBEDDING_STARTUP_TIMEOUT=180
 MONITOR_INITIALIZED=0
 
 PYTHON_BIN="${PYTHON_BIN:-}"
@@ -52,6 +55,7 @@ http_ok()       { curl --max-time 5 -fsS -o /dev/null "$1"; }
 proc_age()      { ps -o etimes= -p "$1" 2>/dev/null | awk '{print $1}'; }
 find_backend()  { pgrep -f "uvicorn fastapi_app.main:app.*--port ${BACKEND_PORT}" | head -1; }
 find_frontend() { pgrep -f "vite.*--port ${FRONTEND_PORT}" | head -1; }
+find_embedding(){ pgrep -f "start_embedding_4b.sh" | head -1; }
 
 restart_backend() {
     log "Backend down — restarting"
@@ -67,11 +71,20 @@ restart_frontend() {
     pkill -9 -f "vite.*--port ${FRONTEND_PORT}" 2>/dev/null || true
     sleep 2
     (
-        cd "$PROJECT_ROOT/frontend_zh"
+        cd "$PROJECT_ROOT/frontend"
         nohup "$NPM_BIN" run dev -- --port "$FRONTEND_PORT" --host 0.0.0.0 \
             >> "$PROJECT_ROOT/logs/frontend.log" 2>&1 &
         log "Frontend restarted PID=$!"
     )
+}
+
+restart_embedding() {
+    log "Embedding down — restarting"
+    pkill -9 -f "start_embedding_4b.sh" 2>/dev/null || true
+    sleep 2
+    nohup bash "$PROJECT_ROOT/scripts/start_embedding_4b.sh" "$EMBEDDING_PORT" 0.8 \
+        >> "$PROJECT_ROOT/logs/embedding.log" 2>&1 &
+    log "Embedding restarted PID=$!"
 }
 
 log "Monitor started"
@@ -101,6 +114,17 @@ while true; do
             log "Frontend starting (PID=$pid age=${age}s) — skip"
         else
             restart_frontend
+        fi
+    fi
+
+    # Embedding 健康检查
+    if ! is_port_up "$EMBEDDING_PORT"; then
+        pid="$(find_embedding || true)"
+        age="$([ -n "$pid" ] && proc_age "$pid" || echo 9999)"
+        if [[ -n "$pid" && "${age:-9999}" -lt "$EMBEDDING_STARTUP_TIMEOUT" ]]; then
+            log "Embedding starting (PID=$pid age=${age}s) — skip"
+        else
+            restart_embedding
         fi
     fi
 

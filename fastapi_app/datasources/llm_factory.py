@@ -87,7 +87,7 @@ class LLMFactory:
     @staticmethod
     def _create_openai(config: LLMConfig):
         """创建OpenAI ChatModel"""
-        from fastapi_app.core.openai_compat_chat_model import OpenAICompatChatModel
+        from fastapi_app.datasources.openai_compat_chat_model import OpenAICompatChatModel
 
         logger.info(f"Creating OpenAI LLM (compat): model={config.model_name}, base_url={config.base_url}")
         return OpenAICompatChatModel(
@@ -140,7 +140,7 @@ class LLMFactory:
         except ImportError:
             # 回退到OpenAI兼容模式
             logger.warning("ChatTongyi not available, falling back to OpenAI-compatible mode")
-            from fastapi_app.core.openai_compat_chat_model import OpenAICompatChatModel
+            from fastapi_app.datasources.openai_compat_chat_model import OpenAICompatChatModel
 
             return OpenAICompatChatModel(
                 model=config.model_name or "qwen-max",
@@ -155,7 +155,7 @@ class LLMFactory:
     @staticmethod
     def _create_azure(config: LLMConfig):
         """创建Azure OpenAI ChatModel"""
-        from fastapi_app.core.openai_compat_chat_model import AzureOpenAICompatChatModel
+        from fastapi_app.datasources.openai_compat_chat_model import AzureOpenAICompatChatModel
 
         logger.info(f"Creating Azure OpenAI LLM (compat): deployment={config.model_name}")
         return AzureOpenAICompatChatModel(
@@ -188,7 +188,7 @@ class LLMFactory:
         except ImportError:
             # 回退到OpenAI兼容模式
             logger.warning("ChatZhipuAI not available, falling back to OpenAI-compatible mode")
-            from fastapi_app.core.openai_compat_chat_model import OpenAICompatChatModel
+            from fastapi_app.datasources.openai_compat_chat_model import OpenAICompatChatModel
 
             return OpenAICompatChatModel(
                 model=config.model_name or "glm-4",
@@ -203,7 +203,7 @@ class LLMFactory:
     @staticmethod
     def _create_deepseek(config: LLMConfig):
         """创建DeepSeek ChatModel（OpenAI兼容模式）"""
-        from fastapi_app.core.openai_compat_chat_model import OpenAICompatChatModel
+        from fastapi_app.datasources.openai_compat_chat_model import OpenAICompatChatModel
 
         base_url = config.base_url or "https://api.deepseek.com/v1"
         model_name = config.model_name or "deepseek-chat"

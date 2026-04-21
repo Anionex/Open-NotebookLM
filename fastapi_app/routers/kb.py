@@ -813,6 +813,14 @@ async def delete_source(
     effective_email = (email or user_id or "local").strip() or "local"
 
     try:
+        svc = SourceService()
+
+        # 0. Remove from vector store / manifest first so deleted sources are not retrieved by RAG anymore.
+        try:
+            svc.remove_source_from_vector_store(file_path)
+        except Exception as exc:
+            log.warning("Failed to remove source from vector store for %s: %s", file_path, exc)
+
         # 1. Delete from new layout: sources/{name}/original/{file}
         local = Path(_from_outputs_url(file_path))
         file_name = local.name
@@ -826,7 +834,6 @@ async def delete_source(
                 os.remove(str(local))
 
         # 2. Delete from legacy layout: kb_data/{email}/{notebook_id}/{file}
-        svc = SourceService()
         legacy_dir = svc._legacy_notebook_dir(effective_email, notebook_id)
         legacy_file = legacy_dir / file_name
         if legacy_file.exists() and legacy_file.is_file():

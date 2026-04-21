@@ -29,7 +29,7 @@ class AppSettings(BaseSettings):
     PAPER2PPT_DEFAULT_MODEL: str = "deepseek-v3.2"
     PAPER2PPT_OUTLINE_MODEL: str = "deepseek-v3.2"
     PAPER2PPT_CONTENT_MODEL: str = "deepseek-v3.2"
-    PAPER2PPT_IMAGE_GEN_MODEL: str = "gemini-3-pro-image-preview"
+    PAPER2PPT_IMAGE_GEN_MODEL: str = "gemini-3.1-flash-image-preview"
     PAPER2PPT_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"
     PAPER2PPT_CHART_MODEL: str = "deepseek-v3.2"
     PAPER2PPT_DESC_MODEL: str = "deepseek-v3.2"
@@ -37,7 +37,7 @@ class AppSettings(BaseSettings):
 
     # Paper2Figure models
     PAPER2FIGURE_TEXT_MODEL: str = "deepseek-v3.2"
-    PAPER2FIGURE_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
+    PAPER2FIGURE_IMAGE_MODEL: str = "gemini-3.1-flash-image-preview"
     PAPER2FIGURE_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"
     PAPER2FIGURE_CHART_MODEL: str = "deepseek-v3.2"
     PAPER2FIGURE_DESC_MODEL: str = "deepseek-v3.2"
@@ -79,7 +79,7 @@ class AppSettings(BaseSettings):
     # Image Generation Provider Configuration
     IMAGE_GEN_API_URL: str = ""
     IMAGE_GEN_API_KEY: str = ""
-    IMAGE_GEN_MODEL: str = "gemini-3-pro-image-preview"
+    IMAGE_GEN_MODEL: str = "gemini-3.1-flash-image-preview"
 
     # TTS Provider: local | openai | apiyi | bailian
     # local   → 本地 vllm/TTS 服务，URL 指向本机，无需 KEY

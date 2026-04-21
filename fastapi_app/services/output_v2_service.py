@@ -652,6 +652,63 @@ class OutputV2Service:
             names.append(Path(source_paths[len(names)]).name)
         return names[: len(source_paths)]
 
+    def _resolve_output_source_path(self, path_value: str) -> Path:
+        from fastapi_app.routers.kb import _resolve_local_path
+
+        return _resolve_local_path(path_value)
+
+    def _extract_output_source_text(self, source_paths: List[str], max_chars: int = 12000) -> str:
+        from fastapi_app.routers.kb import _extract_text_from_files
+
+        resolved_paths: List[str] = []
+        for raw_path in source_paths or []:
+            cleaned = str(raw_path or "").strip()
+            if not cleaned:
+                continue
+            if cleaned.startswith("http://") or cleaned.startswith("https://"):
+                continue
+            local_path = self._resolve_output_source_path(cleaned)
+            if local_path.exists() and local_path.is_file():
+                resolved_paths.append(str(local_path))
+        if not resolved_paths:
+            return ""
+        return self._truncate_text(_extract_text_from_files(resolved_paths, max_chars=max_chars), max_chars)
+
+    def _build_source_first_context(
+        self,
+        *,
+        document: Dict[str, Any],
+        source_paths: List[str],
+        source_names: List[str],
+        bound_documents: List[Dict[str, Any]],
+        guidance_text: str,
+        include_source_text: bool = True,
+    ) -> str:
+        sections: List[str] = []
+        document_content = str(document.get("content") or "").strip()
+        if document_content:
+            sections.extend(["## 梳理文档", self._truncate_text(document_content, 6000)])
+        if source_names or source_paths:
+            source_lines: List[str] = []
+            for index, path_value in enumerate(source_paths or []):
+                name = source_names[index] if index < len(source_names) else Path(str(path_value)).name
+                source_lines.append(f"- {name}: {path_value}")
+            sections.extend(["## 来源", "\n".join(source_lines)])
+        if include_source_text:
+            source_text = self._extract_output_source_text(source_paths, max_chars=12000)
+            if source_text:
+                sections.extend(["## 来源内容", source_text])
+        bound_parts: List[str] = []
+        for doc in bound_documents[:4]:
+            content = self._truncate_text(str(doc.get("content") or ""), 3000)
+            if content:
+                bound_parts.append(f"## {doc.get('title') or '参考文档'}\n\n{content}")
+        if bound_parts:
+            sections.extend(["## 参考文档", "\n\n".join(bound_parts)])
+        if str(guidance_text or "").strip():
+            sections.extend(["## 产出指导", self._truncate_text(guidance_text, 4000)])
+        return "\n\n".join(section for section in sections if str(section or "").strip()).strip()
+
     def _build_ppt_context_query(
         self,
         *,
@@ -1638,9 +1695,6 @@ class OutputV2Service:
         if target_type not in self.SUPPORTED_TYPES:
             raise HTTPException(status_code=400, detail="Unsupported output type")
 
-        if target_type != "ppt" and not document_id:
-            raise HTTPException(status_code=400, detail="document_id is required")
-
         document = self._maybe_load_document(
             notebook_id=notebook_id,
             notebook_title=notebook_title,
@@ -1666,6 +1720,19 @@ class OutputV2Service:
         normalized_source_paths = [str(path or "").strip() for path in source_paths or [] if str(path or "").strip()]
         normalized_source_names = self._normalize_source_names(normalized_source_paths, source_names or [])
         normalized_enable_images = True if enable_images is None else bool(enable_images)
+        source_context = self._build_source_first_context(
+            document=document,
+            source_paths=normalized_source_paths,
+            source_names=normalized_source_names,
+            bound_documents=bound_documents,
+            guidance_text=guidance_snapshot_text,
+            include_source_text=target_type != "ppt",
+        )
+        if target_type != "ppt" and not source_context.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="请先选择至少一个来源，或选择一份梳理文档 / 参考文档 / 产出指导。",
+            )
 
         output_dir = self._item_dir(notebook_id, notebook_title, user_id, output_id)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -1704,13 +1771,8 @@ class OutputV2Service:
         else:
             outline = self._fallback_outline(
                 target_type=target_type,
-                title=title or document.get("title") or target_type,
-                content="\n\n".join(
-                    [
-                        str(document.get("content") or "").strip(),
-                        guidance_snapshot_text,
-                    ]
-                ).strip(),
+                title=title or document.get("title") or (normalized_source_names[0] if normalized_source_names else target_type),
+                content=source_context,
                 page_count=normalized_page_count,
             )
             stage = "outlined"
@@ -1874,7 +1936,13 @@ class OutputV2Service:
         )
         return item
 
-    def _build_generation_markdown(self, item: Dict[str, Any], document: Dict[str, Any], guidance_text: str = "") -> str:
+    def _build_generation_markdown(
+        self,
+        item: Dict[str, Any],
+        document: Dict[str, Any],
+        guidance_text: str = "",
+        bound_documents: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
         lines = [f"# {item.get('title') or document.get('title') or '文档产出'}", ""]
         prompt = str(item.get("prompt") or "").strip()
         if prompt:
@@ -1895,7 +1963,16 @@ class OutputV2Service:
                 for bullet in bullets:
                     lines.append(f"- {bullet}")
             lines.append("")
-        lines.extend(["## 原始文档", "", document.get("content") or ""])
+        source_context = self._build_source_first_context(
+            document=document,
+            source_paths=item.get("source_paths") or [],
+            source_names=item.get("source_names") or [],
+            bound_documents=bound_documents or [],
+            guidance_text=cleaned_guidance,
+            include_source_text=True,
+        )
+        if source_context:
+            lines.extend(["## 生成依据", "", source_context])
         return "\n".join(lines).strip()
 
     async def _generate_report(
@@ -1905,6 +1982,7 @@ class OutputV2Service:
         item: Dict[str, Any],
         document: Dict[str, Any],
         guidance_text: str = "",
+        bound_documents: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         from fastapi_app.routers.kb import _text_to_pdf
 
@@ -1924,7 +2002,16 @@ class OutputV2Service:
                 if bullet_text:
                     lines.append(f"- {bullet_text}")
             lines.append("")
-        lines.extend(["---", "", document.get("content") or ""])
+        source_context = self._build_source_first_context(
+            document=document,
+            source_paths=item.get("source_paths") or [],
+            source_names=item.get("source_names") or [],
+            bound_documents=bound_documents or [],
+            guidance_text=cleaned_guidance,
+            include_source_text=True,
+        )
+        if source_context:
+            lines.extend(["---", "", source_context])
         report_md = output_dir / "report.md"
         report_md.write_text("\n".join(lines).strip(), encoding="utf-8")
         report_pdf = output_dir / "report.pdf"
@@ -2103,6 +2190,12 @@ class OutputV2Service:
         )
         guidance_text = self._build_guidance_snapshot_text(guidance_items)
         item["guidance_snapshot_text"] = guidance_text
+        bound_documents = self._load_bound_documents(
+            notebook_id=notebook_id,
+            notebook_title=notebook_title,
+            user_id=user_id,
+            bound_document_ids=item.get("bound_document_ids") or [],
+        )
         output_dir = self._item_dir(notebook_id, notebook_title, user_id, output_id)
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2132,11 +2225,25 @@ class OutputV2Service:
             item["pipeline_stage"] = self.PPT_STAGE_PAGES
             item["status"] = self.PPT_STAGE_PAGES
         elif item["target_type"] == "report":
-            result = await self._generate_report(output_dir=output_dir, item=item, document=document, guidance_text=guidance_text)
+            result = await self._generate_report(
+                output_dir=output_dir,
+                item=item,
+                document=document,
+                guidance_text=guidance_text,
+                bound_documents=bound_documents,
+            )
             item["status"] = "generated"
         else:
             generated_md = output_dir / "generation_input.md"
-            generated_md.write_text(self._build_generation_markdown(item, document, guidance_text), encoding="utf-8")
+            generated_md.write_text(
+                self._build_generation_markdown(
+                    item,
+                    document,
+                    guidance_text,
+                    bound_documents=bound_documents,
+                ),
+                encoding="utf-8",
+            )
             result = await self._run_with_backend_llm_fallback(
                 label=f"generate_output:{item['target_type']}",
                 api_url=api_url,
