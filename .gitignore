@@ -37,6 +37,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Superseded frontend snapshots
+frontend_en/
+frontend_zh/
+
 # IDE
 .vscode/
 .idea/
@@ -66,6 +70,7 @@ uploads/
 # Claude / AI tooling
 .claude/
 .codex/
+.superpowers/
 .gemini/
 .playwright-mcp/
 .ace-tool/
