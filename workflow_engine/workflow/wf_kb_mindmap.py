@@ -10,6 +10,14 @@ import fitz  # PyMuPDF
 import tiktoken
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from workflow_engine.workflow.registry import register
+from workflow_engine.workflow.prompts_kb_mindmap import (
+    _build_single_pass_prompt,
+    _build_map_prompt,
+    _build_collapse_prompt,
+    _build_reduce_prompt,
+    _build_merge_prompt,
+    _build_beautify_prompt,
+)
 from workflow_engine.graphbuilder.graph_builder import GenericGraphBuilder
 from workflow_engine.logger import get_logger
 from workflow_engine.state import KBMindMapState, MainState
@@ -80,6 +88,15 @@ _MODEL_CONTEXT_WINDOWS = {
 }
 DEFAULT_CONTEXT_WINDOW = 64000
 
+# 长文本临界比例：
+# - 路由：单篇 tokens >= LONG_TEXT_THRESHOLD_RATIO * ctx → 走 MapReduce
+# - Chunk 切分：单 chunk 上限 = LONG_TEXT_THRESHOLD_RATIO * ctx
+# - Collapse 目标：保留节点 json 序列化 tokens ≤ LONG_TEXT_THRESHOLD_RATIO * ctx
+LONG_TEXT_THRESHOLD_RATIO = 0.6
+
+# Collapse 轮次上限，防止估算偏差下死循环
+MAX_COLLAPSE_ITERATIONS = 5
+
 
 def _get_context_window(model: str) -> int:
     """查表获取模型上下文窗口大小（最长匹配优先）。"""
@@ -92,34 +109,38 @@ def _get_context_window(model: str) -> int:
 
 
 def _get_chunk_token_limit(model: str) -> int:
-    """计算单次调用 token 上限（上下文 * 0.4）。"""
-    return int(_get_context_window(model) * 0.4)
+    """计算长文本临界（上下文 * LONG_TEXT_THRESHOLD_RATIO）。"""
+    return int(_get_context_window(model) * LONG_TEXT_THRESHOLD_RATIO)
 
 
 # ==================== JSON 安全解析 ====================
 
+def _strip_code_fences(text: str) -> str:
+    """去除 markdown 代码围栏（```json ... ```）。"""
+    t = text.strip()
+    if t.startswith("```"):
+        lines = t.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        t = "\n".join(lines).strip()
+    return t
+
+
 def _parse_json_safe(raw_text: str, chunk_id: str) -> list:
-    """多策略解析 LLM 返回的 JSON，带 fallback。"""
+    """多策略解析 LLM 返回的 JSON 数组（collapse 等场景），带 fallback。"""
     if not raw_text or not raw_text.strip():
         return [_make_fallback_node(chunk_id, "Empty response")]
 
-    text = raw_text.strip()
+    text = _strip_code_fences(raw_text)
 
-    # 去除 markdown 代码围栏
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines)
-
-    # 策略 1: 直接解析
     try:
         result = json.loads(text)
         if isinstance(result, list):
             return result
+        if isinstance(result, dict) and isinstance(result.get("nodes"), list):
+            return result["nodes"]
     except json.JSONDecodeError:
         pass
 
-    # 策略 2: 正则提取最外层 JSON 数组
     match = re.search(r'\[[\s\S]*\]', text)
     if match:
         try:
@@ -129,9 +150,47 @@ def _parse_json_safe(raw_text: str, chunk_id: str) -> list:
         except json.JSONDecodeError:
             pass
 
-    # 策略 3: fallback 节点
     log.warning(f"JSON 解析失败 (chunk={chunk_id})，使用 fallback 节点")
     return [_make_fallback_node(chunk_id, raw_text[:500])]
+
+
+def _parse_map_json_safe(raw_text: str, chunk_id: str) -> dict:
+    """
+    Map 阶段输出：{"summary": "...", "nodes": [...]}
+    兼容三种返回：完整 dict / 纯 list（仅 nodes）/ 解析失败。
+    """
+    empty_fallback = {"summary": "", "nodes": [_make_fallback_node(chunk_id, "Empty response")]}
+    if not raw_text or not raw_text.strip():
+        return empty_fallback
+
+    text = _strip_code_fences(raw_text)
+
+    try:
+        result = json.loads(text)
+        if isinstance(result, dict):
+            nodes = result.get("nodes") or []
+            if not isinstance(nodes, list):
+                nodes = []
+            if not nodes:
+                nodes = [_make_fallback_node(chunk_id, "Empty nodes")]
+            return {"summary": str(result.get("summary", "")).strip(), "nodes": nodes}
+        if isinstance(result, list):
+            return {"summary": "", "nodes": result or [_make_fallback_node(chunk_id, "Empty list")]}
+    except json.JSONDecodeError:
+        pass
+
+    # 回退：尝试提取 nodes 数组
+    match = re.search(r'\[[\s\S]*\]', text)
+    if match:
+        try:
+            nodes = json.loads(match.group())
+            if isinstance(nodes, list) and nodes:
+                return {"summary": "", "nodes": nodes}
+        except json.JSONDecodeError:
+            pass
+
+    log.warning(f"Map JSON 解析失败 (chunk={chunk_id})，使用 fallback")
+    return {"summary": "", "nodes": [_make_fallback_node(chunk_id, raw_text[:500])]}
 
 
 def _make_fallback_node(chunk_id: str, summary: str) -> dict:
@@ -214,195 +273,20 @@ def markdown_to_mermaid(markdown: str) -> str:
     return "\n".join(out)
 
 
-# ==================== Prompt 模板 ====================
-
-def _build_single_pass_prompt(contents_str: str, language: str, max_depth: int) -> str:
-    """单次生成的原始 Prompt（短文本路径）。"""
-    return f"""请基于以下文档内容，生成一张层级清晰、主题归纳明确、适合快速把握全文结构的思维导图。你的目标是把文章压缩成一张"知识地图"，让读者能够迅速理解这篇文章的核心主题、主要模块、关键内容，以及各部分之间的层级关系。
-
-请按照下面的方法完成：
-
-先通读全文，识别文章真正的中心主题，用一句高度概括的话作为根节点。这个根节点需要能够覆盖全文主旨，而不是局部内容。输出时将根节点作为**一级标题（#）**呈现。
-
-然后围绕中心主题，提炼出最能代表全文结构的主分支，优先控制在 4–8 个范围内，并将它们作为**二级标题（##）**呈现。主分支要能够代表全文最重要的几个结构板块。请优先从文章本身的结构、论述重心、主题模块、关键信息簇中提炼主分支，使它们能够共同构成全文的主干。
-
-接着在每个主分支下继续拆分 2–4 个子主题，并将它们作为**三级标题（###）**呈现。子主题要承接上级主题，概括该部分最值得保留的核心内容，例如关键概念、主要论点、重要机制、核心步骤、代表性案例、主要证据、结果表现、应用场景、影响因素、行动建议等。
-
-需要时继续向下拆分更细的层级，整体层级最多{max_depth}层（使用 # 到 {'#' * max_depth} 表示）。请根据内容复杂度自然决定展开深度，使层级既完整又紧凑。
-
-**语言要求（必须严格遵守）**：所有输出节点的文字必须使用 **{language}** 语言。无论本提示使用什么语言书写，你输出的思维导图节点内容必须全部使用 {language}。
-
-整张思维导图要体现出一种知识整理型、结构概览型、主题分解型的风格。重点是帮助读者快速理解全文内容版图，而不是只罗列摘要句子。请让结构体现出"从总到分、由主到次、层层展开"的组织逻辑。
-
-请根据文章类型，自适应选择最合适的组织框架：
-
-研究型、分析型文章：背景、问题、核心观点、方法机制、证据结果、意义影响、局限延伸
-新闻、时评、纪实型文章：主题事件、背景脉络、关键事实、各方观点、原因影响、趋势走向
-科普、说明型文章：核心概念、原理机制、特征表现、应用场景、常见理解、总结启发
-教程、方法型文章：目标、前提条件、步骤模块、关键技巧、注意事项、应用建议
-商业、产品、行业文章：对象定位、背景环境、核心策略、运行方式、优势价值、风险挑战、发展趋势
-访谈、观点型文章：核心立场、主要观点、支撑理由、经验案例、延伸启示
-
-节点命名规则（严格遵守）：
-1. 每个节点用 3–12 个字的短语命名，**禁止在节点中使用括号补充说明**
-2. 如果需要补充数据或细节，请将其作为下一级子节点单独展开，而不是用括号附在当前节点后
-3. 错误示例：`### Grover's Algorithm (O(√n) queries)` — 括号内容应拆分为子节点
-4. 正确示例：`### Grover算法` 下设 `#### 时间复杂度 O(√n)`
-
-请将语义接近、作用相同、共同服务于同一主题的信息归并到同一分支下，形成稳定的主题模块。请优先把能够解释全文结构的内容放在上层节点，把例子、数据、条件、补充说明放在下层节点。
-
-特别注意：如果原文包含关键数据、时间、比例、数量、金额、指标或实验结果，请在相关节点中保留这些具体信息，但以子节点形式呈现，而非括号内联。
-
-如果输入中包含多份文档，必须均衡覆盖每份文档的核心内容，不得忽略任何一份文档。每份文档至少应有 1-2 个主分支覆盖其独有的主题。
-
-生成标准：
-
-1. 忠实反映原文主线，保留关键数据和定量结果（以子节点形式）
-2. 节点之间要有明确层级关系
-3. **分支均衡性硬约束**：每个主分支（##）下的总节点数（包括所有子层级）应控制在 10-25 个之间。如果某个主题预计会产生超过 25 个节点，必须将它拆分为 2-3 个更具体的独立主分支。例如"伦理、风险与监管"应拆分为"伦理争议"、"安全风险"、"政策监管"三个独立主分支
-4. **全文覆盖**：不能遗漏文章的任何重要章节或主题板块。先通读全文，识别所有不同的主题领域，确保每个主题领域至少有一个主分支覆盖。特别注意文章末尾的总结、展望、哲学思考等部分不要被忽略
-5. 优先保留能够帮助理解全文框架的内容
-6. 让整张图看起来像一张"文章结构与知识重点总览图"
-7. 读者即使不读原文，也能通过这张导图把握文章的大体结构与核心内容
-8. 主分支数量硬性要求 5–8 个，不可少于 5 个，不可多于 8 个
-
-输出格式要求：
-
-1. 使用 Markdown 标题格式：# 根节点，## 主分支，### 子主题，#### 及以下为进一步展开层级
-2. 最终结果直接以 Markdown 主体输出，内容从根节点开始展开
-3. 采用纯 Markdown 标题结构呈现结果
-
-文档内容：
-{contents_str}
-
-请严格按照文档内容前的要求来完成，特别注意：
-1. 采用纯 Markdown 标题结构（# ## ### ####），不要使用代码块或其他格式
-2. 保留原文中的关键数据、数字和定量信息，以子节点形式呈现
-3. 节点简洁有信息量，用短语式表达而非长句，**禁止括号内联**
-4. 层级清晰，从总到分、由主到次
-5. 主分支必须恰好 5–8 个，每个主分支下的总节点数控制在 10-25 个，超过则拆分为独立主分支
-6. 覆盖文章所有重要主题板块，不可遗漏文末的总结、展望、哲学思考等内容
-7. **输出语言必须是 {language}**，不可使用其他语言
-8. 不要输出任何解释或额外文字，直接从根节点开始输出："""
-
-
-def _build_map_prompt(chunk: Dict[str, Any], language: str) -> str:
-    """Map 阶段 Prompt：从单个 chunk 提取结构化知识节点。"""
-    chunk_id = chunk["chunk_id"]
-    source = chunk["source"]
-    text = chunk["text"]
-
-    lang_instruction = "使用中文" if language == "zh" else f"Use {language} language"
-
-    return f"""你是一位资深知识提炼专家。请阅读以下文本片段，提取其中的核心知识点，并构建结构化的知识节点列表。
-
-## 重要度评分标准（1-5分）
-- **5分**：该片段的绝对核心主题或全文中心论点
-- **4分**：重要的主干概念、关键方法、核心结论
-- **3分**：有价值的支撑论据、重要子概念、关键数据
-- **2分**：补充说明、次要例子、背景信息
-- **1分**：细枝末节、过渡性文字、重复信息
-
-## 提取要求
-1. 提取 8-20 个知识节点（严禁超过 20 个）。聚焦该片段最核心的主题和关键信息，不要为每个细节都创建节点
-2. 节点 topic 使用简洁短语（适合放入思维导图）
-3. 正确设置 parent_topic 反映层级关系：最顶层节点设为 "ROOT"，子节点指向其上层 topic
-4. **定量数据强制保留**：凡是原文中出现的具体数字、年份、百分比、金额、数量、实验数据，必须作为独立节点或写入 summary。例如原文提到 "47% of jobs"，应出现在 topic 或 summary 中。含定量数据的节点 importance_score 至少为 3
-5. {lang_instruction}
-
-## 输出格式
-仅输出合法的 JSON 数组，不要包含任何解释文字或 Markdown 围栏：
-[
-  {{
-    "node_id": "{chunk_id}_n0",
-    "topic": "节点主题（简洁短语）",
-    "parent_topic": "ROOT",
-    "summary": "1-2句话概括该知识点的核心内容",
-    "importance_score": 5,
-    "source_chunk_id": "{chunk_id}"
-  }},
-  ...
-]
-
-## 文本片段（来自: {source}，片段ID: {chunk_id}）
----
-{text}
----
-
-请直接输出 JSON 数组："""
-
-
-def _build_collapse_prompt(group_a_json: str, group_b_json: str, language: str) -> str:
-    """Collapse 阶段 Prompt：合并两组知识节点。"""
-    lang_instruction = "使用中文输出" if language == "zh" else f"Output in {language}"
-
-    return f"""你是一位知识结构整合专家。请将以下两组从相邻文本段落中提取的知识节点合并为一棵更大的知识树。
-
-## 合并规则
-1. **去重合并**：将主题相同或高度相似的节点合并为一个，保留更完整的 summary
-2. **建立父子关系**：如果一个节点是另一个的子概念（如"深度学习"是"机器学习"的分支），正确设置 parent_topic
-3. **重要度校准**：根据合并后的全局视角重新评估 importance_score，确保评分一致性
-4. **积极精简**：合并后目标节点数为两组输入总数的 50%-70%。优先移除 importance_score ≤ 1 的过渡性节点和重复信息；importance_score = 2 的补充性节点如果内容与其他节点高度重叠也可合并。关键原则：保留独特信息，合并重叠信息
-5. **定量数据保护**：topic 或 summary 中包含具体数字、百分比、金额、年份的节点，importance_score 不得低于 3，不得在剪枝中移除。合并节点时，如果被合并的节点含有定量数据，必须将数据保留到合并后节点的 summary 中
-6. **保留关键信息**：importance_score ≥ 2 的节点必须保留
-7. **主题多样性保护**：parent_topic 为 ROOT 的顶层主题节点不得被合并或删除，以确保最终输出覆盖文档所有方面
-8. **重新编号**：node_id 重新编为 "merged_n0", "merged_n1", ...
-9. {lang_instruction}
-
-## 输出格式
-仅输出合法的 JSON 数组，不要包含任何解释文字或 Markdown 围栏。每个节点格式：
-{{"node_id": "merged_nX", "topic": "...", "parent_topic": "ROOT或上级topic", "summary": "...", "importance_score": 1-5, "source_chunk_id": "..."}}
-
-## 节点组 A（前半部分）
-{group_a_json}
-
-## 节点组 B（后半部分）
-{group_b_json}
-
-请直接输出合并后的 JSON 数组："""
-
-
-def _build_reduce_prompt(nodes_json: str, language: str, max_depth: int) -> str:
-    """Reduce 阶段 Prompt：将结构化节点转为 Markdown heading 思维导图。"""
-    return f"""你是一位思维导图设计专家。请根据以下结构化知识节点数据，生成一份逻辑严密、层级分明的思维导图。
-
-## 输入数据说明
-下方提供的是从文档中提取并经过多轮合并去重的知识节点，每个节点包含：
-- topic：知识点主题
-- parent_topic：上级节点（ROOT 表示最顶层）
-- summary：内容摘要
-- importance_score：重要度（5=核心，1=细节）
-
-## 生成要求
-1. 从所有 importance_score=5 的节点中归纳出一个覆盖全文的根节点（# 一级标题），根节点命名控制在 15 字以内
-2. 将 importance_score ≥ 4 的节点组织为主分支（## 二级标题），**硬性约束：必须恰好 5-8 个**。生成前先规划好所有主分支标题，确认数量在 5-8 范围内再展开。如果输入节点的顶层主题不足 5 个，请根据内容将较大的主题拆分为更具体的子方向；如果超过 8 个，请将相近主题归并
-3. 将 importance_score ≥ 3 的节点分配为子主题（### 三级标题），每个主分支 2-5 个
-4. **必须充分利用深度**：含定量数据的节点和重要细节应作为 #### 或更深层级展开。整体最多 {max_depth} 层，目标是在 3-{max_depth} 层之间均匀分布节点
-5. 尊重节点间的 parent_topic 层级关系，合理组织树结构
-6. 节点命名简洁有信息量，使用 3-12 字短语。**禁止使用括号补充说明**——如需补充数据或细节，作为下一级子节点展开
-7. **定量数据必须保留**：节点 summary 中的具体数字、百分比、金额、年份，必须出现在最终思维导图的对应节点中（可作为子节点）
-8. **分支均衡性硬约束**：每个主分支（##）下的总节点数（含所有子层级）必须控制在 12-25 个之间。如果某主题内容特别丰富，选 20-25 个节点；内容较薄则选 12-15 个。严禁任何单个分支超过 30 个节点或少于 8 个节点
-9. **总节点数硬约束**：最终输出总节点数必须控制在 80-150 个之间。这是一个信息压缩步骤——你需要从输入节点中提炼最核心的结构和信息，而不是逐条复制所有输入节点。优先保留高 importance_score 的节点，低分节点只在有助于理解结构时才保留
-10. 使用{language}语言
-
-## 自适应组织框架
-请根据节点内容自动判断文章类型并选择最合适的框架：
-- 研究/分析型：背景→问题→核心观点→方法→证据→意义→局限
-- 新闻/评论型：事件→背景→事实→观点→原因→趋势
-- 科普/说明型：概念→原理→特征→应用→误区→总结
-- 教程/方法型：目标→前提→步骤→技巧→注意事项→建议
-- 商业/行业型：定位→环境→策略→机制→优势→风险→趋势
-- 访谈/观点型：立场→观点→理由→案例→启示
-
-## 输出格式
-- 采用纯 Markdown 标题结构：# 根节点，## 主分支，### 子主题，#### 及以下
-- 不要使用代码块、列表符号或其他格式
-- 不要输出任何解释文字，直接从根节点开始
-
-## 知识节点数据
-{nodes_json}
-
-请直接从根节点开始输出思维导图："""
+def _extract_md_headings(content: str, max_level: int = 3) -> str:
+    """从 markdown 内容抽取前 max_level 级标题树，返回原样 markdown 片段。"""
+    if not content:
+        return ""
+    lines = []
+    for line in content.split("\n"):
+        m = _HEADING_RE.match(line)
+        if not m:
+            continue
+        depth = len(m.group(1))
+        if depth > max_level:
+            continue
+        lines.append(f"{'#' * depth} {m.group(2).strip()}")
+    return "\n".join(lines)
 
 
 # ==================== 工作流注册 ====================
@@ -410,10 +294,15 @@ def _build_reduce_prompt(nodes_json: str, language: str, max_depth: int) -> str:
 @register("kb_mindmap")
 def create_kb_mindmap_graph() -> GenericGraphBuilder:
     """
-    Workflow for Knowledge Base MindMap Generation (MapReduce 增强版)
+    Workflow for Knowledge Base MindMap Generation (v7: per-article + smart-collapse)
 
-    短文本路径: _start_ → parse_files → chunk_and_route → generate_single_pass → save_and_end → _end_
-    长文本路径: _start_ → parse_files → chunk_and_route → map_phase → collapse_phase ⟲ → reduce_phase → save_and_end → _end_
+    _start_ → parse_files → process_articles → merge_articles → beautify → save_and_end → _end_
+
+    process_articles 内部对每篇文章按 LONG_TEXT_THRESHOLD_RATIO 路由：
+      tokens < 阈值 → _run_article_direct（单次 LLM）
+      tokens ≥ 阈值 → _run_article_mapreduce（Map → Smart Collapse → Reduce）
+    merge_articles：≥2 篇则 LLM 合并；1 篇直通。
+    beautify：request.beautify=True 时做结构重平衡 + 命名优化，否则直通。
     """
     builder = GenericGraphBuilder(state_model=KBMindMapState, entry_point="_start_")
 
@@ -461,7 +350,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         state.content_structure = ""
         state.mermaid_code = ""
         state.mindmap_svg_path = ""
-        # 重置 MapReduce 状态
+        # 重置 MapReduce 状态（v7 主要使用 per_article_results；保留旧字段向后兼容）
         state.use_mapreduce = False
         state.chunks = []
         state.map_results = []
@@ -469,6 +358,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         state.collapse_iterations = 0
         state.total_content_tokens = 0
         state.context_window_limit = 0
+        state.per_article_results = []
         return state
 
     async def parse_files_node(state: KBMindMapState) -> KBMindMapState:
@@ -536,301 +426,451 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         state.file_contents = results
         return state
 
-    async def chunk_and_route_node(state: KBMindMapState) -> KBMindMapState:
-        """计算 token 总量，决定走单次路径还是 MapReduce，并完成分块。"""
+    # ==================== LLM 调用辅助 ====================
+
+    async def _call_llm(prompt: str, state: KBMindMapState, temperature: float = 0.3) -> str:
+        agent = create_agent(
+            name="kb_prompt_agent",
+            model_name=state.request.model,
+            chat_api_url=state.request.chat_api_url,
+            temperature=temperature,
+            parser_type="text",
+        )
+        temp_state = MainState(request=state.request)
+        res_state = await agent.execute(temp_state, prompt=prompt)
+        return _extract_text_result(res_state, "kb_prompt_agent")
+
+    # ==================== Smart Collapse 辅助 ====================
+
+    def _tokens_of_nodes(nodes: List[dict], model: str) -> int:
+        return _count_tokens(json.dumps(nodes, ensure_ascii=False), model)
+
+    def _pair_adjacent(nodes: List[dict], target_pair_size: int) -> List[List[List[dict]]]:
+        """
+        将节点按原顺序每 target_pair_size*2 个切成一组，组内拆成 A/B 两半。
+        返回 [[group_a, group_b], ...]，供并发 collapse 调用。
+        """
+        pair_span = max(2, target_pair_size) * 2
+        pairs: List[List[List[dict]]] = []
+        for i in range(0, len(nodes), pair_span):
+            window = nodes[i:i + pair_span]
+            if len(window) < 2:
+                continue
+            mid = len(window) // 2
+            pairs.append([window[:mid], window[mid:]])
+        return pairs
+
+    def _estimate_pairs_needed(
+        pairs: List[List[List[dict]]],
+        deficit: int,
+        model: str,
+    ) -> int:
+        """
+        按"每对合并后 ≈ 原 2/3 tokens"估算需要多少对才能覆盖 deficit。
+        返回至少为 1，至多为 len(pairs)。
+        """
+        if deficit <= 0 or not pairs:
+            return 0
+        cumulative_saved = 0
+        for idx, (a, b) in enumerate(pairs, 1):
+            pair_tokens = _tokens_of_nodes(a + b, model)
+            saved = int(pair_tokens * (1 / 3))
+            cumulative_saved += saved
+            if cumulative_saved >= deficit:
+                return idx
+        return len(pairs)
+
+    async def _merge_pair(a: list, b: list, state: KBMindMapState) -> list:
+        prompt = _build_collapse_prompt(
+            json.dumps(a, ensure_ascii=False),
+            json.dumps(b, ensure_ascii=False),
+            state.request.language,
+        )
+        try:
+            raw = await _call_llm(prompt, state, temperature=0.2)
+            return _parse_json_safe(raw, "collapse")
+        except Exception as e:
+            log.error(f"[MindMap Collapse] 合并失败: {e}")
+            return a + b  # 保底：不合并
+
+    async def _smart_collapse(
+        article_name: str,
+        flat_nodes: List[dict],
+        limit: int,
+        state: KBMindMapState,
+    ) -> List[dict]:
+        """
+        智能 Collapse：按需合并直到 tokens(nodes) ≤ limit。
+        - 每轮估算需要合并的对数，并发预合并这些对
+        - 按序应用合并结果，实际达到目标即停，丢弃剩余未应用对
+        - 至多 MAX_COLLAPSE_ITERATIONS 轮
+        """
+        model = state.request.model or ""
+        nodes = list(flat_nodes)
+        rounds = 0
+        while True:
+            cur_tokens = _tokens_of_nodes(nodes, model)
+            if cur_tokens <= limit:
+                log.info(f"[Collapse {article_name}] 已在阈值内 ({cur_tokens}/{limit})，停止")
+                return nodes
+            if rounds >= MAX_COLLAPSE_ITERATIONS:
+                log.warning(f"[Collapse {article_name}] 达到最大轮次 {MAX_COLLAPSE_ITERATIONS}，强制返回")
+                return nodes
+
+            rounds += 1
+            deficit = cur_tokens - limit
+            avg = max(1, cur_tokens // max(len(nodes), 1))
+            # 每对目标节点数：让每对合并后的产物大约是 limit 的 1/8（使得 ~8 对可铺满）
+            target_pair_size = max(2, int(limit / avg / 8))
+            pairs = _pair_adjacent(nodes, target_pair_size)
+            if not pairs:
+                log.warning(f"[Collapse {article_name}] 无可配对节点，退出")
+                return nodes
+
+            est = _estimate_pairs_needed(pairs, deficit, model)
+            candidates = pairs[:max(1, est)]
+            log.info(
+                f"[Collapse {article_name}] 轮 {rounds}: nodes={len(nodes)} tokens={cur_tokens}/{limit} "
+                f"deficit={deficit} pairs_total={len(pairs)} pre_merge={len(candidates)}"
+            )
+
+            # 并发预合并
+            merged_results = await asyncio.gather(
+                *[_merge_pair(a, b, state) for (a, b) in candidates],
+                return_exceptions=True,
+            )
+
+            # 按序应用，实际达标即停
+            next_nodes: List[dict] = []
+            applied = 0
+            consumed_span = 0  # 已被合并吞掉的原始节点范围
+            pair_span = max(2, target_pair_size) * 2
+            for i, merged in enumerate(merged_results):
+                start = i * pair_span
+                end = min(start + pair_span, len(nodes))
+                if isinstance(merged, Exception) or not isinstance(merged, list):
+                    next_nodes.extend(nodes[start:end])
+                    consumed_span = end
+                    continue
+                # 先尝试应用这一对合并结果，看是否已经达标
+                tentative = next_nodes + list(merged) + nodes[end:]
+                tentative_tokens = _tokens_of_nodes(tentative, model)
+                next_nodes.extend(merged)
+                applied += 1
+                consumed_span = end
+                if tentative_tokens <= limit:
+                    # 已达标，剩余对不再应用——其原节点直接保留
+                    next_nodes.extend(nodes[end:])
+                    consumed_span = len(nodes)
+                    break
+
+            # 若未覆盖完所有原始节点（候选对之外的尾部），补齐
+            if consumed_span < len(nodes):
+                next_nodes.extend(nodes[consumed_span:])
+
+            log.info(
+                f"[Collapse {article_name}] 轮 {rounds}: applied={applied}/{len(candidates)}, "
+                f"nodes {len(nodes)} → {len(next_nodes)}"
+            )
+            _save_debug(state, f"03_collapse_{article_name}_round{rounds}.json", next_nodes)
+            nodes = next_nodes
+
+    # ==================== Per-article 内部管线 ====================
+
+    async def _run_article_direct(article: Dict[str, Any], state: KBMindMapState) -> str:
+        """短文本 direct 路径：单次 LLM 调用。"""
+        contents_str = f"=== {article['filename']} ===\n{article['content']}\n\n"
+        prompt = _build_single_pass_prompt(contents_str, state.request.language, state.request.max_depth)
+        try:
+            raw = await _call_llm(prompt, state, temperature=0.3)
+            return _clean_markdown_output(raw)
+        except Exception as e:
+            log.error(f"[MindMap Direct] {article['filename']} 失败: {e}")
+            return f"# {article['filename']}\n## Error\n### {e}"
+
+    def _chunk_article(article: Dict[str, Any], limit: int, model: str) -> List[Dict[str, Any]]:
+        content = article["content"]
+        tokens = _count_tokens(content, model)
+        source = article["filename"]
+        if tokens <= limit:
+            return [{
+                "chunk_id": f"{article['_file_idx']}_chunk0",
+                "source": source,
+                "text": content,
+                "token_count": tokens,
+            }]
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=limit,
+            chunk_overlap=200,
+            length_function=lambda t: _count_tokens(t, model),
+            separators=["\n\n\n", "\n\n", "\n", "。", ".", "；", ";", " ", ""],
+        )
+        sub_texts = splitter.split_text(content)
+        return [
+            {
+                "chunk_id": f"{article['_file_idx']}_chunk{j}",
+                "source": source,
+                "text": sub,
+                "token_count": _count_tokens(sub, model),
+            }
+            for j, sub in enumerate(sub_texts)
+        ]
+
+    async def _run_article_mapreduce(
+        article: Dict[str, Any],
+        state: KBMindMapState,
+        limit: int,
+    ) -> Dict[str, Any]:
+        """长文本 MapReduce 路径。返回 {markdown, chunk_summaries, retained_nodes, headings}。"""
+        model = state.request.model or ""
+        language = state.request.language
+        article_name = re.sub(r"[^\w\-]", "_", article["filename"])[:40]
+
+        chunks = _chunk_article(article, limit, model)
+        log.info(f"[MapReduce {article_name}] 分块 {len(chunks)} 个")
+
+        # ---- Map ----
+        async def process_chunk(chunk: Dict[str, Any]) -> Dict[str, Any]:
+            prompt = _build_map_prompt(chunk, language)
+            try:
+                raw = await _call_llm(prompt, state, temperature=0.2)
+                parsed = _parse_map_json_safe(raw, chunk["chunk_id"])
+            except Exception as e:
+                log.error(f"[Map {article_name}] chunk {chunk['chunk_id']} 失败: {e}")
+                parsed = {"summary": "", "nodes": [_make_fallback_node(chunk["chunk_id"], str(e))]}
+            parsed["chunk_id"] = chunk["chunk_id"]
+            return parsed
+
+        map_tasks = [process_chunk(c) for c in chunks]
+        map_results_raw = await asyncio.gather(*map_tasks, return_exceptions=True)
+        map_results: List[Dict[str, Any]] = []
+        for i, r in enumerate(map_results_raw):
+            if isinstance(r, Exception):
+                cid = chunks[i]["chunk_id"]
+                log.error(f"[Map {article_name}] chunk {cid} 异常: {r}")
+                map_results.append({"chunk_id": cid, "summary": "", "nodes": [_make_fallback_node(cid, str(r))]})
+            else:
+                map_results.append(r)
+        _save_debug(state, f"02_map_results_{article_name}.json", map_results)
+        log.info(f"[Map {article_name}] 完成，节点总数 {sum(len(r['nodes']) for r in map_results)}")
+
+        # ---- Smart Collapse ----
+        flat_nodes: List[dict] = []
+        for mr in map_results:
+            flat_nodes.extend(mr.get("nodes", []))
+        retained_nodes = await _smart_collapse(article_name, flat_nodes, limit, state)
+
+        # ---- Reduce ----
+        chunk_summaries = [
+            {"chunk_id": mr.get("chunk_id", ""), "summary": mr.get("summary", "")}
+            for mr in map_results
+        ]
+        headings_md = _extract_md_headings(article["content"]) if article["filename"].lower().endswith(".md") else ""
+        # 为 Reduce 输出一份精简的 nodes（去掉 importance_score 以避免它再次参与层级决策）
+        reduce_nodes = [
+            {
+                "topic": n.get("topic", ""),
+                "parent_topic": n.get("parent_topic", "ROOT"),
+                "summary": n.get("summary", ""),
+                "source_chunk_id": n.get("source_chunk_id", ""),
+            }
+            for n in retained_nodes
+        ]
+        reduce_nodes_json = json.dumps(reduce_nodes, ensure_ascii=False)
+        _save_debug(state, f"04_reduce_input_{article_name}.json", {
+            "chunk_summaries": chunk_summaries,
+            "headings": headings_md,
+            "retained_nodes": reduce_nodes,
+        })
+
+        prompt = _build_reduce_prompt(
+            chunk_summaries=chunk_summaries,
+            headings_md=headings_md,
+            retained_nodes_json=reduce_nodes_json,
+            language=language,
+            max_depth=state.request.max_depth,
+        )
+        try:
+            raw = await _call_llm(prompt, state, temperature=0.3)
+            markdown = _clean_markdown_output(raw)
+        except Exception as e:
+            log.error(f"[Reduce {article_name}] 失败: {e}")
+            markdown = f"# {article['filename']}\n## Error\n### {e}"
+
+        return {
+            "markdown": markdown,
+            "chunk_summaries": chunk_summaries,
+            "retained_nodes": retained_nodes,
+            "headings": headings_md,
+        }
+
+    async def _run_article(article: Dict[str, Any], state: KBMindMapState) -> Dict[str, Any]:
+        """单篇文章完整管线：routing → direct/mapreduce → per-article markdown。"""
+        model = state.request.model or ""
+        limit = _get_chunk_token_limit(model)
+        tokens = _count_tokens(article["content"], model)
+        if tokens < limit:
+            md = await _run_article_direct(article, state)
+            return {
+                "filename": article["filename"],
+                "route": "direct",
+                "markdown": md,
+                "token_count": tokens,
+                "chunk_summaries": [],
+                "retained_nodes": [],
+                "headings": "",
+            }
+        result = await _run_article_mapreduce(article, state, limit)
+        return {
+            "filename": article["filename"],
+            "route": "mapreduce",
+            "token_count": tokens,
+            **result,
+        }
+
+    # ==================== Graph 节点：Process / Merge / Beautify ====================
+
+    async def process_articles_node(state: KBMindMapState) -> KBMindMapState:
+        """对每篇文章并发跑内部管线（direct 或 mapreduce），产出 per-article markdown。"""
         if not state.file_contents:
-            state.use_mapreduce = False
+            state.per_article_results = []
+            state.mermaid_code = "# Error\n## No content available"
             return state
 
         model = state.request.model or ""
         limit = _get_chunk_token_limit(model)
         state.context_window_limit = limit
-
-        # 计算每个文件的 token 数
-        file_tokens = []
-        total = 0
-        for item in state.file_contents:
-            tc = _count_tokens(item["content"], model)
-            file_tokens.append(tc)
-            total += tc
-        state.total_content_tokens = total
-
-        log.info(f"[MindMap] 总 token: {total}, 单次上限: {limit}, 文件数: {len(state.file_contents)}")
-
-        if total <= limit:
-            state.use_mapreduce = False
-            log.info("[MindMap] 走单次生成路径")
-            _save_debug(state, "01_routing.json", {
-                "use_mapreduce": False,
-                "total_content_tokens": total,
-                "context_window_limit": limit,
-                "model": model,
-                "file_count": len(state.file_contents),
-                "file_tokens": file_tokens,
-                "file_names": [item["filename"] for item in state.file_contents],
-                "chunk_count": 0,
-                "chunks_summary": [],
-            })
-            return state
-
-        # MapReduce 路径：构建 chunks
-        state.use_mapreduce = True
-        log.info(f"[MindMap] 走 MapReduce 路径，开始分块")
-
-        chunks = []
+        # 给每篇文章加 _file_idx 便于 chunk_id 编号
         for i, item in enumerate(state.file_contents):
-            content = item["content"]
-            tokens = file_tokens[i]
+            item["_file_idx"] = f"file{i}"
 
-            if tokens <= limit:
-                # 整个文件作为一个 chunk
-                chunks.append({
-                    "chunk_id": f"file{i}_chunk0",
-                    "source": item["filename"],
-                    "text": content,
-                    "token_count": tokens,
-                })
-            else:
-                # 单文件超限，需要切分
-                splitter = RecursiveCharacterTextSplitter(
-                    chunk_size=limit,
-                    chunk_overlap=200,
-                    length_function=lambda t: _count_tokens(t, model),
-                    separators=["\n\n\n", "\n\n", "\n", "。", ".", "；", ";", " ", ""],
-                )
-                sub_texts = splitter.split_text(content)
-                for j, sub in enumerate(sub_texts):
-                    chunks.append({
-                        "chunk_id": f"file{i}_chunk{j}",
-                        "source": item["filename"],
-                        "text": sub,
-                        "token_count": _count_tokens(sub, model),
-                    })
+        state.total_content_tokens = sum(
+            _count_tokens(item["content"], model) for item in state.file_contents
+        )
 
-        state.chunks = chunks
-        log.info(f"[MindMap] 分块完成，共 {len(chunks)} 个 chunk")
-
-        # 保存路由决策和分块信息
+        article_meta = [
+            {
+                "filename": item["filename"],
+                "token_count": _count_tokens(item["content"], model),
+                "route": "direct" if _count_tokens(item["content"], model) < limit else "mapreduce",
+            }
+            for item in state.file_contents
+        ]
+        any_mapreduce = any(a["route"] == "mapreduce" for a in article_meta)
+        # 兼容老 Pipeline Debug UI：保留 use_mapreduce / chunks_summary 等字段
         _save_debug(state, "01_routing.json", {
-            "use_mapreduce": state.use_mapreduce,
-            "total_content_tokens": state.total_content_tokens,
-            "context_window_limit": state.context_window_limit,
+            "threshold_ratio": LONG_TEXT_THRESHOLD_RATIO,
+            "chunk_token_limit": limit,
             "model": model,
+            "total_tokens": state.total_content_tokens,
+            "articles": article_meta,
+            # --- legacy keys ---
+            "use_mapreduce": any_mapreduce,
+            "total_content_tokens": state.total_content_tokens,
+            "context_window_limit": limit,
             "file_count": len(state.file_contents),
-            "file_tokens": file_tokens,
-            "file_names": [item["filename"] for item in state.file_contents],
-            "chunk_count": len(chunks),
-            "chunks_summary": [
-                {"chunk_id": c["chunk_id"], "source": c["source"], "token_count": c["token_count"]}
-                for c in chunks
-            ],
+            "file_tokens": [a["token_count"] for a in article_meta],
+            "file_names": [a["filename"] for a in article_meta],
+            "chunk_count": 0,
+            "chunks_summary": [],
         })
-        return state
 
-    def _route_after_chunking(state: KBMindMapState) -> str:
-        return "map_phase" if state.use_mapreduce else "generate_single_pass"
-
-    async def generate_single_pass_node(state: KBMindMapState) -> KBMindMapState:
-        """短文本路径：与原逻辑一致，单次 LLM 调用生成 Markdown 思维导图。"""
-        if not state.file_contents:
-            state.mermaid_code = "# Error\n## No content available"
-            return state
-
-        contents_str = ""
-        for item in state.file_contents:
-            contents_str += f"=== {item['filename']} ===\n{item['content']}\n\n"
-
-        prompt = _build_single_pass_prompt(contents_str, state.request.language, state.request.max_depth)
-
-        try:
-            agent = create_agent(
-                name="kb_prompt_agent",
-                model_name=state.request.model,
-                chat_api_url=state.request.chat_api_url,
-                temperature=0.3,
-                parser_type="text",
-            )
-            temp_state = MainState(request=state.request)
-            res_state = await agent.execute(temp_state, prompt=prompt)
-            raw = _extract_text_result(res_state, "kb_prompt_agent")
-            state.mermaid_code = _clean_markdown_output(raw)
-        except Exception as e:
-            log.error(f"[MindMap] 单次生成失败: {e}")
-            state.mermaid_code = f"# Error\n## {str(e)}"
-
-        return state
-
-    async def map_phase_node(state: KBMindMapState) -> KBMindMapState:
-        """Map 阶段：并行提取每个 chunk 的局部知识节点 JSON。"""
-        language = state.request.language
-
-        async def process_chunk(chunk: Dict[str, Any]) -> Dict[str, Any]:
-            prompt = _build_map_prompt(chunk, language)
-            try:
-                agent = create_agent(
-                    name="kb_prompt_agent",
-                    model_name=state.request.model,
-                    chat_api_url=state.request.chat_api_url,
-                    temperature=0.2,
-                    parser_type="text",
-                )
-                temp_state = MainState(request=state.request)
-                res_state = await agent.execute(temp_state, prompt=prompt)
-                raw = _extract_text_result(res_state, "kb_prompt_agent")
-                nodes = _parse_json_safe(raw, chunk["chunk_id"])
-            except Exception as e:
-                log.error(f"[MindMap Map] chunk {chunk['chunk_id']} 失败: {e}")
-                nodes = [_make_fallback_node(chunk["chunk_id"], str(e))]
-            return {"chunk_id": chunk["chunk_id"], "nodes": nodes}
-
-        log.info(f"[MindMap Map] 开始并行处理 {len(state.chunks)} 个 chunk")
-        tasks = [process_chunk(c) for c in state.chunks]
+        log.info(
+            f"[MindMap] Per-article 处理 {len(state.file_contents)} 篇，limit={limit}"
+        )
+        tasks = [_run_article(item, state) for item in state.file_contents]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        map_results = []
+        per_article: List[Dict[str, Any]] = []
         for i, r in enumerate(results):
             if isinstance(r, Exception):
-                cid = state.chunks[i]["chunk_id"]
-                log.error(f"[MindMap Map] chunk {cid} 异常: {r}")
-                map_results.append({"chunk_id": cid, "nodes": [_make_fallback_node(cid, str(r))]})
+                fn = state.file_contents[i]["filename"]
+                log.error(f"[MindMap] 文章 {fn} 处理失败: {r}")
+                per_article.append({
+                    "filename": fn,
+                    "route": "error",
+                    "markdown": f"# {fn}\n## Error\n### {r}",
+                    "token_count": 0,
+                    "chunk_summaries": [],
+                    "retained_nodes": [],
+                    "headings": "",
+                })
             else:
-                map_results.append(r)
+                per_article.append(r)
 
-        state.map_results = map_results
-
-        total_nodes = sum(len(r["nodes"]) for r in map_results)
-        log.info(f"[MindMap Map] 完成，共提取 {total_nodes} 个节点")
-
-        # 保存每个 chunk 的 Map 提取结果
-        _save_debug(state, "02_map_results.json", map_results)
+        state.per_article_results = per_article
+        _save_debug(state, "05_per_article_markdown.json", [
+            {"filename": p["filename"], "route": p["route"], "markdown": p["markdown"]}
+            for p in per_article
+        ])
+        # 兼容老 Pipeline Debug UI：聚合一份 02_map_results.json（来自 mapreduce 路径的文章）
+        aggregated_map: List[Dict[str, Any]] = []
+        for p in per_article:
+            if p.get("route") != "mapreduce":
+                continue
+            for cs in p.get("chunk_summaries", []):
+                chunk_id = cs.get("chunk_id", "")
+                nodes = [
+                    n for n in (p.get("retained_nodes") or [])
+                    if n.get("source_chunk_id") == chunk_id
+                ]
+                aggregated_map.append({"chunk_id": chunk_id, "nodes": nodes})
+        if aggregated_map:
+            _save_debug(state, "02_map_results.json", aggregated_map)
         return state
 
-    async def collapse_phase_node(state: KBMindMapState) -> KBMindMapState:
-        """Collapse 阶段：迭代合并节点列表，直到 token 量可控。"""
-        model = state.request.model or ""
-        language = state.request.language
-        limit = state.context_window_limit
-
-        # 首次进入：从 map_results 收集所有节点
-        if not state.collapsed_nodes:
-            all_nodes = []
-            for mr in state.map_results:
-                all_nodes.extend(mr.get("nodes", []))
-            state.collapsed_nodes = all_nodes
-
-        serialized = json.dumps(state.collapsed_nodes, ensure_ascii=False)
-        current_tokens = _count_tokens(serialized, model)
-        node_count = len(state.collapsed_nodes)
-        # 节点数上限：即使 token 量可控，过多节点也会让 Reduce 产出过于膨胀
-        MAX_NODES_FOR_REDUCE = 100
-        log.info(f"[MindMap Collapse] 轮次 {state.collapse_iterations}, 节点数 {node_count}, token {current_tokens}/{limit}, 节点上限 {MAX_NODES_FOR_REDUCE}")
-
-        if current_tokens <= limit and node_count <= MAX_NODES_FOR_REDUCE:
-            log.info("[MindMap Collapse] token 和节点数均在上限内，进入 Reduce")
-            if state.collapse_iterations == 0:
-                _save_debug(state, "03_collapse_skipped_all_nodes.json", state.collapsed_nodes)
+    async def merge_articles_node(state: KBMindMapState) -> KBMindMapState:
+        """若 ≥2 篇文章，调 LLM 合并为单份 mindmap；若 1 篇直通。"""
+        results = state.per_article_results or []
+        if not results:
+            state.mermaid_code = "# Error\n## No content"
+            return state
+        if len(results) == 1:
+            state.mermaid_code = results[0].get("markdown") or "# Error\n## Empty"
             return state
 
-        if current_tokens <= limit and node_count > MAX_NODES_FOR_REDUCE:
-            log.info(f"[MindMap Collapse] token 在上限内但节点数 {node_count} > {MAX_NODES_FOR_REDUCE}，需要合并精简")
+        article_markdowns = [
+            {"filename": p["filename"], "markdown": p.get("markdown", "")}
+            for p in results
+        ]
+        _save_debug(state, "06_merge_input.json", article_markdowns)
 
-        state.collapse_iterations += 1
-
-        # 按 token 量将节点列表分组为若干对
-        groups = _split_nodes_into_groups(state.collapsed_nodes, limit, model)
-        log.info(f"[MindMap Collapse] 分为 {len(groups)} 组进行合并")
-
-        async def merge_pair(a: list, b: list) -> list:
-            a_json = json.dumps(a, ensure_ascii=False)
-            b_json = json.dumps(b, ensure_ascii=False)
-            prompt = _build_collapse_prompt(a_json, b_json, language)
-            try:
-                agent = create_agent(
-                    name="kb_prompt_agent",
-                    model_name=model,
-                    chat_api_url=state.request.chat_api_url,
-                    temperature=0.2,
-                    parser_type="text",
-                )
-                temp_state = MainState(request=state.request)
-                res_state = await agent.execute(temp_state, prompt=prompt)
-                raw = _extract_text_result(res_state, "kb_prompt_agent")
-                return _parse_json_safe(raw, "collapse")
-            except Exception as e:
-                log.error(f"[MindMap Collapse] 合并失败: {e}")
-                return a + b  # fallback: 不合并，原样返回
-
-        # 两两配对并行合并
-        merge_tasks = []
-        for i in range(0, len(groups) - 1, 2):
-            merge_tasks.append(merge_pair(groups[i], groups[i + 1]))
-
-        merge_results = await asyncio.gather(*merge_tasks, return_exceptions=True)
-
-        merged = []
-        for r in merge_results:
-            if isinstance(r, Exception):
-                log.error(f"[MindMap Collapse] 合并异常: {r}")
-            else:
-                merged.extend(r)
-
-        # 如果组数为奇数，最后一组直通
-        if len(groups) % 2 == 1:
-            merged.extend(groups[-1])
-
-        state.collapsed_nodes = merged
-        log.info(f"[MindMap Collapse] 合并后节点数: {len(merged)}")
-
-        # 保存每轮 Collapse 结果
-        _save_debug(state, f"03_collapse_round{state.collapse_iterations}.json", merged)
+        prompt = _build_merge_prompt(article_markdowns, state.request.language, state.request.max_depth)
+        try:
+            raw = await _call_llm(prompt, state, temperature=0.3)
+            merged = _clean_markdown_output(raw)
+        except Exception as e:
+            log.error(f"[MindMap Merge] 失败: {e}")
+            # fallback：拼接各篇，降级为 heading
+            merged = "# 综合思维导图\n\n" + "\n\n".join(
+                "## " + p["filename"] + "\n" + (p.get("markdown") or "").replace("# ", "### ", 1)
+                for p in results
+            )
+        state.mermaid_code = merged
+        _save_debug(state, "07_merged_markdown.md", merged)
         return state
 
-    def _route_after_collapse(state: KBMindMapState) -> str:
-        if state.collapse_iterations >= 5:
-            log.warning("[MindMap] Collapse 达到最大轮次，强制进入 Reduce")
-            return "reduce_phase"
-        serialized = json.dumps(state.collapsed_nodes, ensure_ascii=False)
-        tokens = _count_tokens(serialized, state.request.model or "")
-        node_count = len(state.collapsed_nodes)
-        MAX_NODES_FOR_REDUCE = 100
-        if tokens <= state.context_window_limit and node_count <= MAX_NODES_FOR_REDUCE:
-            return "reduce_phase"
-        return "collapse_phase"
-
-    async def reduce_phase_node(state: KBMindMapState) -> KBMindMapState:
-        """Reduce 阶段：将合并后的结构化节点转为 Markdown heading 思维导图。"""
-        nodes_json = json.dumps(state.collapsed_nodes, ensure_ascii=False)
-        prompt = _build_reduce_prompt(nodes_json, state.request.language, state.request.max_depth)
-
-        log.info(f"[MindMap Reduce] 节点数 {len(state.collapsed_nodes)}，开始生成最终思维导图")
-
-        # 保存 Reduce 阶段输入
-        _save_debug(state, "04_reduce_input.json", state.collapsed_nodes)
-
+    async def beautify_node(state: KBMindMapState) -> KBMindMapState:
+        """可选美化：结构重平衡 + 命名优化，一次 LLM 调用。失败保留原导图。"""
+        if not state.request.beautify:
+            return state
+        current = state.mermaid_code or ""
+        if not current.strip():
+            return state
+        _save_debug(state, "08_beautify_input.md", current)
+        prompt = _build_beautify_prompt(current, state.request.language, state.request.max_depth)
         try:
-            agent = create_agent(
-                name="kb_prompt_agent",
-                model_name=state.request.model,
-                chat_api_url=state.request.chat_api_url,
-                temperature=0.3,
-                parser_type="text",
-            )
-            temp_state = MainState(request=state.request)
-            res_state = await agent.execute(temp_state, prompt=prompt)
-            raw = _extract_text_result(res_state, "kb_prompt_agent")
-            state.mermaid_code = _clean_markdown_output(raw)
+            raw = await _call_llm(prompt, state, temperature=0.3)
+            polished = _clean_markdown_output(raw)
+            if polished.strip():
+                state.mermaid_code = polished
+                _save_debug(state, "09_beautify_output.md", polished)
+                log.info("[MindMap Beautify] 完成")
         except Exception as e:
-            log.error(f"[MindMap Reduce] 生成失败: {e}")
-            state.mermaid_code = f"# Error\n## {str(e)}"
-
+            log.error(f"[MindMap Beautify] 失败，保留未美化版本: {e}")
         return state
 
     async def save_and_end_node(state: KBMindMapState) -> KBMindMapState:
-        """
-        state.mermaid_code 在 MapReduce/single-pass 阶段存的是 Markdown 标题树（# ## ### ####），
-        这里同时产出 mindmap.md（原 markdown）和 mindmap.mmd（mermaid 语法，供前端 MermaidPreview 直接渲染）。
-        state.mermaid_code 对外返回的最终值是 mermaid 版本，以保持 API 响应兼容。
-        """
+        """Markdown 标题树 → mindmap.md + mindmap.mmd；mermaid_code 最终为 mermaid 版本。"""
         try:
             markdown_content = state.mermaid_code or ""
             mermaid_content = markdown_to_mermaid(markdown_content)
@@ -838,11 +878,8 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             result_dir = Path(state.result_path)
             result_dir.mkdir(parents=True, exist_ok=True)
 
-            md_path = result_dir / "mindmap.md"
-            md_path.write_text(markdown_content, encoding="utf-8")
-
-            mermaid_path = result_dir / "mindmap.mmd"
-            mermaid_path.write_text(mermaid_content, encoding="utf-8")
+            (result_dir / "mindmap.md").write_text(markdown_content, encoding="utf-8")
+            (result_dir / "mindmap.mmd").write_text(mermaid_content, encoding="utf-8")
 
             state.mermaid_code = mermaid_content
             log.info(f"[MindMap] 已保存 mindmap.md + mindmap.mmd -> {result_dir}")
@@ -850,63 +887,26 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             log.error(f"[MindMap] 保存失败: {e}")
         return state
 
-    # ==================== 辅助函数 ====================
-
-    def _split_nodes_into_groups(nodes: list, token_limit: int, model: str) -> List[list]:
-        """将节点列表按 token 量分组，每组不超过 token_limit * 0.45（留空间给 prompt + 输出）。"""
-        group_limit = int(token_limit * 0.45)
-        groups = []
-        current_group = []
-        current_tokens = 0
-
-        for node in nodes:
-            node_json = json.dumps(node, ensure_ascii=False)
-            node_tokens = _count_tokens(node_json, model)
-
-            if current_group and current_tokens + node_tokens > group_limit:
-                groups.append(current_group)
-                current_group = [node]
-                current_tokens = node_tokens
-            else:
-                current_group.append(node)
-                current_tokens += node_tokens
-
-        if current_group:
-            groups.append(current_group)
-
-        # 确保至少有 2 组才有合并意义；如果只有 1 组则强制对半拆分
-        if len(groups) == 1 and len(groups[0]) > 1:
-            mid = len(groups[0]) // 2
-            groups = [groups[0][:mid], groups[0][mid:]]
-
-        return groups
-
     # ==================== 构建图 ====================
 
     nodes = {
         "_start_": _start_,
         "parse_files": parse_files_node,
-        "chunk_and_route": chunk_and_route_node,
-        "generate_single_pass": generate_single_pass_node,
-        "map_phase": map_phase_node,
-        "collapse_phase": collapse_phase_node,
-        "reduce_phase": reduce_phase_node,
+        "process_articles": process_articles_node,
+        "merge_articles": merge_articles_node,
+        "beautify": beautify_node,
         "save_and_end": save_and_end_node,
         "_end_": lambda s: s,
     }
 
     edges = [
         ("_start_", "parse_files"),
-        ("parse_files", "chunk_and_route"),
-        # chunk_and_route 通过条件边路由
-        ("generate_single_pass", "save_and_end"),
-        ("map_phase", "collapse_phase"),
-        # collapse_phase 通过条件边路由（循环或进入 reduce）
-        ("reduce_phase", "save_and_end"),
+        ("parse_files", "process_articles"),
+        ("process_articles", "merge_articles"),
+        ("merge_articles", "beautify"),
+        ("beautify", "save_and_end"),
         ("save_and_end", "_end_"),
     ]
 
     builder.add_nodes(nodes).add_edges(edges)
-    builder.add_conditional_edge("chunk_and_route", _route_after_chunking)
-    builder.add_conditional_edge("collapse_phase", _route_after_collapse)
     return builder
