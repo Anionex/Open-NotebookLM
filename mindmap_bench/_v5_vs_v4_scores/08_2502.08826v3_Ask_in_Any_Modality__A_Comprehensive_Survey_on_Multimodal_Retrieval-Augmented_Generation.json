@@ -1,0 +1,25 @@
+{
+  "stem": "08_2502.08826v3_Ask_in_Any_Modality__A_Comprehensive_Survey_on_Multimodal_Retrieval-Augmented_Generation",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 全面且精准地覆盖了这篇长篇综述的核心内容，不仅包含了正文中的检索、融合、增强、生成等技术模块，还很好地整合了附录中的数学形式化定义、数据集统计、评估指标、损失函数以及垂直领域应用。层级结构自然合理，节点命名简明扼要，细节分布均衡，是一份高质量的思维导图。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 B 同样展现了极高的内容覆盖率和优秀的逻辑结构，对正文和附录内容的提取非常详尽。其特点是节点命名追求字数和格式的对仗工整（多为四字或八字短语），这种风格虽然整齐，但在某些节点上显得略微生硬或冗余（例如在数据集部分重复使用“包含”一词），在精简度上略逊于导图 A，但整体质量依然非常出色。"
+    }
+  }
+}

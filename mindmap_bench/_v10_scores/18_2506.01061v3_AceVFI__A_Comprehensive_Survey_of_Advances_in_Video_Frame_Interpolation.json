@@ -1,0 +1,28 @@
+{
+  "stem": "18_2506.01061v3_AceVFI__A_Comprehensive_Survey_of_Advances_in_Video_Frame_Interpolation",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "覆盖了方法学主线、CTFI/ATFI、损失、挑战、数据集/指标、应用与未来方向，整体较完整；但缺少传统 motion compensation 独立主干，也遗漏了 hybrid kernel-flow、GAN、数据增强、效率/复杂度比较等内容。层级上按“方法-训练-挑战-评测-应用”组织清晰，但将 phase/Transformer/Mamba 合并到“新兴架构”略显压缩。分支规模较均衡。表述多为短语，但部分节点仍偏句子化。术语与代表方法基本准确，不过个别归纳略泛化。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "较好覆盖了传统方法、Kernel/Flow/Transformer/Mamba、扩散模型、CTFI/ATFI、训练采样、挑战、指标、数据集和应用，主线完整；但缺少损失函数专门总结，也未覆盖未来研究方向、效率/复杂度比较，以及 hybrid/GAN 方法。层级结构自然，父子关系基本合理。主分支分布均衡，无明显失衡。节点表达更短促统一，简洁性优于 A。关键术语、代表方法和概念对应较准确，忠实度较高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 29.9
+}

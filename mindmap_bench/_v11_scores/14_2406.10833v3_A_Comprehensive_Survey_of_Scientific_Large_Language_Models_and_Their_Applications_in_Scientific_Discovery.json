@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "A 抓住了论文的总纲：预训练范式、多模态序列化、应用、挑战与技术趋势，结构上也较清晰。但对分领域综述覆盖不足，物理、通用科学、地学等章节展开不够，评测基准与具体模型谱系保留较少。部分节点存在跨域混放或表述不够严谨，如将 TAPAS 放入“数学与几何模态”、将 Adapter 与化学图文融合并列，忠实度中等。整体偏高层总结型导图。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "B 对论文主要领域章节覆盖更完整，按通用科学、数学、物理/气象、化学、生物医学、地理环境展开，且保留了较多代表模型与数字，整体比 A 更接近原文主体结构。层级基本合理，分支规模也较均衡。但仍遗漏了不少应用、挑战/限制等内容，且有若干细节不够忠实，如参数范围写成 100M-562B、ClimateBERT 与 scGPT 的任务表述超出或偏离原文、将天气基础模型与物理部分绑定较强。整体是覆盖更广但细节准确性一般的导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 265.0
+}

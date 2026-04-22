@@ -1,0 +1,28 @@
+{
+  "stem": "13_2502.12128v5_LaM-SLidE_Latent_Space_Modeling_of_Spatial_Dynamical_Systems_via_Linked_Entities",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind map A is excellent. It comprehensively covers all sections of the paper, including background, architecture, experiments, and ablations. The hierarchy is logical and deep, the branches are well-balanced, and the nodes use highly concise phrases while accurately retaining key terms and numbers (e.g., 32 latent vectors, 10x-100x speedup, 21 atoms)."
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 2,
+      "rationale": "Mind map B fails as a mind map. It directly extracts raw sentences, HTML table tags, image links, and LaTeX code as nodes. It completely lacks conciseness, has a flat and illogical hierarchy, and is severely unbalanced with bloated sections like References and Experiments."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 15.1
+}

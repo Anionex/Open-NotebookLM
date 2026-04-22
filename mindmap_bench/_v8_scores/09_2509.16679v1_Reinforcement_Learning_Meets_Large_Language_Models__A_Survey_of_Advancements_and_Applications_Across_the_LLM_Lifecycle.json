@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "Map A covers the basic outline but fails significantly in hierarchy and accuracy. It extracts meaningless numbers (e.g., '79.8分', 'Vol. 39') as standalone nodes and groups items illogically (e.g., by publication years). It adheres well to the conciseness constraint by avoiding parentheses, but the extracted content does not faithfully represent the paper's core concepts."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "Map B provides excellent coverage of the paper's full lifecycle approach with a highly logical hierarchy, balanced structure, and accurate terminology. However, it scores low on conciseness because it heavily violates the rule against using parenthetical supplements and includes overly long explanatory phrases in the leaf nodes."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 53.5
+}

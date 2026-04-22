@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "思维导图A全面且准确地覆盖了论文的核心章节与主题，层级结构严格遵循了原论文的逻辑框架。各分支内容分布均衡，没有出现头重脚轻的情况。节点命名高度精炼，使用了准确的专业短语而非长句，完美保留了论文的关键术语和核心论点，质量极高。"
+    },
+    "B": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "思维导图B的结构极其混乱，未能提取论文的真实章节框架，主分支竟然是随机的段落标题或文本片段。层级关系毫无逻辑可言，大量毫不相关的长句、作者信息甚至图片Markdown代码被错误地归类为子节点。节点冗长且包含大量截断的无意义文本，完全失去了思维导图应有的概括与结构化功能。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 16.5
+}

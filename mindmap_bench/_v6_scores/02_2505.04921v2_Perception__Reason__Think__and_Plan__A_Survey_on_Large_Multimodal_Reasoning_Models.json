@@ -1,0 +1,11 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": null,
+  "raw_response": "```json\n{\n  \"A\": {\n    \"coverage\": 5,\n    \"hierarchy\": 5,\n    \"balance\": 5,\n    \"conciseness\": 5,\n    \"accuracy\": 5,\n    \"rationale\": \"导图 A 全面且深入地覆盖了论文的核心内容，层级结构完全贴合论文的叙事逻辑（从演进范式、MCoT路径、RL优化到原生N-LMRM及评估）。节点内容信息密度高，使用了精准的短语（",
+  "elapsed_s": 92.8
+}

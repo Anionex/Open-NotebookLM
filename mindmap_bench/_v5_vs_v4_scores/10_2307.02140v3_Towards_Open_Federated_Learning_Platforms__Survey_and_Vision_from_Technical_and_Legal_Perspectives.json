@@ -1,0 +1,25 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A较好地提取了论文的核心贡献，包括传统联邦学习的局限性、提出的两种开放联邦学习框架（基于查询和基于合同）、批量模型复用的四种机制分类以及模型许可与法律合规问题。结构逻辑清晰，提取的数据（如表格中的模型数量）具有实际支撑意义，整体质量较高。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 2,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图B虽然在主干节点上跟随了论文结构，但在叶子节点中提取了大量无关紧要的参考文献元数据（如“210页开放问题综述”、“69页技术规范”、“JMLR论文核心支撑”、“2021年发布版本”等）。这种对引用文献页码和年份的过度关注表明算法未能准确理解论文的核心语义，导致内容失衡且重点偏移。"
+    }
+  }
+}

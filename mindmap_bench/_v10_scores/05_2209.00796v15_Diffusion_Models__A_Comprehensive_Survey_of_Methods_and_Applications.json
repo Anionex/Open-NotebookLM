@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "A 基本覆盖了论文的核心主线：基础三范式、采样加速、似然改进、特殊结构数据、与其他生成模型的联系、应用场景及部分跨学科方向。层级展开较充分，尤其在 foundations、sampling、applications 上有清晰的父子关系和适当深度。分支规模总体较均衡，但对第7节应用覆盖偏选择性，缺少自然语言生成、鲁棒学习、未来方向、结论等显式主分支，因此 coverage 不是满分。表达整体简洁，多为短语。准确性总体较好，但有少量不够忠实或略带外延的地方，如直接写 Stable Diffusion（原文目录中主要是 LDM/相关系统）、将“加速 MRI/CT 重建”概括得较粗，以及部分新近工作与原始章节组织存在轻微混排。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "B 覆盖了论文若干关键主题，但明显不如 A 完整：基础、采样、似然、特殊结构、跨范式融合和部分应用都有涉及，但缺少对第6节多类生成模型连接的系统展开，也未体现自然语言生成、文本到音频、场景图到图像、医学重建、未来方向、结论等多项重要内容。层级基本合理，但很多二级节点被压成一句长标题，深度利用不如 A 充分。分支均衡性尚可，没有严重失衡。简洁性一般，多个节点是完整说明句并包含较多并列成分，不如短语式导图。准确性总体较好，术语如 DDPM、VDM、CTMC、GeoDiff、DiffPure 等基本对应原文；但少数概括存在泛化或混杂，如将 LLM 协同中的个别工作表述为更强的“思维链推理/布局规划”，以及对流匹配和轨迹优化的归纳略偏后续扩展化。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 40.4
+}

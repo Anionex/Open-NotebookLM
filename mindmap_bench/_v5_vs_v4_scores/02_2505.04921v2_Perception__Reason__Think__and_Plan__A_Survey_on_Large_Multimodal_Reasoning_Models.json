@@ -1,0 +1,25 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A": "v5",
+    "B": "v4"
+  },
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 A 较好地覆盖了原文的核心内容，包括多模态推理的四个阶段、核心技术、强化学习应用以及评估基准。结构上进行了合理的重组，逻辑清晰。最重要的是，在原文因截断缺失部分内容的情况下，导图 A 严格遵循了提供的文本，没有引入外部信息，准确性较高。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图 B 的层级结构非常出色，完美契合了原论文的章节安排，细节丰富且分布均衡。然而，由于提供的原文在 5.2.1 节处被截断，导图 B 依赖外部知识补充了缺失的 5.5 节及其他内容（如捏造了原文未提及的 CircularEval、CIGEval、Reason2Drive、ANOLE 等具体名词），违反了仅基于给定文本的原则，因此在准确性上扣分。"
+    }
+  }
+}

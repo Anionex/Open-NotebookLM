@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美契合了论文的宏观结构与核心概念。它准确地将 Few-shot 方法划分为 PPG、黑盒与任务推断三大类，并合理归纳了探索机制、Many-shot、监督模式及应用挑战。节点命名高度精炼，层级逻辑清晰，各分支内容分布均衡，没有陷入过度细节，是一份极高质量的学术思维导图。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 B 同样覆盖了全文的主要章节，但在结构和均衡性上存在不足。它过度提取了具体的数值细节（如基准测试的具体分数、任务数量等），导致分支显得琐碎且偏离了方法论的宏观总结。此外，层级划分上将 RNN 复杂度与元梯度偏置强行归入同一节点，且将任务推断与 Few-shot 方法割裂，逻辑连贯性略逊于 A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 61.0
+}

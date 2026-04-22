@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "Mind Map A is severely flawed. Its hierarchy is completely broken, elevating random sub-sections (like 'Convolution-based Methods') to the root level while missing major chapters like Object Detection and Segmentation. The nodes are filled with raw HTML table fragments, truncated sentences, and unstructured text chunks, resulting in extremely poor conciseness, accuracy, and readability."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind Map B is of excellent quality. It perfectly captures the paper's macro-structure (Background, Classification, Detection, Segmentation, Conclusion) with a logical parent-child hierarchy. The nodes are highly concise, using short phrases rather than long sentences. It accurately extracts key algorithms, evaluation metrics, and specific numerical data (e.g., 62 fps, 4096 points) without any formatting artifacts."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.4
+}

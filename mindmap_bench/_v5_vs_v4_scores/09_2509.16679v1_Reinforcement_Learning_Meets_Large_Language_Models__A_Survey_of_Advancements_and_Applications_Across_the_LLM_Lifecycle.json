@@ -1,0 +1,25 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A": "v5",
+    "B": "v4"
+  },
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Map A comprehensively covers the paper's content, including theoretical foundations, lifecycle stages, datasets, and tools, extracting highly specific and accurate details (e.g., formulas and benchmark scores). However, there are several hierarchical misplacements (e.g., placing internal feedback under tools, and adaptive reasoning techniques under preliminaries). Overall, it is well-balanced and concise."
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "Map B significantly deviates from the paper's original structure, completely missing the theoretical preliminaries and pre-training details. It overemphasizes 2025 milestone models and contains repetitive nodes (e.g., '提升模型逻辑极限'). Furthermore, it includes hallucinated statistics not explicitly stated in the text (e.g., '2025年论文占比超60%'), reducing its accuracy and reliability."
+    }
+  }
+}

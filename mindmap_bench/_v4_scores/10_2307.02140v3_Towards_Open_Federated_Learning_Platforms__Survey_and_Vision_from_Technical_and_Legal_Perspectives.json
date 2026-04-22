@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美契合了论文的核心逻辑与结构，准确提取了传统联邦学习的局限性、提出的两种开放联邦学习框架（基于查询与基于合同）、四种批量模型重用机制（组合、融合、蒸馏、生成）、法律许可合规性以及微任务设计等核心学术贡献。层级分明，分支均衡，语言精炼，没有冗余信息，高度忠实于原论文的学术愿景。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 B 虽然覆盖了文章的大部分主题，但在层级和重点把握上存在明显偏差。它过度提取了表格中的琐碎统计数据（如各大平台的具体模型数量、特定许可证下的模型确切数量、IEEE标准的页数等），导致分支失衡，且未能清晰独立地呈现作者提出的四种模型重用分类（将其强行合并为两类）。这种处理方式偏离了论文作为宏观综述与愿景展望的核心主旨。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.9
+}

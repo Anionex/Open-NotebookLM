@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MindMap Benchmark: MapReduce vs Original</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+         max-width: 1100px; margin: 2em auto; padding: 0 1em; color: #222; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: 0.3em; }
+  h2 { margin-top: 2em; border-bottom: 1px solid #ddd; padding-bottom: 0.2em; }
+  .meta { color: #666; font-size: 0.95em; }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1em; margin: 1em 0; }
+  .stat-card { background: #f7f7f9; border: 1px solid #e0e0e6; border-radius: 8px;
+               padding: 1em; text-align: center; }
+  .stat-card .n { font-size: 2em; font-weight: 600; margin: 0.2em 0; }
+  .stat-card .mr { color: #3b82f6; }
+  .stat-card .og { color: #ef4444; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; }
+  .chart-wrap { background: white; border: 1px solid #eee; border-radius: 8px; padding: 1em; }
+  .chart-wrap canvas { max-height: 380px; }
+  .full { grid-column: span 2; }
+  .legend { font-size: 0.9em; color: #666; }
+  .tl { color: #3b82f6; font-weight: 600; }
+  .tr { color: #ef4444; font-weight: 600; }
+  footer { margin-top: 3em; font-size: 0.85em; color: #999; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>MindMap Benchmark: <span class="tl">MapReduce</span> vs <span class="tr">Original</span></h1>
+<p class="meta">
+  Generator: qwen2.5-14b-Instruct-1m (汇云, 1M context — full paper on both paths) · Judge: gemini-3-pro-preview · Dimensions 1–5
+</p>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div>Papers judged</div>
+    <div class="n" id="stat-n"></div>
+  </div>
+  <div class="stat-card">
+    <div>Mean total (/25)</div>
+    <div class="n"><span class="mr" id="stat-mr"></span> vs <span class="og" id="stat-og"></span></div>
+  </div>
+  <div class="stat-card">
+    <div>Per-paper wins</div>
+    <div class="n"><span class="mr" id="stat-w"></span> · <span class="og" id="stat-l"></span> · <span id="stat-t"></span></div>
+    <div class="legend">MR · OG · Tie</div>
+  </div>
+</div>
+
+<h2>1. Radar — overall profile</h2>
+<div class="chart-row">
+  <div class="chart-wrap"><canvas id="radar"></canvas></div>
+  <div class="chart-wrap">
+    <canvas id="bar-means"></canvas>
+  </div>
+</div>
+
+<h2>2. Per-dimension wins (paired)</h2>
+<div class="chart-wrap"><canvas id="wins" style="max-height:320px"></canvas></div>
+
+<h2>3. Per-paper delta (MR − OG sum score)</h2>
+<div class="chart-wrap"><canvas id="delta" style="max-height:520px"></canvas></div>
+
+<footer>Generated from <code>mindmap_bench/scores/*.json</code> via <code>scripts/06_html_report.py</code></footer>
+
+<script>
+const DATA = {"n": 20, "dims": ["Coverage", "Hierarchy", "Balance", "Conciseness", "Accuracy"], "mr_means": [4.05, 3.15, 3.65, 3.7, 3.9], "og_means": [4.9, 4.85, 4.95, 4.7, 5], "mr_std": [0.67, 0.79, 0.65, 0.56, 0.83], "og_std": [0.3, 0.65, 0.22, 0.71, 0.0], "wins": [[2, 15, 3], [1, 18, 1], [1, 18, 1], [3, 17, 0], [0, 15, 5]], "per_paper": [{"label": "01. Large Language Model-Brained GUI Agen...", "delta": 5, "mr": 24, "og": 19}, {"label": "02. Perception  Reason  Think  and Plan  ...", "delta": -10, "mr": 15, "og": 25}, {"label": "03. A Survey of Reasoning with Foundation...", "delta": -9, "mr": 16, "og": 25}, {"label": "04. Deep Reinforcement Learning  An Overview", "delta": -8, "mr": 17, "og": 25}, {"label": "05. Diffusion Models  A Comprehensive Sur...", "delta": -7, "mr": 18, "og": 25}, {"label": "06. Oriented object detection in optical ...", "delta": -8, "mr": 17, "og": 25}, {"label": "07. Deep Learning for 3D Point Clouds  A ...", "delta": -8, "mr": 17, "og": 25}, {"label": "08. Ask in Any Modality  A Comprehensive ...", "delta": -5, "mr": 20, "og": 25}, {"label": "09. Reinforcement Learning Meets Large La...", "delta": -4, "mr": 21, "og": 25}, {"label": "10. Towards Open Federated Learning Platf...", "delta": -8, "mr": 15, "og": 23}, {"label": "11. Image Segmentation in Foundation Mode...", "delta": -8, "mr": 17, "og": 25}, {"label": "12. A Tutorial on Meta-Reinforcement Lear...", "delta": -6, "mr": 19, "og": 25}, {"label": "13. LaM-SLidE Latent Space Modeling of Sp...", "delta": -1, "mr": 24, "og": 25}, {"label": "14. A Comprehensive Survey of Scientific ...", "delta": -9, "mr": 16, "og": 25}, {"label": "15. Active learning for data streams  a s...", "delta": -5, "mr": 18, "og": 23}, {"label": "16. Zero-shot and Few-shot Learning with ...", "delta": -5, "mr": 19, "og": 24}, {"label": "17. Towards Controllable Speech Synthesis...", "delta": -7, "mr": 18, "og": 25}, {"label": "18. AceVFI  A Comprehensive Survey of Adv...", "delta": -6, "mr": 19, "og": 25}, {"label": "19. Learning Curves for Decision Making i...", "delta": -6, "mr": 19, "og": 25}, {"label": "20. Creative Problem Solving in Artificia...", "delta": -4, "mr": 20, "og": 24}], "mr_overall": 18.45, "og_overall": 24.4, "overall_wins": 1, "overall_losses": 19, "overall_ties": 0};
+
+document.getElementById('stat-n').textContent = DATA.n;
+document.getElementById('stat-mr').textContent = DATA.mr_overall;
+document.getElementById('stat-og').textContent = DATA.og_overall;
+document.getElementById('stat-w').textContent = DATA.overall_wins;
+document.getElementById('stat-l').textContent = DATA.overall_losses;
+document.getElementById('stat-t').textContent = DATA.overall_ties;
+
+const BLUE = 'rgba(59,130,246,0.7)';
+const BLUE_BORDER = 'rgb(59,130,246)';
+const RED = 'rgba(239,68,68,0.7)';
+const RED_BORDER = 'rgb(239,68,68)';
+
+// Radar
+new Chart(document.getElementById('radar'), {
+  type: 'radar',
+  data: {
+    labels: DATA.dims,
+    datasets: [
+      { label: 'MapReduce', data: DATA.mr_means, backgroundColor: BLUE, borderColor: BLUE_BORDER, pointBackgroundColor: BLUE_BORDER },
+      { label: 'Original',  data: DATA.og_means, backgroundColor: RED,  borderColor: RED_BORDER,  pointBackgroundColor: RED_BORDER }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { r: { min: 0, max: 5, ticks: { stepSize: 1 } } },
+    plugins: { title: { display: true, text: 'Mean score per dimension' } }
+  }
+});
+
+// Bar means with error bars (approximated via ±std in label)
+new Chart(document.getElementById('bar-means'), {
+  type: 'bar',
+  data: {
+    labels: DATA.dims,
+    datasets: [
+      { label: 'MapReduce', data: DATA.mr_means, backgroundColor: BLUE, borderColor: BLUE_BORDER, borderWidth: 1 },
+      { label: 'Original',  data: DATA.og_means, backgroundColor: RED,  borderColor: RED_BORDER,  borderWidth: 1 }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { y: { min: 0, max: 5, ticks: { stepSize: 1 } } },
+    plugins: {
+      title: { display: true, text: 'Mean (bars) — std in tooltip' },
+      tooltip: { callbacks: { afterLabel: (ctx) => {
+        const std = ctx.datasetIndex === 0 ? DATA.mr_std : DATA.og_std;
+        return '± ' + std[ctx.dataIndex];
+      } } }
+    }
+  }
+});
+
+// Wins per dim (stacked bar)
+const mrWins = DATA.wins.map(w => w[0]);
+const ogWins = DATA.wins.map(w => w[1]);
+const ties   = DATA.wins.map(w => w[2]);
+new Chart(document.getElementById('wins'), {
+  type: 'bar',
+  data: {
+    labels: DATA.dims,
+    datasets: [
+      { label: 'MR wins', data: mrWins, backgroundColor: BLUE },
+      { label: 'OG wins', data: ogWins, backgroundColor: RED },
+      { label: 'Ties',    data: ties,   backgroundColor: '#d1d5db' }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+    plugins: { title: { display: true, text: 'Paired wins per dimension (n=' + DATA.n + ')' } }
+  }
+});
+
+// Per-paper delta
+const sorted = [...DATA.per_paper].sort((a,b) => b.delta - a.delta);
+new Chart(document.getElementById('delta'), {
+  type: 'bar',
+  data: {
+    labels: sorted.map(p => p.label),
+    datasets: [{
+      label: 'MR − OG (sum /25)',
+      data: sorted.map(p => p.delta),
+      backgroundColor: sorted.map(p => p.delta > 0 ? BLUE : (p.delta < 0 ? RED : '#9ca3af')),
+      borderColor:     sorted.map(p => p.delta > 0 ? BLUE_BORDER : (p.delta < 0 ? RED_BORDER : '#6b7280')),
+      borderWidth: 1
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    scales: { x: { title: { display: true, text: 'Δ (positive = MR wins)' } } },
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Δ per paper — blue=MR wins, red=OG wins' },
+      tooltip: { callbacks: { afterLabel: (ctx) => {
+        const p = sorted[ctx.dataIndex];
+        return 'MR=' + p.mr + '  OG=' + p.og;
+      } } }
+    }
+  }
+});
+</script>
+</body>
+</html>

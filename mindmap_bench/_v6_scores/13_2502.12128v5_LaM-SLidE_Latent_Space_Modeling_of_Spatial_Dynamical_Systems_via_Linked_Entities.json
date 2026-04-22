@@ -1,0 +1,28 @@
+{
+  "stem": "13_2502.12128v5_LaM-SLidE_Latent_Space_Modeling_of_Spatial_Dynamical_Systems_via_Linked_Entities",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "图 A 抓住了论文的核心概念和主要实验结果，但在方法论细节（如损失函数、具体网络结构）和附录内容上覆盖不足。层级结构相对扁平（主要为3级），部分节点表述略长，但整体准确反映了论文的主要贡献。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "图 B 极其全面，不仅详细拆解了核心架构、训练策略和多领域实验，还充分涵盖了附录中的数学基础、硬件消耗和相关工作。层级划分深入且逻辑严密（达到5-6级），各分支内容分布均衡，节点语言精炼，且精准提取了大量关键数据（如参数量、NFE、GPU消耗等），质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.5
+}

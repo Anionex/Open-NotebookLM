@@ -1,0 +1,28 @@
+{
+  "stem": "01_2411.18279v12_Large_Language_Model-Brained_GUI_Agents__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了论文的核心主题，但层级过浅（仅两级子节点）。它倾向于使用冒号和连词将多个独立概念压缩在同一个节点中（如‘环境感知: SoM标注与OmniParser纯视觉解析’），未能充分利用思维导图的树状层级结构。各分支分布非常均衡，语言精炼，但引入了部分原文未明确提及的词汇（如‘o1风格’），在忠实度上略有瑕疵。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B全面覆盖了论文的背景、架构、框架、数据、评估及挑战等所有关键章节。层级结构合理（达到三级子节点），父子关系逻辑清晰，能将复杂概念有效拆解。各主分支的规模保持了高度均衡。节点语言基本简练，但个别节点包含了过于细节的元数据或具体数字（如‘引用超过500篇核心文献’、‘达78.1完成率’），在简洁性上略扣一分。整体对原论文的术语和框架提取非常准确。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 29.6
+}

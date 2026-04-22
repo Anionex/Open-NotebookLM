@@ -1,0 +1,28 @@
+{
+  "stem": "13_2502.12128v5_LaM-SLidE_Latent_Space_Modeling_of_Spatial_Dynamical_Systems_via_Linked_Entities",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 A 全面且深入地覆盖了论文的核心贡献，准确提炼了方法论（如单射映射、交叉注意力、基于随机插值的流匹配）和实验结论。层级结构逻辑清晰，各分支均衡。虽然个别节点略长，但整体保持了短语结构，信息密度高且准确。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 B 涵盖了论文的主要章节，但过度关注孤立的超参数和具体数值（如'标识符池大小 32'、'53 秒推理时间'、'阿司匹林 21 个原子'），忽略了部分核心机制的深入解释。这种将宏观概念与微观数值混杂的做法破坏了层级的合理性，使得导图缺乏概念上的连贯性。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.5
+}

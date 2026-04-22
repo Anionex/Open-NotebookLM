@@ -1,0 +1,28 @@
+{
+  "stem": "19_2201.12150v2_Learning_Curves_for_Decision_Making_in_Supervised_Machine_Learning__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "A覆盖了论文的若干核心板块，如学习曲线类型、决策场景、不确定性、技术层级和未来方向，但遗漏较多重要内容：经验学习曲线、与其他性能曲线的系统对比、文献综述的具体组织方式、数据资源三轴框架、无模型/有模型方法的细分及代表工作不够完整。层级上大体合理，先概念后应用再方法，深度也尚可。分支较均衡。表达多为短语，简洁度较好。准确性存在明显问题：将Double Descent写成“双峰下降”；将范围估计中的置信区间说成“基于高斯过程”不符合文中主线；把DAUB归因为“利用凸性”不准确，凸性更对应Mohr and van Rijn；若干术语混杂、泛化过度，忠实度偏低。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B对全文覆盖更全面，较好囊括了背景定义、样本/迭代/效用曲线、关键术语、与其他曲线的关系、建模类型、不确定性、数据获取/早停/早弃、若干代表方法以及参数化与贝叶斯方法，也触及学习曲线交叉验证、DAUB、Freeze-thaw、FABOLAS、PFN等。虽未充分体现论文最核心的“三轴统一框架”与第5节按技术问题组织的完整谱系，也缺少对文献综述表格化总结与开放问题的系统展开，但总体覆盖优于A。层级结构较清晰，概念—方法—应用推进自然。分支规模较均衡。表述以短语为主，较简洁。准确性整体较好，术语基本忠实，个别节点略泛化或表述松散，如“投影采样方法”“性能预测固定点”不够标准，但未出现A那类明显硬伤。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 97.2
+}

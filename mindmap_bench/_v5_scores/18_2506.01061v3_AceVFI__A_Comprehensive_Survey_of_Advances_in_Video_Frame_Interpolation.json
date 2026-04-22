@@ -1,0 +1,28 @@
+{
+  "stem": "18_2506.01061v3_AceVFI__A_Comprehensive_Survey_of_Advances_in_Video_Frame_Interpolation",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "Mindmap A covers most sections of the paper but misses some methodology categories like GAN and Hybrid methods. Its hierarchy follows the paper's structure, but it extracts too many specific numbers from tables (e.g., exact GFLOPs, parameter counts, and triplet numbers) rather than synthesizing high-level insights, which slightly affects the balance and readability. Conciseness is acceptable, though some nodes are just isolated data points. Accuracy is good but lacks deeper conceptual synthesis."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Mindmap B provides excellent coverage and outstanding synthesis of the survey. The hierarchy is highly logical, effectively grouping methods by explicit, implicit, and generative mechanisms, which perfectly reflects the paper's core arguments. It successfully captures key insights such as the distortion-perception trade-off and specific challenges. Balance is great across all sections. Conciseness is generally good, though a few nodes contain slightly longer descriptive phrases. Accuracy is very high."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.7
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 3,
+      "accuracy": 5,
+      "rationale": "导图 A 全面覆盖了论文的各个生命周期阶段与核心技术，层级结构清晰合理，各分支分布均衡。内容提取准确，忠实于原文的核心术语与论点。但其在节点中大量使用了括号进行补充说明（如“PPO (剪切目标防止崩溃)”），违反了简洁性要求中的“无括号补充”原则，因此在简洁性上扣分。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 2,
+      "accuracy": 4,
+      "rationale": "导图 B 覆盖面较广，但层级设计存在缺陷，大量叶子节点实际上是拆分的完整长句（如公式描述和具体分数对比），未能很好地利用树状结构提炼概念。节点使用了较多长句而非精简短语，严重违反简洁性要求。此外，内容中出现了原文未提及的幻觉数据（如“2025年发表论文占比超60%”），影响了准确度与忠实度。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.8
+}

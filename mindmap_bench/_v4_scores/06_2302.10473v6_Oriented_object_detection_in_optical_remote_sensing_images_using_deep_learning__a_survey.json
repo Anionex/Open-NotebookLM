@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "思维导图A结构严谨，完美契合原论文的分类体系（涵盖演进挑战、检测框架、回归技术、特征表示、常见问题、数据集与未来方向）。节点分布均衡，语言高度精炼，均采用专业短语概括。此外，准确提取了论文中的核心术语和算法缩写（如TS-Conv、GCL、PSC等），无任何事实错误或遗漏，质量极高。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "思维导图B整体覆盖了论文的主要内容，但在均衡性和简洁性上存在不足：过度关注数据集的具体实例数量（如'包含192518个实例'）和具体的mAP得分，导致节点略显冗长且偏离了综述的宏观抽象层级。最严重的是在准确度方面存在幻觉，编造了原文未提及的'Q-DETR'和'CAKDP'等术语，且部分概念（如主动旋转滤波器）偏离了原文表述。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 26.9
+}

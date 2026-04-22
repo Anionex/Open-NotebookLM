@@ -1,0 +1,28 @@
+{
+  "stem": "18_2506.01061v3_AceVFI__A_Comprehensive_Survey_of_Advances_in_Video_Frame_Interpolation",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A表现极其优异。它完美覆盖了综述论文的所有核心维度，包括复杂的技术分类（如Mamba、扩散模型）、具体的挑战与对齐策略、详尽的评价指标权衡，以及论文末尾提到的细分应用领域（事件、漫画、医学）和未来趋势。层级结构逻辑严密，将模型实例与技术特点有机结合，不仅是一份大纲，更是一份高质量的技术知识图谱。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "导图B虽然格式规范且节点简洁，但覆盖度明显不足。它仅提取了论文的前半部分（方法论、流程和挑战），完全遗漏了“特定领域应用”（Section VI）和“未来研究方向”（Section VII）等关键章节。作为综述类论文的总结，其信息密度过低，无法体现原文献作为Comprehensive Survey的广度。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 13.1
+}

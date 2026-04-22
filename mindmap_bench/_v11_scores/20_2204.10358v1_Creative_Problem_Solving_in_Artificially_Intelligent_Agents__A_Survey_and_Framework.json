@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A较好覆盖了论文主干：定义、CC借鉴、四组件框架、概念空间类型、评估与开放问题均有体现，也提到TAMP、babbling、AUT/POET/NovelGridWorlds等关键内容。但对第6节两大架构仅隐含提及，未单列CreaCogs与Robogyver；对引言中的动机、已有定义对比、仿真/真实/benchmark三分法、若干关键细分（如Other paradigms、输出/过程两类CC aspects）覆盖不够完整。层级上总体清楚，从框架到子机制再到实例较合理，但“评估体系与研究挑战”把评估和开放问题混在一枝，且前文缺少对Section 3的独立承接。表述多为短语，较简洁。术语基本准确，保留了C'_X=f(C_X)、Impasse/Incubation/Insight、symbolic/non-symbolic/hybrid、exploratory/combinational/transformational等核心术语，但缺少一些论文中特有细节与正式分类边界。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B覆盖最完整，除定义、问题表述、表示、操纵、概念空间、评估、开放问题外，还单列了CC中的新颖性/价值、两大CPS架构CreaCogs与Robogyver，并补充了Apollo 13与呼吸机短缺等引言动机，整体更贴近论文章节结构。层级组织也更好：从定义到框架，再到表示、操纵、概念空间、架构、评估与泛化，父子关系较自然，深度利用充分。分支总体均衡，但“典型架构与推理模型”分支稍重，且把“代理能力建模”并入该分支略有扩张。简洁性尚可，不过存在“知识操纵操纵过程”这类重复表述，且有少量节点偏抽象。准确性方面大体忠实，保留了OROC、FGS、TAMP、Lifelong CPS等关键术语，也正确区分了状态/动作修改；但“Transformer 模型”并非论文明确提及的代表模型，属于不够忠实的扩展，因此准确性略扣。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 106.4
+}

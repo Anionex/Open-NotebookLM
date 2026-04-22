@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "A 覆盖了论文的主要脉络，包括 Stage 1 模块化推理、Stage 2 MCoT、Stage 3 O1/R1 长推理、N-LMRM、数据集基准以及 GUI/具身规划，整体覆盖面较广。层级结构清晰，主分支与论文大章节较一致，且对评估基准和智能体规划单独成章，结构较完整。分支规模相对均衡，但数据集与规划部分略偏罗列。简洁性较好，多数为短语节点。主要问题在准确性：出现若干论文中不突出的或不准确表述，如“2014年至2025年关键研究”“GPT-4V 视觉接地能力”“R1-Zero 灵光一现时刻”“Marco-o1”归入 Multimodal-R1、“Omni-R1 双系统协作推理”“Skillweaver”等，部分模型或术语与原文不完全对应；同时 Stage 2 外部增强中把 Image-of-Thought 放入较早短推理部分也有混淆。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B 覆盖了论文的核心框架：四阶段演进、MCoT 三类路径、RL 驱动的 R1/O1 推理优化、N-LMRM 能力、评估体系以及技术挑战。相比 A 更聚焦论文主线，术语和代表方法选择较准确，如 IPVR、VoT、Cantor、TextCoT、CoS、Shikra、MM-ToT、AGoT、KAM-CoT、AR-MCTS、DPO、GRPO、AnyGPT、Qwen2.5-Omni、OpenVLA、Magma、MCP/A2A 等均与原文吻合。层级合理且分支均衡，没有明显独大分支。简洁性总体较好，但部分叶子节点是较长说明句，如“隐式推理转化为显式步骤提升解释性”“实现超越特定编解码器的平滑跨模态合成”。覆盖不足在于对 Stage 1 的细分、Multimodal-O1 与 Multimodal-R1 的大量代表工作、数据集与 benchmark 的细分类别覆盖较压缩；另有少量准确性问题，如将 ICoT/MVoT 与 O1 四阶段路径混写，Anole 未在给定正文显著出现。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 95.9
+}

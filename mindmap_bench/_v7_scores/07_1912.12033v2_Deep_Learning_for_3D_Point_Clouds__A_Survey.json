@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图A完整覆盖了论文的核心分类与内容，层级结构清晰，各分支内容分布非常均衡，准确提炼了各类算法的代表作与核心思想。但其在几乎所有叶子节点中都使用了括号进行补充说明，严重违反了评分标准中‘无括号补充’的简洁性要求。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B涵盖了论文的主要章节，准确提取了文中的关键术语和数据，且严格遵守了无括号的格式要求。但其分支均衡性较差，部分节点（如部件分割、局限性分析）过度深入到了具体论文的微观数值细节（如76.0% IoU、62 fps、5000个形状等），而语义分割等重要分支却极其简略，导致整体结构和颗粒度失衡。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.9
+}

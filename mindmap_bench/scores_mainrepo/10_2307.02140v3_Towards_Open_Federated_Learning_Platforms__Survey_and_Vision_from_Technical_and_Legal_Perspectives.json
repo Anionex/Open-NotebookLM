@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图A表现卓越，完整覆盖了论文的所有核心模块，包括传统FL的局限性、两种新型协作范式、四种批量重用机制（Combination/Amalgamation/Distillation/Generation）、法律许可分析、以及详尽的微任务（Microtasks）设计。其层级结构严密，四级节点的利用极好地还原了论文中的技术深度和具体算法示例。虽然部分节点描述略长，但对学术论文的还原度极高，术语非常精准。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "导图B虽然极其简洁，但覆盖度明显不足。它遗漏了论文中关于‘机器学习微任务设计’（Section VII-B）以及‘模型保护与安全审计’（Section VI-A）等关键章节。在核心的模型重用分类上，未能清晰体现论文提出的四分类法，仅做了笼统归纳。层级较浅，未能深入到技术实现细节，更像是一个高层摘要而非质量合格的思维导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 46.8
+}

@@ -1,0 +1,25 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A": "v5",
+    "B": "v4"
+  },
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图A较好地覆盖了综述的核心章节，整体结构较为清晰。但其在处理图表内容时出现了严重的逻辑与准确性错误，将图10中用于展示模型能力的具体数学/几何问题答案（如“52度已知角几何推理能力”、“11分之5三角函数精确计算”）错误地归类到了“未来演进与研究方向”下，严重破坏了层级逻辑和内容准确性。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图B全面覆盖了论文的各个主题，但在层级和均衡度上存在明显缺陷。它将图4中针对特定模型（IterComp）的推理耗时数据（如“每张图像 23.02s”等）作为主要分支列出，在宏观综述的导图中显得过于琐碎，破坏了内容的平衡性。此外，包含“全文共 59 页”等无关紧要的元数据也降低了简洁度。"
+    }
+  }
+}

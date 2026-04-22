@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完整覆盖了论文的核心章节，层级结构逻辑清晰（如将 PPG、Black Box 和 Task Inference 准确归类于 Few-shot 下）。各分支分布均衡，节点命名高度精炼，均采用简短的短语而非长句。准确提取了论文中的关键算法（如 MAML, RL2, PEARL, VariBAD 等）和核心概念，没有冗余的细节，是一份高质量的思维导图。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图 B 同样具备良好的全文覆盖率和分支均衡性。但在层级划分上略显欠缺，例如将“注意力机制”和“元梯度估计”与 PPG、Black Box 并列，逻辑上不够严密。简洁性方面表现较差，节点多使用长句或动宾短语（如“偏差比高方差更容易处理”、“计算复杂度为 O 的 t 平方”）。此外，提取了过多极其具体的实验跑分（如 1300分、611%等），这在思维导图中显得过于繁杂，偏离了提炼核心概念的初衷。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 23.9
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "A较好覆盖了论文主体：任务域、方法（架构/策略/表征）、数据与评测、挑战与趋势均有涉及，且把NAR/AR、风格标签/参考语音/描述/指令、连续/离散表征等关键主线保留下来。层级上总体清晰，主分支组织合理，细化粒度也较充分。分支规模较均衡，没有明显单枝过大。表述多为短语，简洁性最好。不足在于对论文后部章节覆盖不全，缺少结论、局限性、伦理、附录中的历史/TTS流水线/量化vs tokenization等；评测部分遗漏了Cosine Similarity、模型评估的自然度/表现力两个维度；研究趋势中未显式体现效率-保真-可控性的平衡与混合架构趋势。个别术语略泛化，如将“情感与风格控制”合并、将Gemini评测简化，忠实度略受影响。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "B同样覆盖了论文主体框架，包含核心任务、架构、控制策略、表征、数据评估、瓶颈与方向，主干完整。层级结构基本合理，但不少信息被压缩在同一节点中，子层展开不足，深度利用不如A稳定。分支整体较均衡。问题主要在简洁性与忠实度：节点常写成整句或并列长串，如“操纵基频Pitch、时长Duration与能量Energy”“逆转噪声注入生成高保真波形”，短语化不足；并且出现不够准确或偏离原文之处，如将模型评估写成“GPT-4o等大模型”，原文明确是Google Gemini；把Audiobox归入自然语言描述不够贴切；“标注基频与情感”等数据集描述略武断。优点是补入了混合架构趋势、说话人余弦相似度等细节，但总体术语与事实精度逊于A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 37.4
+}

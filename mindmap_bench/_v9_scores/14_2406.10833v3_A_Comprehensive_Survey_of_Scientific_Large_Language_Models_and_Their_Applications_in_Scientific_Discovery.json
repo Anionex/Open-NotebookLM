@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "Mind map A successfully captures the core structure and content of the paper, logically grouping the scientific domains and extracting key statistical and methodological points. It uses concise phrases and maintains a balanced, clear hierarchy, although it translates the content into Chinese and abstracts away some specific model names."
+    },
+    "B": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "Mind map B completely fails to understand the paper's structure. It incorrectly groups content by generic subsection titles (e.g., 'Language', 'Language + Vision') across different domains, destroying the logical flow. Furthermore, the leaf nodes are mostly raw, truncated sentences or random text snippets from the references and tables, lacking any conciseness or accuracy."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.6
+}

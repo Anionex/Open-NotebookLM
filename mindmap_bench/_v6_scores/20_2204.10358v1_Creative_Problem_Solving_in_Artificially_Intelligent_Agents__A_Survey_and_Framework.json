@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了论文的核心框架与所有关键章节。层级结构经过了高度凝练与逻辑重组，将论文的定义、建模、表示、操纵、概念域及评估挑战清晰地划分为六大主分支，父子节点关系严密。节点命名采用了极简且信息量大的短语（如‘参数化模型：超二次曲面描述几何与动力学’），既精炼又准确，没有冗余信息，专业术语翻译精准。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 B 同样全面覆盖了论文内容，并包含了引言中的具体案例（如阿波罗13号）。但在层级合理性上存在瑕疵，例如命名为‘四维构建框架’的分支下实际只包含了‘问题表述’和‘知识表示’两维，另外两维被拆分到了其他主分支。简洁性方面，部分节点略显碎片化（如单独列出‘13个参数的超二次曲面’）。准确性方面存在明显的翻译与识别错误，如将 C' 错误识别为‘C素’，以及将 goal-literal babbling 生硬翻译为‘发现目标文字尝试法’。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 21.5
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 2,
+      "hierarchy": 2,
+      "balance": 2,
+      "conciseness": 3,
+      "accuracy": 2,
+      "rationale": "导图 A 遗漏了原论文中的多个重要章节（如医疗、教育、金融等应用领域），且将大量琐碎的细节和数字（如AlphaGo的19x19棋盘、4比1比分、18次冠军等）作为层级节点，导致结构失衡。此外，存在严重的准确性错误，例如将AlphaGo Zero的硬件配置（64个GPU、19个CPU）错误归类到“Tensorflow设备放置优化”下，并幻觉捏造了“101卷5期”等原文不存在的文献期号。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 完美契合了这篇综述论文的宏大结构，完整覆盖了理论基础、核心元素（价值与策略算法）、重要机制（注意力、无监督、元学习等）以及各大应用领域。层级分类极具逻辑性，将繁杂的算法进行了科学的分组。节点语言精炼，准确保留了原论文中的专业术语（如致命三元组、Horde、VIN等），并在短语后附带了精准的核心原理解释，是一份高质量的学术思维导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 25.2
+}

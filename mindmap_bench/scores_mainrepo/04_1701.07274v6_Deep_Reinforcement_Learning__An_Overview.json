@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "该思维导图完美契合论文《Conceptual Organization》图中提出的架构。它不仅覆盖了基础背景，还精准地提炼了“六大核心要素”、“六个重要机制”以及“十二类应用”，甚至捕捉到了论文中关于“致命三元组(Deadly Triad)”等深刻的理论细节。层级划分极具专业性，将复杂的算法（如DQN、A3C、TRPO等）分类明确，应用部分的细化也非常到位，完全体现了综述论文的全面性。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "思维导图B显得过于笼统。虽然涵盖了基本框架，但严重缺失了论文的核心价值点——即对多种特定机制（如NAS、无监督辅助学习、知识建模）和广泛应用领域（如智能电网、工业4.0等具体应用）的详细盘点。将资源和基础理论占用了过多篇幅，而对论文重头戏“机制”与“应用”的展开极其匮乏，无法体现这是一篇“Overview”级别的长篇综述。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 13.9
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了论文的大部分核心章节，但完全遗漏了论文第2节（从水平检测到有向检测的演进及四大核心挑战）的独立梳理，仅在回归技术中提及了部分瓶颈。层级结构整体合理，分支规模均衡，节点命名非常简洁，严格使用了短语。但在准确度上，由于缺失了特征失配和空间失配等关键挑战的宏观概括，未能完全忠实于论文的论述框架。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B完美覆盖了论文的所有重要部分，特别是将第2节的演进逻辑与四大技术瓶颈（特征失配、空间失配、回归不连续、遥感干扰）作为首个主分支，层级结构与原论文的章节脉络（框架、回归、特征、共性问题、数据集、未来方向）高度一致。各分支内容详实且均衡。节点中使用了冒号进行补充说明（如‘特征失配：轴向卷积与旋转几何分布不一致’），虽略微降低了极致的简洁性，但大幅提升了信息的准确度与可读性，精准保留了关键术语与核心论点。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.5
+}

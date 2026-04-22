@@ -1,0 +1,25 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 A 涵盖了背景知识、模型架构以及部分推理任务和微调技术，但遗漏了逻辑推理、视觉/音频/多模态推理等核心任务类别，且完全缺失了论文中关于评估基准（Benchmarks）、面临挑战（Challenges）和未来方向（Future Directions）的重要章节。在层级和均衡度上，导图 A 过于侧重具体的参数量和数据规模，导致概念框架的广度不足。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 全面且准确地反映了这篇综述文章的宏观结构。它不仅完整覆盖了基础理论、各类核心推理任务（常识、数学、逻辑、因果、多模态等）以及垂直领域应用，还很好地总结了模型训练技术、推理增强策略，并专门列出了评估基准、局限性与未来研究方向。层级划分逻辑清晰，概念与具体案例（如模型和数据集名称）的比例适中，是一份高质量的思维导图。"
+    }
+  }
+}

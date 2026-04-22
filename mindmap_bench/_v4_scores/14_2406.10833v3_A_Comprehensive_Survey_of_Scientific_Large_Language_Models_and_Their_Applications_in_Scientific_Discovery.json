@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 采用了高度综合的主题式结构，提炼了跨领域的共性（预训练范式、模态序列化、应用与挑战），这非常契合论文的核心动机，但牺牲了原论文主体（第2-7节）逐领域详尽介绍的覆盖度（如未单独体现物理学）。其层级逻辑极为清晰，各分支规模完美均衡，节点语言精炼且信息密度高，术语准确。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 B 忠实地遵循了原论文的行文结构，全面覆盖了所有科学领域（通用、数学、理化材、生医、地学）及未来挑战，全文覆盖度极佳。但在层级合理性上，第六个主分支将指令微调、评估基准、引文表征和应用阶段生硬地组合在一起，逻辑略显牵强。此外，部分节点使用了冗余的分类词（如‘代表性模型实例’、‘核心训练任务’），简洁性稍逊。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 54.1
+}

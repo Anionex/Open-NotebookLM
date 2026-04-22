@@ -1,0 +1,11 @@
+{
+  "stem": "15_2302.08893v4_Active_learning_for_data_streams__a_survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": null,
+  "raw_response": "```json\n{\n  \"A\": {\n    \"coverage\": 4,\n    \"hierarchy\": 2,\n    \"balance\": 3,\n    \"conciseness\": 4,\n    \"accuracy\": 3,\n    \"rationale\": \"导图A基本覆盖了原论文的主要章节，但在层级结构上存在明显缺陷：将原论文第3章的四个子类别（平稳流、漂移流、模糊系统、实验设计）拆散，导致“演化模糊系统”和“实验设计”被",
+  "elapsed_s": 97.2
+}

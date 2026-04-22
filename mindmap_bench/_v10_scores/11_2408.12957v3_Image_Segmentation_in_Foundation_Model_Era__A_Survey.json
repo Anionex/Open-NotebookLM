@@ -1,0 +1,28 @@
+{
+  "stem": "11_2408.12957v3_Image_Segmentation_in_Foundation_Model_Era__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A 基本覆盖了论文主线：统一建模、知识涌现、GIS、PIS、多模型协同与开放问题，整体与原文组织较接近。层级上从任务定义到方法综述再到趋势，主干清晰，父子关系大体合理。缺点是对 §2.2 基础模型背景、相关综述差异、结论等覆盖较弱；实例/全景分割和少样本部分相对压缩。表述总体简洁，但少量节点带解释性短句。忠实度较好，但个别归类略混，如将逻辑查询并入 Referring、把 SAM2 与多粒度输出并列，存在轻微泛化。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 3,
+      "rationale": "B 覆盖了知识涌现、GIS、交互/指代/少样本、ICS、MLLM 推理、数据合成、医疗适配等大量内容，分支分布也较均衡，简洁性优于 A。其不足在于缺少论文前半部分的重要框架内容，如统一公式、GIS/PIS 总体分类、学习范式与基础模型背景，因而对全文结构复现不如 A 完整。层级组织总体合理，但若干主题被重新拼接后与原文章节对应关系变弱。准确性方面有几处偏差：如将 GRES 放入推理分割语境、ZS-RS 术语写作不准、部分方法用途或类别有轻微混淆，因此忠实度低于 A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 31.9
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图A全面覆盖了论文的核心内容，并且准确提取了大量具体的算法模型（如FedDF、MOON等）和法律条款，准确度高。但在层级结构上，它将两种开放FL范式合并为一个主分支，却将它们各自所属的子课题（如批量重用机制、微任务设计、法律合规）抽离为平行的主分支，割裂了原有的从属逻辑。此外，部分节点表述略显冗长（如“任务中心化导致训练轨迹不完整”）。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B完美契合了原论文的章节结构（Roman numeral sections），从传统局限性到Query-based FL、法律合规、复用分类学，再到Contract-based FL及微任务设计，逻辑主线极为清晰。节点命名高度精炼，且恰当保留了关键的英文专业术语（如FOSS、PEFT、Data-Free Knowledge Distillation），在专业性、简洁性和结构合理性上均表现出色。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 23.6
+}

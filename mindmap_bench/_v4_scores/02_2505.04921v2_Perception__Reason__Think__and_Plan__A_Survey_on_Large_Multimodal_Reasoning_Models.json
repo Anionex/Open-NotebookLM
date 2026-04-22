@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了这篇长篇综述的核心内容，包括四个发展阶段、MCoT 的三种路径、基于 RL 的长链推理（O1/R1）、原生多模态模型（N-LMRM）的展望以及评估基准。层级结构与原论文的逻辑高度契合，各分支分布均衡。节点命名非常精炼，准确提炼了代表性模型（如 DPO, GRPO, AnyGPT 等）和核心概念，是一份高质量的思维导图。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 B 同样全面覆盖了全文，并且提取了非常丰富的细节（如具体的准确率数字、数据集规模以及 o3 模型的具体测试案例）。然而，将大量具体的统计数据（如“平均准确率不足20%”、“6根手指误认为5根”）作为单独的深层节点，使得导图更像是一份详细的读书笔记，略微破坏了思维导图的层级合理性、分支均衡性和简洁性。尽管如此，其内容提取的准确度极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.3
+}

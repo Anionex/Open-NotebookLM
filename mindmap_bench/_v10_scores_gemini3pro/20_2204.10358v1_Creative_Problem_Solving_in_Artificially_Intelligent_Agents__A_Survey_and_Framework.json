@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "Mind map A captures many key concepts but completely misses two major sections of the paper: 'Problem Formulation' (Section 4.1) and 'Open Research Questions' (Section 7). Its hierarchy is somewhat flat, failing to group the four main components of the CPS framework under a unified structure. However, the nodes are very concise and the branches are relatively well-balanced."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Mind map B provides excellent coverage, accurately reflecting all major sections of the paper, including the cognitive triggers (Impasse/Incubation/Insight), the four framework components (Formulation, Representation, Manipulation, Evaluation), the types of conceptual spaces, and the open research questions. The hierarchy perfectly mirrors the paper's logical flow. The nodes use colons to add brief context, which makes them slightly less concise than pure keywords but highly informative and accurate."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 29.1
+}

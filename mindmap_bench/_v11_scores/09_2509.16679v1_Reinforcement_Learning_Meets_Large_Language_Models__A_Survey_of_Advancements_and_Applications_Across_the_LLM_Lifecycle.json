@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "A 覆盖了基础理论、对齐、RLVR、推理、多模态、智能体、数据与框架等主要方向，但遗漏或弱化了论文中很重要的若干板块，如奖励模型设计、RLVR实验争议与熵机制、开放讨论/未来趋势、内部反馈强化等，且对经典价值学习算法与开源工具覆盖不够系统。层级上整体清晰，主干划分较合理，也有一定深度，但把“典型模型架构与算法实现”单列为主分支，和方法/应用/评测存在交叉。表达较简洁，多为短语。准确性方面问题较明显：如将 DPO 写成“离线强化学习范式”不够忠实；将 MATH 写成“12500 个科学推理问题”明显不准，原文是竞赛数学题；“2025 年后推理模型重点”等表述也偏泛化。数字保留较少，关键术语不够精确。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "B 对论文主线覆盖更完整：包括 RL 理论、预训练与中训、对齐微调、RLVR 关键技术、多模态、自适应推理、智能体、评估基准、训练框架、挑战与未来趋势，基本对应全文核心章节，也吸收了论文对 RLVR 争议、熵机制、内部反馈等重点讨论。层级结构合理，主分支之间边界较清楚，不过“全生命周期整合策略”下把 RLVR 作为反馈来源之一，与后文单列 RLVR 技术略有重复。分支规模较均衡，没有明显失衡。缺点是简洁性一般，多个节点使用了较长短句、冒号说明和括号补充，不够像纯短语式思维导图。准确性整体较好，能保留 PPO/GRPO/DAPO、RLHF/RLAIF/RLVR、StepGRPO、TANGO、Self-certainty 等关键术语，也较忠实反映了 pass@k 争议、长程信用分配、工具生态等内容；但个别表述有轻微简化，如把 DQN/动态路由并列为价值学习应用略显泛化，‘Yi-Optimal’并非文中标准命名。总体仍明显优于 A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 257.0
+}

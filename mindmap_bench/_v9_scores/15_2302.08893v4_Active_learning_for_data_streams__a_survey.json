@@ -1,0 +1,28 @@
+{
+  "stem": "15_2302.08893v4_Active_learning_for_data_streams__a_survey",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 2,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 2,
+      "rationale": "导图 A 未能完整覆盖论文的整体结构，仅随机抽取了部分章节作为主分支。子节点充斥着大量从原文直接复制的长句、截断的 LaTeX 公式以及图片链接，完全没有进行提炼和归纳，导致层级混乱、分支极度不均衡且毫无简洁性可言。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 完美覆盖了论文的所有核心章节（基础理论、算法分类、评估策略、应用与挑战等）。层级结构逻辑清晰，严格遵循了原论文的分类体系。节点全部采用精炼的短语和关键词，且将英文专业术语准确地翻译为中文（如预序评估、演化模糊系统等），各分支内容分布均衡，质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 15.8
+}

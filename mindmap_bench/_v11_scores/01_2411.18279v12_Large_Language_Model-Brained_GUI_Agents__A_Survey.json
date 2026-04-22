@@ -1,0 +1,28 @@
+{
+  "stem": "01_2411.18279v12_Large_Language_Model-Brained_GUI_Agents__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "A 抓住了论文的主线：演进、核心组件、LAM、框架、评估、应用与挑战，整体覆盖中等偏上。但遗漏较多关键章节与细项，如 related work、background、数据集收集方法、详细评测 taxonomy、真实应用展开、未来路线的更多维度。层级上主干清晰，父子关系基本合理，不过不少节点把多个概念并列压缩在同一层，深度利用仍有限。分支规模比较均衡，没有明显单枝过大。表述较简洁，多为短语。准确性方面有一定问题：如“无需权限的端到端通用操作”对 GUI vs API 的表述过强，论文强调的是通用性而非完全无权限；“OS-Genesis逆向合成”“o1风格深度思考”等提法在给定全文中未见或不够忠实，部分细节像 TSR、安全性风险率也并非论文中最核心且明确的统一表述。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "B 的覆盖范围明显更广，包含架构机制、模型/LAM、多平台框架、增强技术、数据与评估、应用、安全隐私与人机交互，接近论文后半部分的大多数重点，也补到了数据与视觉 grounding 等内容。但仍缺少 related work、background、survey scope/RQ 等前置内容，且对若干应用与安全主题有扩写。层级设计较好，按主题-子主题-实例逐层展开，父子关系普遍合理，深度利用充分。分支总体较均衡，虽“数据工程与多维评估体系”“自动化测试与虚拟助手应用”较丰满，但未失衡。简洁性一般，部分节点偏长且带解释性修饰，不如 A 凝练。准确性方面存在混入论文未突出或未出现的名词，如 KnowAgent、RAP、OS-Copilot、FRIDAY、AutoGLM、ProphetAgent、QTypist、YOYO Agent、MagicOS 9.0、AgentMonitor 等，容易削弱忠实度；部分数字如 WebArena 812 个长程任务、OSWorld 369/43 任务等虽看似具体，但与给定全文未充分对应，存在越界补充。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 71.9
+}

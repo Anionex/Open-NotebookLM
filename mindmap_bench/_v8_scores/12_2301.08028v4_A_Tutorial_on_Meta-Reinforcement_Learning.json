@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图A覆盖了论文的大致框架，但遗漏了多样本学习（Many-shot）中的具体代表性算法。层级结构上存在明显错误，例如将BAMDP（贝叶斯自适应MDP）错误地归入背景知识，而原文中它属于少样本学习的探索部分。此外，导图A花费了大量篇幅罗列期刊卷号、页码及年份时间线等无关紧要的元数据，导致分支极不均衡，且出现了原文截断部分未提及的细节（如10^40任务规模），准确性受损。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B极其出色地提取了论文的核心学术内容。它不仅完整覆盖了背景、少样本学习的三大流派（PPG、黑盒、任务推断）、探索机制、多样本学习及应用与挑战，还准确归纳了原文表格和正文中的具体算法（如MAML, CAVIA, RL2, PEARL, VariBAD, DREAM, LPG, MetaGenRL等）。层级逻辑严密，各分支内容详略得当，节点表述精准且保留了关键术语，忠实度极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.1
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "A 覆盖了背景、任务、技术、智能体、评估与未来方向等大块内容，但明显遗漏或弱化了论文中的若干重要章节与主题，如音频推理、基准数据集系统综述、讨论/风险、多模态细分（对齐/生成/理解）及 Foundation Model Techniques 的完整结构。层级整体清晰，任务—子任务、技术—子技术关系基本合理，也使用了较深层结构。分支规模相对均衡。表述多数为短语，较简洁。主要问题在忠实度：加入了论文未突出或未出现的内容与术语，如 RWKV、RetNet、Proof-Pile、Self-Instruct/Evol-Instruct、ToT/GoT、Reflexion、HuggingGPT、DrugGPT、对抗攻击与提示词注入拦截等；同时把 ToM 放入社会常识分支、将具身与多模态合并，也削弱了原文结构准确性。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "B 对论文主要板块的覆盖更完整，包含推理定义与数学基础、模型与训练、核心任务、跨模态与具身、提示增强、智能体、对齐与挑战等，覆盖度优于 A；但对论文中 Background 的“近期基础模型进展”、Reasoning Tasks 的细粒度子类、Benchmarks/Datasets/Metrics 的系统展开仍不充分，也缺少结论层。层级组织较自然，父子关系大体合理，尤其任务、技术、挑战分区清楚。分支也较均衡，没有明显失衡。节点总体简短。最大问题同样是忠实度较低：混入较多源文未重点讨论或未出现的内容，如 Gemini、模型压缩（剪枝/量化/蒸馏）、PaLM-E、LanguageMPC、Voyager、Chameleon、Constitutional AI、RLAIF、LongNet、Position Interpolation 等；且遗漏了论文明确强调的若干具体结构，如 agent reasoning 下的 introspective/extrospective、多模态中的 alignment/generation/understanding、音频中 SUPERB/SUPERB-SG 等。因此准确性偏低，但整体仍略优于 A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 73.5
+}

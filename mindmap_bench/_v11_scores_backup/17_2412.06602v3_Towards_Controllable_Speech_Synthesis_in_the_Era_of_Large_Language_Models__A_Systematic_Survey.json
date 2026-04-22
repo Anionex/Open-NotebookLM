@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 3,
+      "rationale": "覆盖了架构、控制策略、特征表示、评估、数据集，并补充了附录中的TTS流程、历史和量化/标记化内容，但明显遗漏了论文的主任务定义（prosody/timbre/emotion/style/language/environment）、挑战与未来方向、结论/局限/伦理等核心章节。层级上总体清晰，父子关系大体合理，但把附录内容放到顶层并弱化正文主线。分支规模较均衡，表达多为短语，简洁度较好。准确性方面存在若干问题，如将“量化”表述为“32位浮点转8位整数”过于狭窄，Gemini评测被概括成“接近人类判断偏好”略显泛化，且未保留文中不少关键术语与代表性模型关系。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "较完整覆盖了论文正文主线：核心任务、模型架构、控制策略、特征表示、数据与评估、挑战和未来方向，结构与原文章节高度对齐。层级设计合理，从总览到类别再到代表方法，父子关系自然，深度利用充分。各主分支分量均衡，没有明显失衡。节点普遍为短语，简洁度高。准确性整体较好，保留了Prosody/Timbre、NAR/AR、Style Tagging、Reference Prompt、PromptTTS、VALL-E、VoiceCraft、CosyVoice等关键术语与代表方法；小问题是未覆盖结论、局限、伦理等尾部章节，且“GPT-4o”等表述与原文实际使用Google Gemini不一致，削弱了忠实度。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 291.9
+}

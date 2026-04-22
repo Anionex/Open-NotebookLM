@@ -1,0 +1,28 @@
+{
+  "stem": "15_2302.08893v4_Active_learning_for_data_streams__a_survey",
+  "mapping": {
+    "A_is": "mainrepo",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了论文的前半部分基础概念和常见的样本选择准则，结构清晰。但在核心技术内容的提炼上存在明显缺失：论文Section 3中详细讨论的四类核心算法（平稳流、漂移流、演化模糊系统、实验设计与老虎机）在A中被高度压缩，丢失了诸如D-优化准则、漂移检测器联动（ADWIN/DDM）、标签延迟处理等关键技术细节。此外，对评估协议（预序评估）的覆盖也不够完整。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B是一份极高质量的学术综述重构。它精准地捕捉了论文的所有核心维度，不仅包含了基础约束，还深入细化了演化模糊系统（EFS）的冲突与无知度量、实验设计（DOE）的字母优化准则、以及具体的概念漂移应对策略。其层级结构完美契合论文逻辑，术语使用极度专业（如Verification Latency, Second-order info, Prequential evaluation），并在简洁性与信息密度之间达到了极佳平衡。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 15.6
+}

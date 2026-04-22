@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "Mindmap A is a chaotic collection of random sentences, HTML table tags, LaTeX formulas, and citation brackets. It completely fails to extract the logical structure of the paper, lacks any meaningful hierarchy, and violates the conciseness requirement by using full sentences and raw code snippets."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "Mindmap B effectively captures the paper's core structure across the LLM lifecycle, translating key concepts into concise Chinese phrases with a logical hierarchy. It covers all major sections well and maintains good balance. However, the inclusion of a few out-of-context nodes (e.g., 'Vol. 39', '79.8分') slightly reduces its accuracy and conciseness scores."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.5
+}

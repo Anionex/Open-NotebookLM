@@ -1,0 +1,28 @@
+{
+  "stem": "15_2302.08893v4_Active_learning_for_data_streams__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美地提取了这篇综述文章的核心分类框架，涵盖了数据流处理模式、样本筛选准则、概念漂移应对、演化模糊系统、实验设计与老虎机模型以及评估与挑战等所有关键章节。层级结构逻辑严密，父子节点关系准确，分支分布均衡。节点语言精炼，准确概括了论文中的专业术语和核心论点，质量极高。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图 B 虽然覆盖了文章的大部分主题，但在层级结构和内容准确度上存在明显缺陷。它过度提取了论文中某些极其细微的细节（如“每次添加总观测值的3%”、“保留根号n个特征拟合”、“2015年提出ALELM算法”等），导致主次不分、分支极不均衡。此外，部分节点归类错误，例如将池化学习中的“3%”错放到了“专家建议驱动机制”下，破坏了导图的准确性和逻辑性。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.1
+}

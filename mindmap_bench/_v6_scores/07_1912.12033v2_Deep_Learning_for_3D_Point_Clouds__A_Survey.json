@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "A完美地捕捉了这篇综述论文的分类体系和核心结构，全面覆盖了形状分类、目标检测与跟踪、点云分割等关键任务，层级关系严密，各分支内容分布均衡，术语提取准确。但其在简洁性上严重违规，几乎所有叶子节点都使用了括号进行补充说明，导致节点略显冗长。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B覆盖了论文的主要章节，且严格遵守了不使用括号补充的简洁性要求。但其结构层级存在明显缺陷：将数据集部分后置，拆分了检测与跟踪章节，且将与科学内容无关的作者简介作为主分支，严重破坏了思维导图的均衡性和学术聚焦度。此外，B过度提取了部分具体的实验数据（如62 fps、41.1%等），而在核心方法论的抽象归纳上不如A精准。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 32.0
+}

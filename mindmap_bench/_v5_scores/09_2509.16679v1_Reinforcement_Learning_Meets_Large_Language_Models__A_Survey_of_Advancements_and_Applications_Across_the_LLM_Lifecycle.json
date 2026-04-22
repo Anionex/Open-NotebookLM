@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 2,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图A基本覆盖了论文的核心内容，各主分支的规模相对均衡。但其层级结构存在多处明显的逻辑归类错误，例如将“推理时间缩放技术”错放至基础理论，将“FlashRL等训练效率优化”错放至预训练与对齐阶段，将“内部反馈”错放至开源工具与未来趋势中。在简洁性方面，虽然没有使用括号，但部分节点（如“R等于负a乘expH加b”、“包含12500道题目”）偏向口语化长句或存在冗余词汇。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图B的内容覆盖极其全面，层级划分完美契合了论文“全生命周期”的行文逻辑，从理论、整合策略、RLVR关键技术到跨领域应用和工具生态，分类精准且逻辑严密，各分支十分均衡，术语提取准确。然而，该导图严重违反了简洁性维度的要求，大量节点使用了括号进行长句补充说明（如“GRPO (组内奖励均值取代价值网络降低显存)”），包含了过多的解释性冗词。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 27.1
+}

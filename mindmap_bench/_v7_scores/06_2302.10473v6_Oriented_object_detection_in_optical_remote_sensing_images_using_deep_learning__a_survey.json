@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "思维导图A全面且精准地覆盖了论文的核心内容，结构严格遵循原论文的逻辑框架。各分支内容分布均衡，没有出现头重脚轻的情况。节点命名极其精炼，巧妙使用了缩写和短语（如PoA、HBB、OBB等），没有冗余的句子。准确提取了论文中的关键算法、损失函数和数据集名称，忠实度极高。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "思维导图B同样覆盖了论文的主要章节，整体结构较为合理。但在简洁性上表现欠佳，部分节点使用了较长的描述性短句（如'2019年提出空间变换学习'、'DOTA-V1.0达到82.24%mAP'）。此外，在层级和均衡性上，对数据集的具体统计数字展开过深，且将表格脚注中的'MMRotate'和作者机构作为主要节点列出，略显主次不分，影响了整体的精炼度和技术聚焦度。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 26.9
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了论文的核心内容，逻辑结构重组得非常合理，将 Few-shot、探索机制、监督模式等核心议题进行了极佳的归类。节点命名高度精炼，准确提取了 MAML、RL2、PEARL、VariBAD 等关键算法和核心术语，没有冗余信息，整体质量极高。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图 B 同样具备很好的全文覆盖率，且基本遵循了原论文的章节顺序。但其在概念提取上存在明显瑕疵，包含了大量如“2017年至2022年研究进展综述”、“2020年与2021年关键研究”、“2013年至2024年文献演进”等基于年份的无意义节点，这不仅降低了表达的简洁性，也偏离了学术论文思维导图应聚焦于核心概念和算法的初衷。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 20.6
+}

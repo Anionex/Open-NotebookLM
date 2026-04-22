@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A完美契合了论文的宏观框架，逻辑清晰地梳理了多模态推理的四个演进阶段、MCoT实现路径、强化学习驱动机制、原生模型展望以及评估基准。层级关系严谨，各分支内容分布均衡，节点语言高度提炼，准确保留了论文中的核心术语与代表性模型，整体质量极高。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B完整覆盖了论文的核心主题，并且准确提取了论文实验部分的大量具体数据和案例（如8分13秒、0.6%准确率、6根手指等）。但其层级结构存在明显瑕疵，将具体的数据指标（如'仅达 35% 准确率'）作为单独的子节点，导致层级关系碎片化；同时，过多关注个别案例细节使得分支均衡性和语言简洁性受到一定影响。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 203.3
+}

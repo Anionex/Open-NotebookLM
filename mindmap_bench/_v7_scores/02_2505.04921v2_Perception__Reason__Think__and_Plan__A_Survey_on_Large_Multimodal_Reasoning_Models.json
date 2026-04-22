@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A结构清晰，完美契合论文的综述框架。将多模态推理的四个演进阶段、MCoT实现路径、RL优化、N-LMRM核心能力及评估体系进行了合理的逻辑分组，层级分明且无冗余。节点命名精炼，准确提炼了核心算法与代表性模型，各分支深度和广度非常均衡，是一份高质量的思维导图。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图B覆盖了全文主要内容，但在层级结构上存在明显冗余（在第一主分支列出四个阶段后，后续主分支又重复将其作为独立节点展开）。此外，部分分支深度严重失衡，将“达到8分13秒”、“7B与8B参数版本”等过于琐碎的细节下钻到了第五、第六层级，破坏了思维导图的宏观概括性和结构均衡性。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 23.4
+}

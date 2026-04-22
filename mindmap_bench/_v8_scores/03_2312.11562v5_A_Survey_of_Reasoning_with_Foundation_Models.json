@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了论文的核心内容，包括推理的定义、各类推理任务、基础模型技术路径以及智能体推理等。层级结构逻辑清晰，父子节点关系准确（如将智能体推理准确划分为内省与外省推理）。各分支内容均衡，节点语言精炼，准确提炼了论文中的专业术语（如 System 1/2、PAL、ReAct、CoT 等），忠实度极高。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图 B 的主干结构基本覆盖了论文大纲，但在叶子节点的层级和准确度上存在明显缺陷。算法过度提取了文本中的具体数字和琐碎细节作为节点（如“650篇以上参考文献支持”、“275个反事实查询实例”、“11亿个SAM掩码数据”），而不是提炼核心概念或方法论。更严重的是，将“650篇参考文献”放在“预训练与数据工程”下属于上下文理解错误（该数字是综述本身的文献量），导致准确度和层级合理性得分较低。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 99.9
+}

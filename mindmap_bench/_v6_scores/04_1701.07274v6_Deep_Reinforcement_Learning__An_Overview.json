@@ -1,0 +1,11 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": null,
+  "raw_response": "```json\n{\n  \"A\": {\n    \"coverage\": 4,\n    \"hierarchy\": 5,\n    \"balance\": 5,\n    \"conciseness\": 5,\n    \"accuracy\": 5,\n    \"rationale\": \"导图A涵盖了论文的绝大部分核心技术内容（理论、算法、机制、应用、未来方向），仅省略了“资源”这一非技术性章节。其层级结构经过了高度的逻辑重组，将原文本中散落的算法和机制",
+  "elapsed_s": 122.3
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A全面覆盖了论文的背景、推理任务、技术路径、评估基准及未来方向，与原论文目录结构高度契合。层级划分逻辑清晰，父子节点关系明确且深度利用充分，各主分支内容分布均衡。在简洁性上，严格遵守了无括号补充的约束，全部采用精炼的短语表达。此外，导图A极其精准地提取并保留了论文中的关键数字（如650篇文献、86.5%准确率、540B参数等）和核心术语，忠实度极高。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 2,
+      "accuracy": 4,
+      "rationale": "导图B较好地概括了论文的核心概念和主要任务，层级结构合理，分支规模基本均衡。但在简洁性维度上表现不佳，多次违反了“无括号补充”的明确指令（例如节点中出现了“（Transformer软注意力）”、“（如CLUTRR数据集）”、“（Theory of Mind）”等）。在忠实度方面，虽然保留了关键术语，但对原论文中具体数字和量化指标的提取与呈现明显少于导图A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 28.7
+}

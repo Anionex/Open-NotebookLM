@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了论文的核心章节与附录内容，层级结构与原论文的逻辑高度一致。各分支分布均衡，节点命名严格采用简练的短语，没有冗余信息。在准确度上，A 准确捕捉了附录中基于 Gemini 的评估流水线等细节，忠实于原文。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 B 同样具备极佳的全文覆盖率和合理的层级结构，分支均衡性良好。但在简洁性上，B 的部分节点使用了较长的描述性短句（如“逆转噪声注入生成高保真波形”），且中英文混排略显冗长。在准确度方面，B 提到了“利用GPT-4o等大模型评估”，而原论文附录中明确使用的是 Google Gemini（正文仅提及 GPT-based evaluation），存在轻微的幻觉。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.6
+}

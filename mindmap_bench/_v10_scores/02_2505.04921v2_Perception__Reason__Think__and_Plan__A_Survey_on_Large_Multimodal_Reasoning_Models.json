@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "覆盖了论文主线：阶段1-3路线图、N-LMRM愿景、智能体/规划、评测与基准，结构也较完整；但对第2章“Evolving Paradigms and Discussion”的独立讨论、4.1实验发现、4.3技术展望、5章中生成/评测方法等覆盖不够充分，且将数据集、benchmark、agent benchmark有一定混合。层级总体合理，能按阶段和能力展开，但部分节点把模型、方法、任务、 benchmark并列，父子关系略松散。表述大多是短语，简洁度好。术语整体较准，但有少量不够忠实之处，如论文对路线图在正文强调三阶段+Stage 4 prospect，A更像并列四阶段；对O3/O4-mini案例、agentic/omni-modal benchmark中的关键数字保留不足。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "B抓住了论文的高层主线：演进范式、MCoT路径、RL优化、N-LMRM、评估体系与挑战，整体框架清楚且分支较均衡；但细节覆盖明显不足，缺少论文大量核心内容，如Stage 1/2/3下的细分类、Multimodal-O1与Multimodal-R1的系统展开、4.1实验发现中的具体benchmark分析、5章数据集与评测方法的完整分类。层级较顺，但压缩过度，多个重要概念被并入单节点。简洁性尚可，不过个别节点偏句式。准确性方面存在几处明显问题：把AudioCaps归为理解benchmark而非数据集；引入论文中未突出出现的“Anole 图文交错叙事”；将LMM-R1归入GRPO不够忠实，原文表中为PPO；部分阶段概括也略泛化。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 40.7
+}

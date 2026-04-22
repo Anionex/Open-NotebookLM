@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A较完整覆盖论文主线：传统FL局限、两类开放FL框架、查询式FL、批量模型重用四分类、法律许可、微任务设计、模型保护与评估等核心章节均有体现。层级总体清晰，按“问题-框架-技术-法律-实施”展开，父子关系基本合理；但少量节点把论文后文细节并入较早主分支，层次可再细化。各主分支规模较均衡，无明显失衡。表述多为短语，但仍有少数长句和括号补充。忠实度较高，保留了Query-based/Contract-based、Combination/Amalgamation/Distillation/Generation、OpenRAIL、FedAvg、SplitNN、DeepJudge/Zest等关键术语；但对一些论文中特定细节覆盖不足，如模型查询条件中的软件依赖、工作流历史更完整定义，以及查询式FL限制、相关survey章节等未充分展开。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "B覆盖了论文不少核心主题，包括传统FL局限、开放平台愿景、查询式与合同式FL、模型复用、许可合规、安全和大模型适配，但对论文中非常关键的内容覆盖不够完整，如模型查询过滤条件、许可选择指南、四类重用机制与法律条款映射、查询式FL局限、合同式FL框架中的具体微任务比较等展开不足。层级上存在若干并列关系不够自然的情况，如把FedLab、LEAF、One-shot FL并入“开放平台架构”主线，且“大模型与异构环境适配”被提升为一级大分支，弱化了论文真正主轴。分支均衡性一般，后部安全/大模型分支较重，而合同式FL与法律细节偏轻。节点较简短，但夹杂英文标签和一些泛化表述。准确性方面有一定问题：加入了论文并未重点作为主结构展开的内容，部分数字表达近似但不精确（如470000），且若干术语关系被泛化，导致对原文主旨的忠实度弱于A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 179.1
+}

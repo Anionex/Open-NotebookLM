@@ -1,0 +1,25 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图 A 较好地覆盖了原文的主要章节，但在层级结构上将具体的 OBB 回归问题（如类正方形问题、度量与损失不一致性）过度前置到了演进背景分支中。此外，导图 A 存在多处明显的幻觉，如原文并未提及“Q-DETR低比特量化模型”、“CAKDP”以及“主动旋转滤波器”，这严重影响了其准确性得分。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 B 的结构与原文的章节划分高度契合，准确提炼了三大核心挑战、四大检测框架、回归与表示技术、特征增强、通用问题及数据集等核心内容，逻辑层次非常清晰。缺点在于包含了一处原文未提及的幻觉信息（“椭圆傅里叶变换”），且将文献的“发布年份”单独作为子节点略显冗余，但整体质量和准确度优于导图 A。"
+    }
+  }
+}

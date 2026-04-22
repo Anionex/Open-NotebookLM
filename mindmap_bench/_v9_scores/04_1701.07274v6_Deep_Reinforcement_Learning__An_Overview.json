@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 2,
+      "rationale": "导图 A 仅仅是随机提取了论文中的部分句子，并将其截断后归类在毫无逻辑的几个主节点下。它完全没有体现出论文的章节结构与核心主题，节点全部为冗长且不完整的句子，层级混乱，分支极度不均衡，质量极差。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "导图 B 完美地覆盖了原论文的各个核心章节（背景、核心要素、重要机制、应用领域、资源与展望），层级结构清晰合理，分支分布均衡，且节点均采用了简练的短语进行概括。唯一的瑕疵在于准确性上出现了一处错位：将 AlphaGo Zero 的硬件配置（64个GPU、19个CPU）错误地归类到了“Tensorflow设备放置优化”节点下。总体而言，这是一份质量极高的思维导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 22.0
+}

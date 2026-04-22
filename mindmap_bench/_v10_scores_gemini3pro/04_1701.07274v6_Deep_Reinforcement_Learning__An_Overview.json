@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A遗漏了原论文中非常重要的“Background（背景）”和“More Topics（更多主题）”章节。在层级结构上，A采用了自定义的分类方式，导致原论文的逻辑被打破，例如将“多智能体（MARL）”归入“机器人控制”，将“分层强化学习（HRL）”与“环境建模”混为一谈，降低了结构合理性。不过各分支规模相对均衡，节点语言也较为简洁，术语提取基本准确。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B全面覆盖了原论文的背景知识、核心元素、重要机制、应用领域以及前沿挑战，没有遗漏重要章节。层级划分高度忠实于原论文的逻辑框架，父子关系明确且深度适中。各主分支内容分布非常均衡。节点采用“核心词+简短解释”的短语形式，既保持了简洁性，又精准传达了论文中的关键概念（如致命三元组、自举、软性一致性等），准确度极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 28.7
+}

@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voxel Mario Coin Hit</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, #9be7ff 0%, #83d7ff 42%, #d7f7ff 100%);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .hud {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      padding: 10px 14px;
+      color: #ffffff;
+      background: rgba(8, 24, 38, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+      font-size: 13px;
+      line-height: 1.35;
+      letter-spacing: 0.02em;
+      user-select: none;
+      pointer-events: none;
+    }
+    .hud .label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.82;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div class="hud">
+    <div class="label">Voxel Mario Diorama</div>
+    Drag to orbit · Scroll to zoom · Mario loops automatically
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+      }
+    }
+    </script>
+    
+    <script type="module">
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    const canvas = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    const scene = new THREE.Scene();
+
+    const P = {
+      sky: 0x82d7ff,
+      fog: 0xd6f5ff,
+      grass: 0x5fb541,
+      grassLight: 0x83dc5f,
+      grassDark: 0x377a2c,
+      dirt: 0x98623a,
+      dirtLight: 0xc2814b,
+      dirtDark: 0x5f351c,
+      brick: 0xb95e34,
+      brickLight: 0xdd834c,
+      brickDark: 0x7d311b,
+      mortar: 0xe7aa76,
+      question: 0xf2a426,
+      questionLight: 0xffdc67,
+      questionDark: 0xb66e14,
+      pipe: 0x27a83d,
+      pipeLight: 0x4fe86c,
+      pipeDark: 0x166923,
+      bush: 0x2a9947,
+      bushLight: 0x54d36e,
+      bushDark: 0x17652a,
+      hill: 0x65c94f,
+      hillLight: 0x8ae06d,
+      hillDark: 0x3b8e31,
+      mountain: 0x7ba2d4,
+      mountainLight: 0xa9c7ea,
+      mountainDark: 0x56749d,
+      cloud: 0xffffff,
+      cloudShadow: 0xd9e8f2,
+      sun: 0xffec72,
+      sunDark: 0xffb84a,
+      castle: 0x6a5378,
+      castleDark: 0x493552,
+      window: 0xffea7d,
+      coin: 0xffd53d,
+      coinLight: 0xfff08a,
+      coinDark: 0xc78714,
+      spark: 0xffffdc,
+      red: 0xdc2f21,
+      redDark: 0x931714,
+      blue: 0x2d63d6,
+      blueDark: 0x18377b,
+      skin: 0xffc89a,
+      skinDark: 0xc98358,
+      brown: 0x5b3418,
+      brownLight: 0x8c572b,
+      brownDark: 0x3d220f,
+      white: 0xf8fafc,
+      black: 0x17181c,
+      yellow: 0xf3d85b,
+      stem: 0x4a8d2c,
+      flowerRed: 0xff5a6a,
+      flowerBlue: 0x52c2ff,
+      flowerYellow: 0xfff17b,
+      stone: 0x747b8f,
+      mushroomRed: 0xef504b,
+      mushroomBeige: 0xf6e1b8,
+    };
+
+    scene.background = new THREE.Color(P.sky);
+    scene.fog = new THREE.Fog(P.fog, 70, 155);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 220);
+    camera.position.set(38, 30, 46);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = false;
+    controls.minDistance = 28;
+    controls.maxDistance = 92;
+    controls.minPolarAngle = 0.42;
+    controls.maxPolarAngle = 1.27;
+    controls.target.set(0, 12, 0);
+    controls.update();
+
+    const hemi = new THREE.HemisphereLight(0xe8fbff, 0x6b4024, 1.3);
+    scene.add(hemi);
+
+    const sunLight = new THREE.DirectionalLight(0xfff1cf, 2.2);
+    sunLight.position.set(-28, 46, 22);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    sunLight.shadow.camera.left = -60;
+    sunLight.shadow.camera.right = 60;
+    sunLight.shadow.camera.top = 55;
+    sunLight.shadow.camera.bottom = -30;
+    sunLight.shadow.camera.near = 1;
+    sunLight.shadow.camera.far = 140;
+    sunLight.target.position.set(0, 10, 0);
+    scene.add(sunLight);
+    scene.add(sunLight.target);
+
+    const fillLight = new THREE.DirectionalLight(0xbde8ff, 0.45);
+    fillLight.position.set(24, 18, -24);
+    scene.add(fillLight);
+
+    const burstLight = new THREE.PointLight(0xffd466, 0, 28, 2.0);
+    burstLight.position.set(0, 34, 0);
+    scene.add(burstLight);
+
+    const sharedBox = new THREE.BoxGeometry(1, 1, 1);
+    const dummy = new THREE.Object3D();
+
+    const fract = (n) => n - Math.floor(n);
+    const hash = (x, z, seed = 1) => fract(Math.sin(x * 127.1 * seed + z * 311.7 * seed + seed * 23.17) * 43758.5453123);
+    const smooth = (t) => t * t * (3 - 2 * t);
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const easeInCubic = (t) => t * t * t;
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const centeredCoord = (i, size) => i - (size - 1) / 2;
+
+    class VoxelBuilder {
+      constructor(step = 1, cubeScale = 0.96) {
+        this.step = step;
+        this.cubeScale = cubeScale;
+        this.cells = new Map();
+      }
+      key(x, y, z) {
+        return `${x}|${y}|${z}`;
+      }
+      add(x, y, z, color, opts = {}) {
+        this.cells.set(this.key(x, y, z), { x, y, z, color, ...opts });
+      }
+      remove(x, y, z) {
+        this.cells.delete(this.key(x, y, z));
+      }
+      cuboid(x0, x1, y0, y1, z0, z1, color, opts = {}) {
+        const xs = Math.min(x0, x1), xe = Math.max(x0, x1);
+        const ys = Math.min(y0, y1), ye = Math.max(y0, y1);
+        const zs = Math.min(z0, z1), ze = Math.max(z0, z1);
+        for (let x = xs; x <= xe; x++) {
+          for (let y = ys; y <= ye; y++) {
+            for (let z = zs; z <= ze; z++) {
+              this.add(x, y, z, color, opts);
+            }
+          }
+        }
+      }
+      build() {
+        const group = new THREE.Group();
+        const buckets = new Map();
+        for (const cell of this.cells.values()) {
+          const matProps = {
+            color: cell.color,
+            roughness: cell.roughness ?? 0.92,
+            metalness: cell.metalness ?? 0.02,
+            emissive: cell.emissive ?? 0x000000,
+            emissiveIntensity: cell.emissiveIntensity ?? 1,
+            transparent: cell.transparent ?? false,
+            opacity: cell.opacity ?? 1,
+          };
+          const shadowProps = {
+            castShadow: cell.castShadow ?? true,
+            receiveShadow: cell.receiveShadow ?? true,
+          };
+          const key = JSON.stringify({ ...matProps, ...shadowProps });
+          if (!buckets.has(key)) buckets.set(key, { matProps, shadowProps, cells: [] });
+          buckets.get(key).cells.push(cell);
+        }
+
+        for (const { matProps, shadowProps, cells } of buckets.values()) {
+          const material = new THREE.MeshStandardMaterial(matProps);
+          const mesh = new THREE.InstancedMesh(sharedBox, material, cells.length);
+          mesh.castShadow = shadowProps.castShadow;
+          mesh.receiveShadow = shadowProps.receiveShadow;
+          mesh.frustumCulled = false;
+          cells.forEach((cell, i) => {
+            dummy.position.set(cell.x * this.step, cell.y * this.step, cell.z * this.step);
+            dummy.scale.setScalar(this.cubeScale * (cell.scale ?? 1));
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+          });
+          mesh.instanceMatrix.needsUpdate = true;
+          group.add(mesh);
+        }
+        return group;
+      }
+    }
+
+    function collectMaterials(root) {
+      const materials = [];
+      root.traverse((obj) => {
+        if (!obj.isMesh) return;
+        const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+        list.forEach((mat) => {
+          if (!materials.includes(mat)) materials.push(mat);
+        });
+      });
+      return materials;
+    }
+
+    function addFlower(builder, x, z, petal = P.flowerRed) {
+      builder.add(x, 1, z, P.stem);
+      builder.add(x, 2, z, P.stem);
+      builder.add(x - 1, 2, z, P.grassDark);
+      builder.add(x + 1, 2, z, P.grassDark);
+      builder.add(x, 3, z, P.flowerYellow, { emissive: 0x332200, emissiveIntensity: 0.16, roughness: 0.65 });
+      builder.add(x - 1, 3, z, petal);
+      builder.add(x + 1, 3, z, petal);
+      builder.add(x, 3, z - 1, petal);
+      builder.add(x, 3, z + 1, petal);
+      builder.add(x, 4, z, petal);
+    }
+
+    function addGrassTuft(builder, x, z, tall = false) {
+      builder.add(x - 1, 1, z, P.grassDark);
+      builder.add(x, 1, z, P.grassDark);
+      builder.add(x + 1, 1, z, P.grassDark);
+      builder.add(x, 2, z, P.grass);
+      if (tall) builder.add(x, 3, z, P.grassLight);
+    }
+
+    function addPebble(builder, x, z) {
+      builder.add(x, 1, z, P.stone, { roughness: 1 });
+      if (hash(x, z, 2.3) > 0.52) builder.add(x + 1, 1, z, P.stone, { roughness: 1 });
+    }
+
+    function addBush(builder, cx, cz, rx, ry, rz) {
+      const cy = 1 + ry;
+      const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx);
+      const y0 = 1, y1 = Math.ceil(cy + ry);
+      const z0 = Math.floor(cz - rz), z1 = Math.ceil(cz + rz);
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            const nx = (x - cx) / rx;
+            const ny = (y - cy) / ry;
+            const nz = (z - cz) / rz;
+            if (nx * nx + ny * ny + nz * nz <= 1) {
+              let color = P.bush;
+              const light = (cx - x) * 0.7 + (y - cy) * 1.1 + (cz - z) * 0.25;
+              if (light > 2.25) color = P.bushLight;
+              else if (light < -0.35) color = P.bushDark;
+              builder.add(x, y, z, color);
+            }
+          }
+        }
+      }
+    }
+
+    function addHill(builder, cx, cz, rx, ry, rz) {
+      const cy = 1 + ry;
+      const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx);
+      const y0 = 1, y1 = Math.ceil(cy + ry);
+      const z0 = Math.floor(cz - rz), z1 = Math.ceil(cz + rz);
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            const nx = (x - cx) / rx;
+            const ny = (y - cy) / ry;
+            const nz = (z - cz) / rz;
+            const d = nx * nx + ny * ny + nz * nz;
+            if (d <= 1) {
+              let color = P.hill;
+              const light = (cx - x) * 0.55 + (y - cy) * 0.9 + (cz - z) * 0.18;
+              if (light > 2.3) color = P.hillLight;
+              else if (light < -0.2) color = P.hillDark;
+              builder.add(x, y, z, color);
+            }
+          }
+        }
+      }
+
+      const spotZ = cz + Math.round(rz * 0.55);
+      builder.cuboid(cx - 3, cx - 1, 5, 7, spotZ, spotZ, P.hillDark);
+      builder.cuboid(cx + 2, cx + 4, 7, 9, spotZ, spotZ, P.hillDark);
+      builder.add(cx - 1, 4, cz + Math.round(rz * 0.82), P.black);
+      builder.add(cx + 1, 4, cz + Math.round(rz * 0.82), P.black);
+    }
+
+    function addMountain(builder, cx, cz, width, height, depth) {
+      for (let dx = -width; dx <= width; dx++) {
+        const h = Math.max(1, Math.floor(height * (1 - Math.abs(dx) / (width + 1))));
+        for (let y = 1; y <= h; y++) {
+          const zSpan = Math.max(1, Math.floor(depth * (1 - (y - 1) / height * 0.7)));
+          for (let z = cz - zSpan; z <= cz + zSpan; z++) {
+            const x = cx + dx;
+            let color = P.mountain;
+            const light = (-dx * 0.45) + y * 0.12 - (z - cz) * 0.08;
+            if (light > 3.8) color = P.mountainLight;
+            else if (light < -0.4) color = P.mountainDark;
+            builder.add(x, y, z, color, { castShadow: false });
+          }
+        }
+      }
+    }
+
+    function addPipe(builder, x, z, height = 12) {
+      for (let xx = -3; xx <= 3; xx++) {
+        for (let zz = -3; zz <= 3; zz++) {
+          for (let y = 1; y <= height; y++) {
+            let color = P.pipe;
+            if (xx <= -1 || zz <= -1) color = P.pipeLight;
+            if (xx >= 2 || zz >= 2) color = P.pipeDark;
+            builder.add(x + xx, y, z + zz, color, { roughness: 0.78 });
+          }
+        }
+      }
+
+      for (let xx = -4; xx <= 4; xx++) {
+        for (let zz = -4; zz <= 4; zz++) {
+          for (let y = height + 1; y <= height + 2; y++) {
+            let color = P.pipe;
+            if (xx <= -2 || zz <= -2) color = P.pipeLight;
+            if (xx >= 2 || zz >= 2) color = P.pipeDark;
+            builder.add(x + xx, y, z + zz, color, { roughness: 0.75 });
+          }
+        }
+      }
+
+      for (let xx = -2; xx <= 2; xx++) {
+        for (let zz = -2; zz <= 2; zz++) {
+          builder.remove(x + xx, height + 1, z + zz);
+          builder.remove(x + xx, height + 2, z + zz);
+          builder.add(x + xx, height, z + zz, 0x0c2d14, { roughness: 1 });
+        }
+      }
+
+      for (let xx = -3; xx <= 3; xx++) {
+        builder.add(x + xx, height - 2, z - 3, P.pipeDark);
+      }
+    }
+
+    function addCastle(builder, x, z) {
+      for (let xx = -6; xx <= 6; xx++) {
+        for (let yy = 1; yy <= 8; yy++) {
+          for (let zz = -3; zz <= 3; zz++) {
+            let color = P.castle;
+            if (xx >= 2 || zz <= -1 || yy <= 2) color = P.castleDark;
+            builder.add(x + xx, yy, z + zz, color);
+          }
+        }
+      }
+
+      const towerXs = [-9, 9];
+      towerXs.forEach((tx) => {
+        for (let xx = -1; xx <= 1; xx++) {
+          for (let yy = 1; yy <= 12; yy++) {
+            for (let zz = -1; zz <= 1; zz++) {
+              let color = P.castle;
+              if (tx + xx > 0 || zz < 0 || yy <= 2) color = P.castleDark;
+              builder.add(x + tx + xx, yy, z + zz, color);
+            }
+          }
+        }
+        for (let i = -2; i <= 2; i += 2) {
+          builder.add(x + tx + i, 13, z - 1, P.castle);
+          builder.add(x + tx + i, 13, z + 1, P.castle);
+        }
+      });
+
+      for (let i = -5; i <= 5; i += 2) {
+        builder.add(x + i, 9, z - 3, P.castle);
+        builder.add(x + i, 9, z + 3, P.castle);
+      }
+
+      builder.cuboid(x - 1, x + 1, 1, 5, z + 4, z + 4, P.black);
+      builder.cuboid(x - 4, x - 3, 4, 6, z + 4, z + 4, P.window, { emissive: 0x665200, emissiveIntensity: 0.38, roughness: 0.5 });
+      builder.cuboid(x + 3, x + 4, 4, 6, z + 4, z + 4, P.window, { emissive: 0x665200, emissiveIntensity: 0.38, roughness: 0.5 });
+      builder.cuboid(x - 1, x + 1, 8, 10, z + 4, z + 4, P.window, { emissive: 0x665200, emissiveIntensity: 0.38, roughness: 0.5 });
+
+      for (let y = 14; y <= 17; y++) builder.add(x + 9, y, z, P.white);
+      builder.add(x + 9, 18, z, P.yellow, { emissive: 0x553300, emissiveIntensity: 0.2 });
+      builder.cuboid(x + 10, x + 13, 16, 17, z, z, P.red);
+      builder.cuboid(x + 11, x + 12, 16, 16, z, z, P.white);
+    }
+
+    function addFlagPole(builder, x, z, height = 16) {
+      for (let y = 1; y <= height; y++) builder.add(x, y, z, P.white);
+      builder.add(x, height + 1, z, P.yellow, { emissive: 0x553300, emissiveIntensity: 0.28, roughness: 0.55 });
+      builder.cuboid(x + 1, x + 5, height - 4, height - 2, z, z, P.red);
+      builder.cuboid(x + 2, x + 4, height - 3, height - 3, z, z, P.white);
+    }
+
+    function addMushroom(builder, x, z) {
+      builder.cuboid(x - 1, x + 1, 1, 4, z - 1, z + 1, P.mushroomBeige);
+      builder.add(x - 1, 3, z + 2, P.black);
+      builder.add(x + 1, 3, z + 2, P.black);
+
+      const capY = 6;
+      for (let xx = -4; xx <= 4; xx++) {
+        for (let yy = 0; yy <= 3; yy++) {
+          for (let zz = -4; zz <= 4; zz++) {
+            const nx = xx / 4;
+            const ny = yy / 2.7;
+            const nz = zz / 4;
+            if (nx * nx + ny * ny + nz * nz <= 1 && yy >= 0) {
+              let color = P.mushroomRed;
+              if (xx <= -1 || yy >= 2) color = P.red;
+              if (xx >= 2 || zz >= 2) color = P.redDark;
+              builder.add(x + xx, capY + yy, z + zz, color);
+            }
+          }
+        }
+      }
+
+      builder.cuboid(x - 1, x, capY + 1, capY + 2, z + 1, z + 2, P.white);
+      builder.add(x + 2, capY + 1, z - 1, P.white);
+      builder.add(x - 2, capY + 2, z - 2, P.white);
+      builder.add(x, capY + 2, z - 1, P.white);
+    }
+
+    function createSun(radius = 6) {
+      const b = new VoxelBuilder(1, 0.95);
+      for (let x = -radius; x <= radius; x++) {
+        for (let y = -radius; y <= radius; y++) {
+          const d = x * x + y * y;
+          if (d <= radius * radius) {
+            const color = d > radius * radius * 0.68 ? P.sunDark : P.sun;
+            b.add(x, y, 0, color, {
+              emissive: 0x553300,
+              emissiveIntensity: 0.62,
+              roughness: 0.45,
+              castShadow: false,
+              receiveShadow: false,
+            });
+            if (d > radius * radius * 0.85 && ((x + y) & 1) === 0) {
+              b.add(x, y, 1, P.sun, {
+                emissive: 0x553300,
+                emissiveIntensity: 0.82,
+                roughness: 0.42,
+                castShadow: false,
+                receiveShadow: false,
+              });
+            }
+          }
+        }
+      }
+      return b.build();
+    }
+
+    function createCloud(scale = 1) {
+      const b = new VoxelBuilder(1, 0.94);
+      const lumps = [
+        { cx: -6, cy: 0, cz: 0, rx: 4.2, ry: 2.4, rz: 2.4 },
+        { cx: -1, cy: 1, cz: 0, rx: 5.2, ry: 3.1, rz: 2.6 },
+        { cx: 5, cy: 0, cz: 0, rx: 4.4, ry: 2.5, rz: 2.4 },
+      ];
+
+      lumps.forEach(({ cx, cy, cz, rx, ry, rz }) => {
+        const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx);
+        const y0 = Math.floor(cy - ry), y1 = Math.ceil(cy + ry);
+        const z0 = Math.floor(cz - rz), z1 = Math.ceil(cz + rz);
+        for (let x = x0; x <= x1; x++) {
+          for (let y = y0; y <= y1; y++) {
+            for (let z = z0; z <= z1; z++) {
+              const nx = (x - cx) / rx;
+              const ny = (y - cy) / ry;
+              const nz = (z - cz) / rz;
+              if (nx * nx + ny * ny + nz * nz <= 1) {
+                const color = y < cy - 0.3 ? P.cloudShadow : P.cloud;
+                b.add(x, y, z, color, {
+                  roughness: 1,
+                  castShadow: false,
+                  receiveShadow: false,
+                });
+              }
+            }
+          }
+        }
+      });
+
+      const group = b.build();
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function brickFaceColor(i, j, size, lit = true) {
+      if (j === 0) return P.brickDark;
+      if (j === size - 1) return lit ? P.brickLight : P.brick;
+      if (j === 2 || j === 5) return P.mortar;
+      const row = j < 2 ? 0 : j < 5 ? 1 : 2;
+      const mortarCols = row % 2 === 0 ? [3] : [1, 5];
+      if (mortarCols.includes(i)) return P.mortar;
+      return lit ? (((i + j) & 1) === 0 ? P.brickLight : P.brick) : (((i + j) & 1) === 0 ? P.brick : P.brickDark);
+    }
+
+    const questionPattern = [
+      '..DDDD..',
+      '.DD..DD.',
+      '....DD..',
+      '...DD...',
+      '...DD...',
+      '........',
+      '...DD...',
+      '........',
+    ];
+
+    function questionFrontColor(i, j, size) {
+      let color = P.question;
+      if (i === 0 || j === 0) color = P.questionDark;
+      if (i === size - 1 || j === size - 1) color = P.questionLight;
+      if ((i === 1 || i === size - 2) && (j === 1 || j === size - 2)) color = P.questionLight;
+      const row = questionPattern[size - 1 - j] || '........';
+      if (row[i] === 'D') color = P.questionDark;
+      return color;
+    }
+
+    function questionSideColor(i, j, size, lit = true) {
+      let color = lit ? P.questionLight : P.question;
+      if (i === 0 || j === 0) color = P.questionDark;
+      if (i === size - 1 || j === size - 1) color = lit ? P.questionLight : P.question;
+      if ((i === 1 || i === size - 2) && (j === 1 || j === size - 2)) color = P.questionLight;
+      return color;
+    }
+
+    function createBlock(type = 'brick') {
+      const b = new VoxelBuilder(1, 0.96);
+      const size = 8;
+
+      for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+          for (let k = 0; k < size; k++) {
+            const x = centeredCoord(i, size);
+            const y = centeredCoord(j, size);
+            const z = centeredCoord(k, size);
+            const isSurface = i === 0 || i === size - 1 || j === 0 || j === size - 1 || k === 0 || k === size - 1;
+            let color = type === 'brick' ? P.brickDark : P.questionDark;
+            let opts = {};
+
+            if (!isSurface) {
+              color = type === 'brick' ? P.brickDark : P.questionDark;
+            } else if (type === 'brick') {
+              if (j === size - 1) {
+                color = ((i + k) & 1) === 0 ? P.brickLight : P.brick;
+              } else if (j === 0 || k === 0) {
+                color = P.brickDark;
+              } else if (k === size - 1) {
+                color = brickFaceColor(i, j, size, true);
+              } else if (i === 0) {
+                color = brickFaceColor(k, j, size, true);
+              } else if (i === size - 1) {
+                color = brickFaceColor(k, j, size, false);
+              } else {
+                color = P.brickDark;
+              }
+            } else {
+              opts = { roughness: 0.72, emissive: 0x2b1800, emissiveIntensity: 0.2 };
+              if (j === size - 1) {
+                color = ((i + k) & 1) === 0 ? P.questionLight : P.question;
+              } else if (j === 0 || k === 0) {
+                color = P.questionDark;
+              } else if (k === size - 1) {
+                color = questionFrontColor(i, j, size);
+              } else if (i === 0) {
+                color = questionSideColor(k, j, size, true);
+              } else if (i === size - 1) {
+                color = questionSideColor(k, j, size, false);
+              } else {
+                color = P.questionDark;
+              }
+            }
+
+            b.add(x, y, z, color, opts);
+          }
+        }
+      }
+
+      return b.build();
+    }
+
+    function createCoin() {
+      const b = new VoxelBuilder(1, 0.92);
+      for (let x = -2; x <= 2; x++) {
+        for (let y = -4; y <= 4; y++) {
+          const d = (x * x) / 4 + (y * y) / 16;
+          if (d <= 1.02) {
+            let color = P.coin;
+            if (d > 0.74) color = P.coinDark;
+            if (x <= -1 || y >= 3) color = P.coinLight;
+            for (const z of [-0.5, 0.5]) {
+              b.add(x, y, z, color, {
+                roughness: 0.48,
+                metalness: 0.22,
+                emissive: 0x5d3900,
+                emissiveIntensity: 0.44,
+              });
+            }
+          }
+        }
+      }
+      for (let y = -3; y <= 3; y++) {
+        b.add(-1, y, 1.5, P.coinLight, { roughness: 0.42, metalness: 0.28, emissive: 0x6f4900, emissiveIntensity: 0.55 });
+      }
+      const group = b.build();
+      group.scale.setScalar(0.55);
+      return group;
+    }
+
+    function createSparkle() {
+      const b = new VoxelBuilder(1, 0.9);
+      const opts = { emissive: 0x665500, emissiveIntensity: 0.85, roughness: 0.4, metalness: 0.1, castShadow: false, receiveShadow: false };
+      b.add(0, 0, 0, P.spark, opts);
+      b.add(1, 0, 0, P.coinLight, opts);
+      b.add(-1, 0, 0, P.coinLight, opts);
+      b.add(0, 1, 0, P.coinLight, opts);
+      b.add(0, -1, 0, P.coinLight, opts);
+      b.add(0, 0, 1, P.coinLight, opts);
+      b.add(0, 0, -1, P.coinLight, opts);
+      const group = b.build();
+      group.scale.setScalar(0.28);
+      return group;
+    }
+
+    function createMario() {
+      const b = new VoxelBuilder(1, 0.95);
+
+      // Shoes
+      b.cuboid(-3, -1, 1, 2, -2, 1, P.brown);
+      b.cuboid(-3, -1, 1, 1, -2, 1, P.brownDark);
+      b.cuboid(1, 3, 2, 3, -1, 2, P.brown);
+      b.cuboid(1, 3, 2, 2, -1, 2, P.brownDark);
+      b.cuboid(-3, -2, 2, 2, 1, 1, P.brownLight);
+      b.cuboid(1, 2, 3, 3, 2, 2, P.brownLight);
+
+      // Legs and lower overalls
+      b.cuboid(-2, -1, 3, 8, -1, 1, P.blueDark);
+      b.cuboid(-2, -1, 3, 8, 1, 1, P.blue);
+      b.cuboid(1, 2, 4, 9, 0, 2, P.blueDark);
+      b.cuboid(1, 2, 4, 9, 2, 2, P.blue);
+      b.cuboid(-3, 3, 9, 11, -2, 2, P.blueDark);
+      b.cuboid(-3, 3, 9, 11, 2, 2, P.blue);
+
+      // Shirt and bib
+      b.cuboid(-3, 3, 12, 15, -2, 2, P.redDark);
+      b.cuboid(-3, 3, 12, 15, 2, 2, P.red);
+      b.cuboid(-2, 2, 11, 15, 3, 3, P.blue);
+      b.cuboid(-2, -2, 12, 15, 2, 3, P.blue);
+      b.cuboid(2, 2, 12, 15, 2, 3, P.blue);
+      b.add(-2, 13, 4, P.yellow, { roughness: 0.45, metalness: 0.25 });
+      b.add(2, 13, 4, P.yellow, { roughness: 0.45, metalness: 0.25 });
+
+      // Left arm
+      b.cuboid(-5, -4, 10, 13, -1, 1, P.redDark);
+      b.cuboid(-5, -4, 10, 13, 1, 1, P.red);
+      b.cuboid(-5, -4, 8, 9, -1, 1, P.white);
+      b.cuboid(-5, -4, 8, 9, 1, 1, 0xe6ecef);
+
+      // Right arm punching upward
+      b.cuboid(4, 5, 13, 16, -1, 1, P.redDark);
+      b.cuboid(4, 5, 13, 16, 1, 1, P.red);
+      b.cuboid(4, 5, 17, 19, -1, 1, P.redDark);
+      b.cuboid(4, 5, 17, 19, 1, 1, P.red);
+      b.cuboid(4, 5, 20, 21, -1, 2, P.white);
+      b.cuboid(4, 5, 20, 21, 2, 2, 0xe6ecef);
+
+      // Neck and head
+      b.cuboid(-1, 1, 15, 15, -1, 1, P.skinDark);
+      b.cuboid(-3, 3, 16, 20, -2, 2, P.skin);
+      b.cuboid(-3, 3, 16, 20, -3, -2, P.brownDark);
+      b.cuboid(-4, -4, 16, 18, -1, 1, P.brownDark);
+      b.cuboid(4, 4, 16, 18, -1, 1, P.brownDark);
+      b.cuboid(-4, -4, 17, 18, 0, 1, P.skinDark);
+      b.cuboid(4, 4, 17, 18, 0, 1, P.skinDark);
+
+      // Face detail
+      b.cuboid(-1, 1, 17, 18, 3, 4, P.skinDark);
+      b.cuboid(-1, 1, 17, 18, 5, 5, P.skin);
+      b.cuboid(-2, 2, 16, 16, 3, 4, P.black);
+      b.cuboid(-1, 1, 15, 15, 3, 3, P.redDark);
+      b.cuboid(-2, -1, 18, 19, 3, 3, P.white);
+      b.cuboid(1, 2, 18, 19, 3, 3, P.white);
+      b.add(-1, 18, 4, P.black);
+      b.add(1, 18, 4, P.black);
+      b.cuboid(-2, -1, 20, 20, 2, 2, P.black);
+      b.cuboid(1, 2, 20, 20, 2, 2, P.black);
+
+      // Cap and emblem
+      b.cuboid(-4, 4, 20, 20, 3, 5, P.red);
+      b.cuboid(-4, 4, 21, 23, -3, 3, P.redDark);
+      b.cuboid(-4, 4, 21, 23, 3, 3, P.red);
+      b.cuboid(-3, 2, 23, 23, -2, 1, P.red);
+      b.cuboid(-1, 1, 21, 22, 4, 4, P.white);
+      b.add(-1, 21, 5, P.red);
+      b.add(-1, 22, 5, P.red);
+      b.add(0, 21, 5, P.redDark);
+      b.add(1, 21, 5, P.red);
+      b.add(1, 22, 5, P.red);
+
+      const group = b.build();
+      return group;
+    }
+
+    function buildWorld() {
+      const b = new VoxelBuilder(1, 0.97);
+      for (let x = -34; x <= 34; x++) {
+        for (let z = -22; z <= 18; z++) {
+          const topNoise = hash(x, z, 0.83);
+          const grassColor = topNoise > 0.82 ? P.grassLight : topNoise < 0.2 ? P.grassDark : P.grass;
+          b.add(x, 0, z, grassColor);
+          for (let y = -1; y >= -3; y--) {
+            const dirtNoise = hash(x + y * 3.1, z - y * 2.7, 1.11);
+            const color = y === -1 ? (dirtNoise > 0.62 ? P.dirtLight : P.dirt) : (dirtNoise < 0.18 ? P.dirtDark : P.dirt);
+            b.add(x, y, z, color);
+          }
+
+          const clearAction = Math.abs(x) < 10 && Math.abs(z) < 7;
+          if (!clearAction) {
+            const r = hash(x * 1.7, z * 2.2, 1.6);
+            if (r > 0.992) {
+              const petals = [P.flowerRed, P.flowerBlue, P.flowerYellow];
+              addFlower(b, x, z, petals[Math.floor(hash(x, z, 3.9) * petals.length)]);
+            } else if (r < 0.012) {
+              addPebble(b, x, z);
+            } else if (r > 0.945 && r < 0.97) {
+              addGrassTuft(b, x, z, hash(x, z, 4.2) > 0.55);
+            }
+          }
+        }
+      }
+
+      addMountain(b, -24, -21, 8, 10, 4);
+      addMountain(b, 1, -23, 11, 13, 5);
+      addMountain(b, 24, -20, 7, 9, 4);
+
+      addHill(b, -18, -13, 7, 6, 5);
+      addHill(b, 7, -14, 11, 8, 6);
+      addHill(b, 24, -11, 6, 5, 4);
+
+      addBush(b, -16, 8, 6, 3, 3);
+      addBush(b, -2, -6, 5, 3, 3);
+      addBush(b, 14, 6, 5, 3, 3);
+      addBush(b, 22, 2, 4, 2.5, 2.5);
+
+      addPipe(b, 23, 4, 12);
+      addMushroom(b, 14, 11);
+      addCastle(b, 30, -15);
+      addFlagPole(b, -30, -11, 16);
+
+      return b.build();
+    }
+
+    const world = buildWorld();
+    scene.add(world);
+
+    const sun = createSun(6);
+    sun.position.set(-24, 28, -24);
+    scene.add(sun);
+    const sunMaterials = collectMaterials(sun);
+
+    const warmGlow = new THREE.PointLight(0xffcf73, 0.32, 110, 2.1);
+    warmGlow.position.set(-22, 31, -20);
+    scene.add(warmGlow);
+
+    const cloudData = [
+      { group: createCloud(1.15), base: new THREE.Vector3(-26, 31, -18), amp: 5.5, lift: 0.8, speed: 0.27, offset: 0.0 },
+      { group: createCloud(0.95), base: new THREE.Vector3(7, 35, -22), amp: 4.5, lift: 0.6, speed: 0.22, offset: 1.7 },
+      { group: createCloud(1.05), base: new THREE.Vector3(25, 29, -19), amp: 6.2, lift: 0.75, speed: 0.25, offset: 3.1 },
+      { group: createCloud(0.72), base: new THREE.Vector3(-2, 26, -15), amp: 3.1, lift: 0.45, speed: 0.31, offset: 2.4 },
+    ];
+    cloudData.forEach((entry) => {
+      entry.group.position.copy(entry.base);
+      scene.add(entry.group);
+    });
+
+    const blockPositions = [-18, -9, 0, 9, 18];
+    const blocks = [];
+    let questionBlock = null;
+
+    blockPositions.forEach((x, index) => {
+      const type = index === 2 ? 'question' : 'brick';
+      const block = createBlock(type);
+      block.position.set(x, 28, 0);
+      block.userData.baseY = 28;
+      block.userData.type = type;
+      if (type === 'question') questionBlock = block;
+      scene.add(block);
+      blocks.push(block);
+    });
+
+    const questionMaterials = collectMaterials(questionBlock);
+
+    const marioRoot = new THREE.Group();
+    marioRoot.position.set(-4.5, 0, -0.5);
+    scene.add(marioRoot);
+
+    const mario = createMario();
+    marioRoot.add(mario);
+
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(4.6, 32),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(-4.5, 0.53, -0.5);
+    scene.add(shadow);
+
+    const burstCoins = [];
+    const burstDirs = [
+      new THREE.Vector3(0.0, 1.55, 0.0),
+      new THREE.Vector3(-0.62, 1.32, 0.18),
+      new THREE.Vector3(0.58, 1.28, -0.16),
+      new THREE.Vector3(-0.28, 1.15, -0.46),
+      new THREE.Vector3(0.33, 1.12, 0.50),
+    ];
+
+    burstDirs.forEach((dir, i) => {
+      const coin = createCoin();
+      coin.visible = false;
+      coin.userData.dir = dir;
+      coin.userData.baseScale = 0.54 + i * 0.03;
+      scene.add(coin);
+      burstCoins.push(coin);
+    });
+
+    const sparks = [];
+    for (let i = 0; i < 10; i++) {
+      const angle = (i / 10) * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(angle) * (0.9 + (i % 2) * 0.35), 0.9 + (i % 3) * 0.25, Math.sin(angle) * (0.9 + ((i + 1) % 2) * 0.35));
+      const spark = createSparkle();
+      spark.visible = false;
+      spark.userData.dir = dir;
+      spark.userData.baseScale = 0.24 + (i % 3) * 0.05;
+      scene.add(spark);
+      sparks.push(spark);
+    }
+
+    const ambientCoins = [
+      { group: createCoin(), base: new THREE.Vector3(-21, 9, 8), phase: 0.0 },
+      { group: createCoin(), base: new THREE.Vector3(-17, 11, 8), phase: 0.55 },
+      { group: createCoin(), base: new THREE.Vector3(-13, 13, 8), phase: 1.1 },
+      { group: createCoin(), base: new THREE.Vector3(18, 11, -4), phase: 2.3 },
+      { group: createCoin(), base: new THREE.Vector3(22, 13, -4), phase: 2.9 },
+    ];
+    ambientCoins.forEach((entry) => {
+      entry.group.position.copy(entry.base);
+      scene.add(entry.group);
+    });
+
+    const clock = new THREE.Clock();
+    const burstOrigin = new THREE.Vector3();
+
+    function animateMario(cycleT) {
+      const impactAt = 1.85;
+      let y = 0;
+      let lean = 0;
+      let sy = 1;
+      let sxz = 1;
+
+      if (cycleT < 0.6) {
+        const u = smooth(cycleT / 0.6);
+        y = 0;
+        lean = 0.07 * u;
+        sy = 1 - 0.14 * u;
+        sxz = 1 + 0.08 * u;
+      } else if (cycleT < impactAt) {
+        const u = (cycleT - 0.6) / (impactAt - 0.6);
+        y = easeOutCubic(u) * 3.35;
+        lean = 0.07 - 0.18 * u;
+        sy = 0.86 + 0.2 * u;
+        sxz = 1.08 - 0.06 * u;
+      } else if (cycleT < 3.1) {
+        const u = (cycleT - impactAt) / (3.1 - impactAt);
+        y = 3.35 * (1 - easeInCubic(u));
+        lean = -0.08 * (1 - u);
+        sy = 1.05 - 0.05 * u;
+        sxz = 1;
+      } else {
+        const u = smooth((cycleT - 3.1) / (4.6 - 3.1));
+        y = Math.max(0, 0.14 * Math.sin((1 - u) * Math.PI) * Math.exp(-3.2 * u));
+        lean = 0.02 * Math.sin((1 - u) * Math.PI) * Math.exp(-3.2 * u);
+        sy = 1;
+        sxz = 1;
+      }
+
+      marioRoot.position.y = y;
+      mario.rotation.z = lean;
+      mario.scale.set(sxz, sy, sxz);
+      mario.position.y = 0.4 * (1 - sy);
+
+      const shadowScale = clamp(1.16 - y * 0.05, 0.85, 1.16);
+      shadow.scale.set(shadowScale, shadowScale * 0.84, 1);
+      shadow.material.opacity = clamp(0.18 - y * 0.02, 0.07, 0.18);
+    }
+
+    function bounce(time, amp, duration) {
+      if (time < 0 || time > duration) return 0;
+      return Math.sin((time / duration) * Math.PI) * amp;
+    }
+
+    function render() {
+      const time = clock.getElapsedTime();
+      const cycle = 4.6;
+      const cycleT = time % cycle;
+      const impactAt = 1.85;
+      const sinceImpact = cycleT - impactAt;
+
+      animateMario(cycleT);
+
+      blocks.forEach((block, i) => {
+        const dist = Math.abs(i - 2);
+        const amp = i === 2 ? 1.35 : dist === 1 ? 0.52 : 0.22;
+        const delay = dist * 0.04;
+        const y = bounce(sinceImpact - delay, amp, 0.22 + dist * 0.02);
+        block.position.y = block.userData.baseY + y;
+        block.rotation.z = i === 2 ? bounce(sinceImpact, 0.03, 0.22) : 0;
+      });
+
+      const impactFlash = sinceImpact >= 0 && sinceImpact <= 0.28 ? Math.sin((sinceImpact / 0.28) * Math.PI) * 0.38 : 0;
+      const idlePulse = 0.12 + 0.08 * (0.5 + 0.5 * Math.sin(time * 4.5));
+      questionMaterials.forEach((mat) => {
+        const hex = mat.color.getHex();
+        if (hex === P.questionLight) mat.emissiveIntensity = idlePulse + impactFlash + 0.16;
+        else if (hex === P.question) mat.emissiveIntensity = idlePulse * 0.75 + impactFlash * 0.8;
+        else mat.emissiveIntensity = 0.12 + impactFlash * 0.5;
+      });
+
+      burstOrigin.set(questionBlock.position.x, questionBlock.position.y + 5, questionBlock.position.z);
+      burstLight.position.copy(burstOrigin);
+      burstLight.intensity = 0;
+
+      burstCoins.forEach((coin, i) => {
+        const life = sinceImpact - i * 0.07;
+        if (life < 0 || life > 0.92) {
+          coin.visible = false;
+          return;
+        }
+        const u = life / 0.92;
+        const dir = coin.userData.dir;
+        coin.visible = true;
+        coin.position.set(
+          burstOrigin.x + dir.x * u * 7,
+          burstOrigin.y + dir.y * u * 8 - 8.2 * u * u,
+          burstOrigin.z + dir.z * u * 7
+        );
+        const s = coin.userData.baseScale * (0.86 + Math.sin(u * Math.PI) * 0.34);
+        coin.scale.setScalar(s);
+        coin.rotation.y = time * 11 + i * 0.7;
+        burstLight.intensity = Math.max(burstLight.intensity, 1.35 * (1 - u));
+      });
+
+      sparks.forEach((spark, i) => {
+        const life = sinceImpact - i * 0.012;
+        if (life < 0 || life > 0.42) {
+          spark.visible = false;
+          return;
+        }
+        const u = life / 0.42;
+        const dir = spark.userData.dir;
+        spark.visible = true;
+        spark.position.set(
+          burstOrigin.x + dir.x * u * 4.2,
+          burstOrigin.y + dir.y * u * 4.8 + Math.sin(u * Math.PI) * 0.35,
+          burstOrigin.z + dir.z * u * 4.2
+        );
+        const s = Math.max(0.01, spark.userData.baseScale * (1 - u) * (1 + Math.sin(u * Math.PI) * 0.4));
+        spark.scale.setScalar(s);
+        spark.rotation.z = time * 4 + i * 0.4;
+      });
+
+      ambientCoins.forEach((entry, i) => {
+        entry.group.position.y = entry.base.y + Math.sin(time * 2.1 + entry.phase) * 0.35;
+        entry.group.rotation.y = time * 2.7 + i;
+      });
+
+      cloudData.forEach((entry) => {
+        entry.group.position.x = entry.base.x + Math.sin(time * entry.speed + entry.offset) * entry.amp;
+        entry.group.position.y = entry.base.y + Math.cos(time * entry.speed * 0.8 + entry.offset) * entry.lift;
+      });
+
+      sun.rotation.z = Math.sin(time * 0.3) * 0.05;
+      const sunPulse = 0.58 + Math.sin(time * 1.2) * 0.08;
+      sunMaterials.forEach((mat) => {
+        mat.emissiveIntensity = sunPulse + (mat.color.getHex() === P.sun ? 0.08 : 0.0);
+      });
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    renderer.setAnimationLoop(render);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+    });
+  </script>
+</body>
+</html>

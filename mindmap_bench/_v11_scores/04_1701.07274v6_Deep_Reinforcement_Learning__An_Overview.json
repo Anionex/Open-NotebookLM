@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "覆盖了论文的主干脉络：基础、核心元素、重要机制、应用与挑战，且包含 DQN/A3C/DDPG、AlphaGo、UNREAL、GAIL、VIN 等关键主题。但对论文后部的 More Topics、Resources、Brief Summary、Discussions 基本未体现，应用面也有压缩。层级整体清晰，主分支划分合理，但将论文中的“核心元素/重要机制/应用”重组为主题式结构，和原文章节对应性略弱。分支规模较均衡，没有明显失衡。表述多为短语，较简洁。准确性方面有若干问题：将 deadly triad 表述为“离策+非线性函数逼近+自举”，原文是 off-policy + function approximation + bootstrapping；将 Bootstrapped DQN 说成“参数噪声增强探索”不准确，参数噪声对应 NoisyNet；加入 PPO 但原文正文目录未系统讨论；商业金融分支把 LTV、投资组合、欺诈检测混放，和原文业务/金融边界不够忠实。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "覆盖面优于 A，基本囊括论文主要章节：基础理论、DQN 及扩展、策略优化、模仿/分层/多智能体、注意力记忆与元学习、游戏、机器人、NLP、计算机视觉、商业金融、Industry 4.0、医疗、计算机系统等，且保留了不少关键实例与数字，如 DQN 2015、AlphaGo 4比1、49 个 Atari、64 GPU/2000 TPU。层级总体合理，主干到子项过渡自然，但有少量归类偏移，如将 Horde/第三人称模仿学习放入同一组、将“经验回放池”置于策略优化分支略显突兀。分支相对均衡，算法、机制、应用三大块展开较充分。表述基本简洁，但存在少量解释性短句。准确性整体较好，不过也有若干偏差：A3C“结合 CNN 处理 3D 游戏”过窄；Transformer、BatchNorm 被纳入强化机制时与论文重点关联较弱；Atari“性能超越人类水平”表述偏满，原文更谨慎；Feudal Networks 并非文中明确主述内容。总体仍比 A 更全面且更忠实。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 52.6
+}

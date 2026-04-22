@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A完美契合了综述论文的宏观分类体系，全面覆盖了形状分类、目标检测与跟踪、点云分割等核心章节。层级结构严格遵循原论文的章节递进关系，各分支内容分布均衡，没有偏废。节点命名高度精炼，准确提炼了各流派的代表性算法与核心思想，是一份高质量的学术综述思维导图。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图B虽然覆盖了大部分内容，但在层级划分上脱离了原论文的章节结构（如将检测与跟踪、语义分割与实例/部件分割强行拆分为平级的独立主分支）。此外，B过度关注具体的性能指标（如准确率百分比、帧率）甚至在末尾加入了与学术主旨无关的作者简介与引用量，导致分支极不均衡，抓小放大，削弱了综述文章分类体系的呈现效果。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.0
+}

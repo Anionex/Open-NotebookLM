@@ -1,0 +1,28 @@
+{
+  "stem": "08_2502.08826v3_Ask_in_Any_Modality__A_Comprehensive_Survey_on_Multimodal_Retrieval-Augmented_Generation",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 A 较好地覆盖了论文的核心章节，特别是对附录中的数据集统计和评估指标进行了详细提取，准确度很高。但在层级和均衡性上，数据集部分过于侧重具体数字的罗列，而对核心方法论（如增强与生成技术）的归纳略显单薄。部分节点表述（如‘100篇以上近期论文’）不够精炼。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 极其出色地总结了这篇长篇综述。它严格遵循了论文的分类学（检索、融合、增强、生成、训练），层级逻辑极其清晰。在简洁性和准确度上表现完美，将具体的模型名称与其核心技术创新（如‘ColPali 页面补丁嵌入’、‘UniversalRAG 动态路由’）进行了精准且简练的配对，各分支内容分布非常均衡，是一份高质量的思维导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 27.4
+}

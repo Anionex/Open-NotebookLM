@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A完美覆盖了原论文的所有核心章节，分类体系（检测框架、OBB回归、特征表示、常见问题等）与论文高度一致，层级逻辑清晰。各分支内容详略得当，规模均衡。节点命名极其精炼，精准提取了如GWD、KLD、PoA、R3Det等核心学术术语，没有冗余的解释性长句，忠实度极高。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图B同样覆盖了全文主要内容，但在层级和简洁性上存在明显缺陷：将“2021年发布”、“2024年最新进展”等非核心时间信息单独作为子节点，导致结构冗余；在数据集分支中过度罗列具体的实例数量（如1793658个实例），导致该分支过于繁琐，破坏了整体的均衡性。此外，部分特征提取术语的归类略显生硬。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.0
+}

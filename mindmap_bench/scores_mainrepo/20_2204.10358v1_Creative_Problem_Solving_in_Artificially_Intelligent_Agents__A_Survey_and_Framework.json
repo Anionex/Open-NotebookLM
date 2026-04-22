@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "该版本几乎完美覆盖了论文的所有关键要素，不仅包含了核心框架（建模、表示、操纵、评估），还详细列出了第五章关于概念域（状态与动作空间）的细分逻辑。它成功捕捉了认知触发机制（僵局-孵化-洞察）以及文末的开放性研究问题，层级分明且术语引用极其准确。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "内容非常准确且简洁。但在全文覆盖度上略逊于 A，主要缺失了论文第五章对“状态（物体、地形、智能体）”和“动作”的详细分类体系，以及第七章提出的未来研究方向。结构上虽然清晰，但对论文作为“综述（Survey）”所提供的分类学细节挖掘不够深入。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 13.1
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "08_2502.08826v3_Ask_in_Any_Modality__A_Comprehensive_Survey_on_Multimodal_Retrieval-Augmented_Generation",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A 对论文主体覆盖较全面，较好囊括了检索、融合、增强、生成、训练、评估和应用等核心章节，也涉及数据集与鲁棒性内容；但对引言背景中的公式化定义、相关工作与贡献，以及开放问题、结论、局限性、伦理声明覆盖不足。层级组织总体清晰，主干按论文技术模块展开，深度使用较充分。分支规模较均衡，虽检索部分略重但仍合理。表述大多为短语，较简洁。忠实度整体较高，但个别节点把投毒攻击工作表述成“防护/检测”，存在轻微失真。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "B 的优点是补入了任务定义与数学建模、开放问题与未来方向，结构上更接近论文首尾呼应；但对数据集/基准、评测体系、应用分类、训练细节与生成子类的展开明显少于原文，整体覆盖面弱于 A。层级设计清楚，主分支划分合理，规模也较均衡。措辞基本精炼。准确性方面有若干偏移：如将 VISA 放入 Agentic RAG 语境、将 MMED-RAG 归为放射报告生成、部分节点对原文方法定位有所泛化，因此忠实度略低。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 38.1
+}

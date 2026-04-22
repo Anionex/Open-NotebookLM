@@ -1,0 +1,28 @@
+{
+  "stem": "01_2411.18279v12_Large_Language_Model-Brained_GUI_Agents__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "覆盖了演进、架构、LAM、框架、评估、应用与挑战等主线，但明显缺失论文前部的related work、background、survey scope/RQ，也未体现数据集与数据采集、框架细分、应用分类等论文的重要大章节。层级上主干清晰，父子关系基本合理，但部分节点把方法、模型、数据和观点混放在同层。分支相对均衡，未出现极端失衡。表述多为短语，较简洁。忠实度一般：如‘无需权限的端到端通用操作’对GUI agent表述过强，论文强调通用性但并未简单等同于无需权限；‘OS-Genesis逆向合成’‘o1风格深度思考’等更像外延扩展，未见于给定正文；评价指标只写TSR与安全风险率也过窄。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "覆盖面明显优于A，包含认知架构、感知执行、多端框架、LAM、数据、评估、应用、安全挑战等，较完整地对应论文中Section 5-11的核心内容；但仍缺少introduction中的动机/范围/RQ、related work与background等综述型章节。层级结构较完整，二三级展开充分，父子关系大多合理，不过将ReAct放入‘自我进化能力’而非自反/推理机制略有不顺。分支均衡性最好，各主分支规模接近。整体较简洁，多用名词短语。忠实度中等：含不少论文外或未在给定正文中明确出现的具体名词，如UI-TARS、ShowUI、OS-ATLAS、GPTDroid、AdbGPT、ProphetAgent、ProAgent、MultiOn、MagicOS YOYO、PiP等，容易超出源文；部分术语映射也不够严谨，如把ReAct归到自我进化。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 51.5
+}

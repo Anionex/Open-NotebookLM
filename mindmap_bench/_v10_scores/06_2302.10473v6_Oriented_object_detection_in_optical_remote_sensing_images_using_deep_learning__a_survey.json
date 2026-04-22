@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "A较好覆盖了论文主体：挑战、检测框架、OBB回归与表示、特征表示、遥感专项问题、数据集评测和未来方向均有涉及，主线完整。但对论文中较重要的内容仍有缺失或压缩过度，如相关综述比较、评测协议中的Precision/Recall/AP定义细节、DIOR-R/HRSC2016等数据集层次、SOTA比较分析，以及未来方向中的数据不均衡、单模态局限等。层级上整体清晰，按问题-方法-应用展开，父子关系大体合理；不过“演进逻辑与核心瓶颈”与“算法框架演进”之间仍有部分交叉，“表示法革新”下只列出部分方案，深度利用尚可但不算充分。分支规模较均衡。表述多数为短语，较简洁，但存在少量长句和括号补充。忠实度方面总体较好，关键术语如PoA、RRPN、RoI Transformer、Oriented RCNN、GWD/KLD/KFIoU、RVSA、STD、SOOD、PointOBB、DOTA等保留较准确；但有些点不够精确，例如将ARS-DETR概括为“长宽比敏感设计”偏窄，且若干数据集与方法细节被省略。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "B对论文核心内容覆盖更全面，基本囊括了检测框架、回归技术、表示法、旋转不变特征、遥感共性挑战、数据集与评价协议、轻量化与多模态未来方向等主要章节，且补入了A未充分体现的长宽比问题、DIOR-R、HRSC2016、Point2RBox、多尺度训练测试等内容，整体更接近原文结构。层级设计更规范：按框架/回归/特征/场景问题/基准/未来方向分块，且各块内部再按子范式拆分，父子关系自然，深度适中。各主分支体量比较均衡，没有明显头重脚轻。表述以短语为主，凝练程度高。准确性总体较好，术语和方法名大体忠实；但仍有少量归类或细节偏差，例如将PSC放入“非角度表示法”并不十分严谨，它本质上是角度编码/angle coder；另外对评测协议仍偏简略，未体现AP、Precision、Recall关系和DOTA版本细节。因此准确性略低于满分，但整体优于A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 48.9
+}

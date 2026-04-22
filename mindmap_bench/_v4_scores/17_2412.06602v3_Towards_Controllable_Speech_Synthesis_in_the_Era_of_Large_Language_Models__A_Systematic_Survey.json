@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 A 较好地覆盖了论文的正文部分，但完全遗漏了篇幅较大且包含重要原创实验（基于 Gemini 的评估）及背景知识的附录内容。层级结构清晰但相对较浅，部分节点采用中英文混排且表述略显冗长。内容准确，但缺乏对具体数据和细节的提取。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 的覆盖面极其全面，巧妙且无缝地将正文与附录（如技术演进历史、TTS流水线、量化与分词对比、Gemini自动化评估实验）整合在一起。层级划分深入且逻辑严密，各分支内容分布均衡。节点语言高度精炼，全部采用短语形式。准确度极高，精准提取了论文中的关键年份、指标阈值（如MCD<4）以及具体的实验评分（如Vevo 4.43分），忠实度极佳。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.2
+}

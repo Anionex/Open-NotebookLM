@@ -1,0 +1,28 @@
+{
+  "stem": "15_2302.08893v4_Active_learning_for_data_streams__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A较好地提取了在线主动学习的高层概念，但遗漏了原论文第三章核心分类中的‘平稳数据流分类方法（Stationary data stream classification approaches）’及其具体算法（如AEWAF、AMKL等）。层级结构存在一定的主观重组，偏离了论文原有的严谨分类体系。节点使用了‘::’进行长句解释，略微影响了简洁性。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B完美契合了原论文的核心分类体系，完整且准确地覆盖了平稳数据流、漂移数据流、演化模糊系统以及实验设计四大核心方法论（论文3.1-3.4节）。不仅层级逻辑严密，还精准提取了论文中的关键算法与缩写（如AEWAF、AMKL、ADWIN、SBAD等）。各分支内容分布均衡，节点均采用精炼的短语，质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 16.0
+}

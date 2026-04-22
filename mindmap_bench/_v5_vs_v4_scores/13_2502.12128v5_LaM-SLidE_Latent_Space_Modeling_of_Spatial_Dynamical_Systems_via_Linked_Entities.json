@@ -1,0 +1,25 @@
+{
+  "stem": "13_2502.12128v5_LaM-SLidE_Latent_Space_Modeling_of_Spatial_Dynamical_Systems_via_Linked_Entities",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图 A 覆盖面广，包含了正文与附录的丰富细节。但在准确性上存在明显事实错误：导图称传统方法“缺乏对实体间链接关系的显式建模”，而论文明确指出传统 GNN 方法正是通过邻域图显式建模链接，反而是本文提出的 LaM-SLidE 放弃了显式的化学键/链接建模。此外，将附录中插值系数的数学边界条件直接放在核心架构下，层级略显生硬。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 结构极其清晰，逻辑严密。准确捕捉了论文的核心创新与实验结论（如“无须显式建模化学键信息”、“L为32时超过实体数21仍有收益”等，完全契合论文表述）。将实验合理划分为分子动力学与其他多领域，并将附录的数学与物理背景单独成簇，层级分明，节点语言精炼，整体质量非常高。"
+    }
+  }
+}

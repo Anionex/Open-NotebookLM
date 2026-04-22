@@ -1,0 +1,28 @@
+{
+  "stem": "01_2411.18279v12_Large_Language_Model-Brained_GUI_Agents__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind Map A excellently captures the comprehensive structure of the survey paper, accurately summarizing the core concepts into well-organized nodes. It covers all major sections (evolution, foundations, frameworks, data/models, evaluation, applications, and challenges) with a highly logical hierarchy. The branches are balanced, the nodes use concise phrases rather than long sentences, and the key terms and data points from the paper are faithfully retained."
+    },
+    "B": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "Mind Map B is poorly generated, consisting mostly of random text fragments, HTML table tags, image links, citations, and truncated sentences extracted directly from the document. It completely fails to capture the paper's actual structure and content, lacking any meaningful coverage, logical hierarchy, balance, or conciseness."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.1
+}
