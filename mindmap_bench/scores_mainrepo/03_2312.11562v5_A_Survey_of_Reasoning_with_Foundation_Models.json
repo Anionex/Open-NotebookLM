@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "该方案展现了极高的全文覆盖率，不仅完整捕捉了第3章复杂的任务分类（如物理常识、具身智能、因果发现等），还深入还原了第4章的技术路径（如PEFT、数据合成等）和第3.10章的评估指标（如AUCCESS）。层级划分严密，完美契合论文的系统1/2理论架构。术语保留精准，包括了PAL、ProgPrompt等具体算法和GSM8K等特定数据集，是专业级别的综述总结。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "该方案虽然结构清晰且极其简洁，但在全文覆盖上存在显著缺失。它将论文核心的第4章（基础模型技术）简化为泛泛而谈的‘Methodologies’，丢失了关于预训练架构、微调方法（PEFT）和混合专家模型（MoE）等重要技术细节。此外，对任务领域的拆解仅停留在表面，未能像方案A那样体现出论文对各个细分领域（如生物信息、代码生成、自动驾驶）的详尽调研成果。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 38.4
+}

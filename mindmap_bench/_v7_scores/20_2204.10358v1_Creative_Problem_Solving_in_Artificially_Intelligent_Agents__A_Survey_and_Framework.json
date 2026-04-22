@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "导图A覆盖了论文的主要章节，但过度提取了具体的年份和案例（如1952年、1970年、1998年等），忽略了部分核心理论的抽象。在层级结构上，将具体的论文研究（如PointNet）与宏观架构混杂在一起，导致逻辑不够清晰。此外，将学术术语“Macgyvering”翻译为流行文化词汇“百战天龙”，在学术语境下不够准确和严谨。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B极其出色地提炼了论文的核心理论框架。它准确抓住了CPS的数学定义（C'_X = f(C_X)）以及认知过程（僵局、孵化、洞察）。结构组织高度符合论文的逻辑脉络（建模、表示、操纵、概念域、评估）。节点语言精炼，且巧妙地使用了中英双语对照（如Macgyvering、Affordance、Impasse），极大地提升了学术准确性和专业度，各分支分布也非常均衡。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 21.9
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "02_2505.04921v2_Perception__Reason__Think__and_Plan__A_Survey_on_Large_Multimodal_Reasoning_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "思维导图 A 完美地覆盖了论文的核心内容，包括多模态推理的四个演进阶段、原生大模态推理模型的技术前景以及数据集与基准体系。层级结构清晰合理，将论文的各个章节进行了高度概括和逻辑重组。各分支内容分布均衡，没有出现某一分支过载的情况。节点语言精炼，全部采用短语形式，准确保留了 O1、R1、GRPO、MCTS 等关键术语和核心数据，质量极高。"
+    },
+    "B": {
+      "coverage": 2,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "思维导图 B 提取失败，内容主要由随机的参考文献、长句片段、未解析的 HTML 表格代码（如 <table><tr><td>）和图片链接组成，完全没有体现论文的整体框架和核心章节。层级关系混乱，将大量无关的文本片段堆砌在几个骨架节点下，分支极度不均衡。节点冗长且包含大量无意义的乱码和标记（如 [info]、未命名主题），严重缺乏简洁性和准确度。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 22.6
+}

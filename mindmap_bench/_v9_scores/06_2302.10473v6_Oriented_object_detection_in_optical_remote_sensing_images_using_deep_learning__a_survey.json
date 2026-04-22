@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "导图A完全崩坏，提取了大量随机长句、HTML表格标签（如</td><td>）和图片链接，毫无逻辑层级可言。未能覆盖论文的核心结构，分支极度不平衡，且包含大量无意义的冗余字符，内容提取的准确度和简洁性极差。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "导图B结构清晰，将论文内容合理地归纳为中文层级，完整覆盖了检测框架、回归技术、特征表示、遥感特有难题、数据集及未来展望等核心章节。各分支分布均衡，节点提炼简练（如准确提取了82.24%和98.55%的精度数据以及数据集的实例数量）。唯一瑕疵是节点中出现了“国防科技大学”，该机构名称并未在提供的原文中直接出现，存在轻微的外部知识幻觉，因此准确度扣除1分。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 23.8
+}

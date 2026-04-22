@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "覆盖了论文主线与多数关键任务，但遗漏较多细节分支与代表方法；层级总体清晰，分类关系基本合理；分支规模相对均衡；节点较短，较简洁；但存在术语泛化、个别方法归类与细节数字保留不够准确的问题。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "对全文主要章节、任务、数据集、指标与前沿趋势覆盖更完整，结构也更贴近原文 taxonomy；各主分支较均衡，表达更精炼；少量术语压缩仍保留核心信息，准确度整体较高，但仍有部分方法与细节被概括或轻微偏移。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 177.9
+}

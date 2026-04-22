@@ -1,0 +1,28 @@
+{
+  "stem": "15_2302.08893v4_Active_learning_for_data_streams__a_survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了论文的核心主题，包括在线主动学习的约束、采样准则、概念漂移、模糊系统、实验设计以及评估与挑战。层级结构经过了高度合理的逻辑重组，将相关概念进行了极佳的归纳。各分支分布均衡，采用了“术语 :: 简释”的格式，极其简洁且易读。准确提取了论文中的关键术语（如 ADWIN、预序评估、A/D-优化等），忠实度极高。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 B 同样完整覆盖了论文的各个章节，但在层级划分上略显生硬（例如将演化系统与实验设计强行合并为一个主分支）。分支均衡性尚可，但在应用案例部分过于细碎。简洁性方面，节点中包含了大量不必要的年份信息（如“2012年”、“2022b年”），这在概念总结中显得冗余。准确度方面，虽然内容无误，但将“COVID19大流行”等文中仅作为举例的次要细节提升到了节点高度，未能准确把握综述论文的核心概念主次。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 21.4
+}

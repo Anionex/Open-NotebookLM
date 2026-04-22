@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 3,
+      "accuracy": 5,
+      "rationale": "导图 A 全面且精准地覆盖了论文的核心结构，包括 RL 理论基础、全生命周期应用、RLVR 在多模态与智能体中的应用、数据集与工具库等，层级划分与原论文高度一致，分支均衡且内容忠实于原文。但其大量使用了括号进行补充说明，违反了“无括号补充”的简洁性要求，因此简洁性扣分。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "导图 B 未能准确提取论文的真实结构，完全遗漏了 RL 理论基础（Section 2），且将引言中的部分 2025 年模型案例错误地提升为主分支，层级混乱。此外，导图捏造了原文未提及的数据（如“2025年论文占比超60%”），并在多个分支中反复使用“提升模型逻辑极限”等冗余的占位节点，导致准确度、均衡性和简洁性均表现较差。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 22.6
+}

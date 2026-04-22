@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "导图 A 虽然在顶层节点覆盖了论文的主要章节，但在子节点的提取上存在严重偏差。它没有提取出论文核心的分类体系（如规划/学习、参数化/非参数化等），而是抓取了大量琐碎的细节、随机的年份和具体的例子（如'13个超二次曲面参数'、'51篇综述文献分布'、'1987年经典规划框架'），导致层级逻辑混乱，未能准确反映论文的学术贡献和核心论点。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 完美地提取了论文提出的 CPS 框架及其核心分类体系。它准确地将问题建模、知识表示、知识操纵和概念域等核心维度进行了逻辑分层，父子关系严谨。各分支内容详略得当、结构均衡，节点语言精炼且高度忠实于原论文的专业术语和核心观点，是一份高质量的思维导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.1
+}

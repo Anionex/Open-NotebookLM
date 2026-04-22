@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "A 覆盖了背景形式化、few-shot 方法、任务推理与探索、many-shot、应用、局限等较多主题，范围较广；但对论文明确章节的对应不完整，缺少 Related Work、Open Problems 的系统展开，也未体现结论、附录等结构。层级上大体清晰，能区分方法族、探索、应用与评估，但将“离线 Meta-RL”“性能评估基准”提升为与论文主章节并列的一级大分支，和原文章节组织并不一致。分支规模相对均衡。表达多为短语，简洁度较好。准确性问题较明显：加入了文中未作为核心综述结构出现或未在给定正文中出现的具体术语/方法，如 Bayesian MAML、Gradient-EM、MetaCURE、HyperDynamics、MELD、SQUIRL、MetaLight、Decision Transformer 等；同时将 open problems、benchmarks、offline data 等内容混入独立大章，弱化了原文“第6章开放问题”的定位，忠实度偏低。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "B 对论文主线覆盖较好：包含定义与形式化、few-shot 三大方法类、探索与 Bayes-adaptive optimality、many-shot、多种监督设定、离线数据、应用与开放挑战，基本对应正文核心内容。层级结构最合理，能够把 Background→Few-shot→Exploration/Bayes→Many-shot→Supervision/Offline→Applications/Open Problems 的关系清楚展开，父子关系自然，深度也较合适。分支规模均衡，没有明显头重脚轻。节点基本使用短语，措辞凝练。准确性整体较好，关键术语如 POMDP、MAML、CAVIA、RL2、PEARL、VariBAD、DREAM、LPG、MetaGenRL、STAC/FRODO、DIAYN、Meta-IL、OOD 等保留正确。小问题在于覆盖仍略压缩：未显式列出 Applications 下的 Robotics 与 Multi-agent RL 章节细节，也未单列 Related Work、model-based meta-RL、theory of meta-RL；此外“无奖励元测试: 靠动力学变化或优势函数更新”是概括性转述，不如原文精确。总体上 B 明显优于 A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 86.8
+}

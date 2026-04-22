@@ -1,0 +1,28 @@
+{
+  "stem": "06_2302.10473v6_Oriented_object_detection_in_optical_remote_sensing_images_using_deep_learning__a_survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "A覆盖了检测框架、OBB表示与回归、特征对齐、常见遥感问题、数据集评价和未来方向等主要主题，但对论文结构中的引言/相关综述、SOTA方法比较、半监督/弱监督、现代数据集如FAIR1M/DIOR-R/DroneVehicle、具体损失函数与表示方法覆盖不足。层级总体清晰，父子关系多合理，但把高斯分布建模放在“旋转不变特征与空间对齐”下不够恰当，部分章节按主题重组后弱化了原文分类。分支规模较均衡，但算法框架和回归部分较细，数据集与评价较简略。节点多为短语，较简洁，但存在“Evaluation protocols”等英文占位和少量表述笼统。准确性中等，DOTA约1.1万图像、180万实例基本对应V2.0，但“DOTA表现优异”“场景特定数据增强”等泛化表述不够忠实；AO2-DETR出版年份表述按表格为TCSVT 2023但正文称Dai et al. 2022，存在潜在混淆；遗漏许多关键术语和数字。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "B较完整覆盖论文主线：从HBB到OBB的演进与四类瓶颈、四类检测框架、OBB损失与表示、旋转不变/先进特征、复杂背景/尺度/标注受限等遥感专项问题、评估数据集和未来方向。结构与论文分类高度一致，父子关系清楚，能体现技术分类与解决问题之间的关系。各主分支规模均衡，没有明显饥饿或过度展开。节点总体简洁，术语密度高，但少数节点较长，如“解决高密度排列下NMS误删与背景噪声”“多模态大模型：融合文本/GPS/IMU的多源数据检测 (AGI)”且含括号，简洁性略扣分。准确性较高，保留了BEV、HBB/OBB、PoA、RRPN、RoI Transformer、Oriented RCNN、R3Det、S2ANet、PIoU、GCL、CSL、PSC、GWD/KLD/KFIoU、SOOD、H2RBox、PointOBB、DOTA/FAIR1M/DroneVehicle等关键术语；个别如“ARS-DETR长宽比敏感设计”略概括，但整体忠实。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 247.4
+}

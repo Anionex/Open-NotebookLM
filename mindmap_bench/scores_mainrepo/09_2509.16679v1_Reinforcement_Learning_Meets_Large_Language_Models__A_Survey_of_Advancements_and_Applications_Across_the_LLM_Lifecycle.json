@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 A 极佳地还原了论文的深度。它不仅完整覆盖了论文的所有章节，还深入挖掘了细节，如第 4.1 节关于熵坍缩的数学机制（高协方差 Token）、DAPO 算法的具体改进点，以及多模态领域细分的 Video/Vision 模型。层级结构严谨，逻辑从理论基础平滑过渡到生命周期和具体挑战，对关键术语（如 OctoThinker, GRPO）保留准确，是高质量的学术综述导图。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "导图 B 具有极高的简洁性，适合快速预览。但在质量评审中，其深度利用明显不足。它忽略了论文中关于 RLVR 的大量最新研究成果（如多模态 reasoning 的具体进展、Agent 领域的最新框架 AReaL 等），且层级结构仅停留在三级，未能体现综述论文丰富的信息量。对于“训练动力学”等核心分析章节的覆盖较为片面，缺乏对论文特有论点的忠实呈现。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.1
+}

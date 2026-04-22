@@ -1,0 +1,28 @@
+{
+  "stem": "16_2112.10006v6_Zero-shot_and_Few-shot_Learning_with_Knowledge_Graphs__A_Comprehensive_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了论文的大致框架，但在核心的方法论分类上过于简略，完全遗漏了映射范式、传播范式等内部的细分子类（如输入映射、联合映射等）。此外，A在引言和背景部分过度关注琐碎的数字（如论文篇数、三元组数量），导致主次不够分明，分支均衡性较差。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B极其精准地提取了这篇综述的核心学术贡献，完美复现了ZSL和FSL的方法论分类树（如将映射范式细分为输入、类别、联合映射，并准确抓取了FSL特有的优化、迁移和嵌入传播范式）。层级结构严密，各分支内容详实且均衡，关键术语（如Out-of-KG、MAML、GraIL等）保留极其准确，是一份高质量的学术导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.4
+}

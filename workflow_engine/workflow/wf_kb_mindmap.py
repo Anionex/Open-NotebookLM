@@ -17,6 +17,7 @@ from workflow_engine.workflow.prompts_kb_mindmap import (
     _build_map_prompt,
     _build_collapse_prompt,
     _build_plan_prompt,
+    _build_pre_plan_prompt,
     _build_reduce_prompt,
     _build_merge_prompt,
     _build_beautify_prompt,
@@ -116,8 +117,18 @@ def _get_context_window(model: str) -> int:
 
 
 def _get_chunk_token_limit(model: str) -> int:
-    """计算长文本临界（上下文 * LONG_TEXT_THRESHOLD_RATIO）。"""
-    return int(_get_context_window(model) * LONG_TEXT_THRESHOLD_RATIO)
+    """计算长文本临界（上下文 * LONG_TEXT_THRESHOLD_RATIO）。
+
+    支持 env 覆盖（bench 强制 MR 用）：
+    - MINDMAP_FORCE_CHUNK_LIMIT=<int>：直接指定 token 阈值
+    - MINDMAP_THRESHOLD_RATIO=<float>：覆盖 LONG_TEXT_THRESHOLD_RATIO
+    """
+    forced = os.getenv("MINDMAP_FORCE_CHUNK_LIMIT")
+    if forced:
+        return int(forced)
+    ratio_env = os.getenv("MINDMAP_THRESHOLD_RATIO")
+    ratio = float(ratio_env) if ratio_env else LONG_TEXT_THRESHOLD_RATIO
+    return int(_get_context_window(model) * ratio)
 
 
 # ==================== JSON 安全解析 ====================
@@ -725,9 +736,34 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         chunks = _chunk_article(article, limit, model)
         log.info(f"[MapReduce {article_name}] 分块 {len(chunks)} 个")
 
+        # ---- Pre-Plan：用标题 + 首尾摘录在 Map 之前规划骨架 ----
+        headings_md = _extract_md_headings(article["content"]) if article["filename"].lower().endswith(".md") else ""
+        _content_str = article["content"]
+        _head_tok = 3000
+        _tail_tok = 2000
+        # 粗略按字符取首尾摘录（不调 tiktoken，避免 Map 前再额外耗时）
+        _head_chars = _head_tok * 4
+        _tail_chars = _tail_tok * 4
+        if len(_content_str) > _head_chars + _tail_chars + 500:
+            excerpt = _content_str[:_head_chars] + "\n\n[... 中间省略 ...]\n\n" + _content_str[-_tail_chars:]
+        else:
+            excerpt = _content_str
+
+        pre_plan_skeleton_json = ""
+        try:
+            pre_prompt = _build_pre_plan_prompt(headings_md, excerpt, language)
+            raw = await _call_llm(pre_prompt, state, temperature=0.2)
+            pre_parsed = _parse_json_safe(raw, f"pre_plan_{article_name}")
+            if isinstance(pre_parsed, list) and pre_parsed:
+                pre_plan_skeleton_json = json.dumps(pre_parsed, ensure_ascii=False, indent=2)
+            _save_debug(state, f"01b_pre_plan_{article_name}.json", pre_parsed if pre_parsed else raw)
+            log.info(f"[Pre-Plan {article_name}] 骨架 {len(pre_parsed) if isinstance(pre_parsed, list) else '?'} 个主分支")
+        except Exception as e:
+            log.error(f"[Pre-Plan {article_name}] 失败（降级为无骨架 Map）: {e}")
+
         # ---- Map ----
         async def process_chunk(chunk: Dict[str, Any]) -> Dict[str, Any]:
-            prompt = _build_map_prompt(chunk, language)
+            prompt = _build_map_prompt(chunk, language, skeleton_json=pre_plan_skeleton_json)
             try:
                 raw = await _call_llm(prompt, state, temperature=0.2)
                 parsed = _parse_map_json_safe(raw, chunk["chunk_id"])
@@ -759,37 +795,13 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         retained_nodes = await _smart_collapse(article_name, flat_nodes, limit, state)
         retained_nodes = _sanitize_nodes(retained_nodes)
 
-        # ---- Plan：基于 chunk_summaries + headings + top_topics 规划骨架 ----
+        # v14: 跳过独立 Plan 阶段；直接复用 Pre-Plan 产出的骨架
+        # （Map 已按骨架对齐抽取，parent_topic 应已与骨架对齐）
         chunk_summaries = [
             {"chunk_id": mr.get("chunk_id", ""), "summary": mr.get("summary", "")}
             for mr in map_results
         ]
-        headings_md = _extract_md_headings(article["content"]) if article["filename"].lower().endswith(".md") else ""
-        # 高分主题（importance_score ≥ 4）作为 Plan 的候选
-        top_topics = [
-            n.get("topic", "") for n in retained_nodes
-            if isinstance(n.get("importance_score"), (int, float)) and n.get("importance_score", 0) >= 4
-        ]
-        # 去重并保序
-        seen = set()
-        top_topics_uniq: List[str] = []
-        for t in top_topics:
-            t = str(t).strip()
-            if t and t not in seen:
-                seen.add(t)
-                top_topics_uniq.append(t)
-
-        plan_prompt = _build_plan_prompt(chunk_summaries, headings_md, top_topics_uniq, language)
-        skeleton_json = ""
-        try:
-            raw = await _call_llm(plan_prompt, state, temperature=0.2)
-            parsed = _parse_json_safe(raw, f"plan_{article_name}")
-            if isinstance(parsed, list) and parsed:
-                skeleton_json = json.dumps(parsed, ensure_ascii=False, indent=2)
-            _save_debug(state, f"03b_plan_{article_name}.json", parsed if parsed else raw)
-            log.info(f"[Plan {article_name}] 骨架 {len(parsed) if isinstance(parsed, list) else '?'} 个主分支")
-        except Exception as e:
-            log.error(f"[Plan {article_name}] 失败: {e}")
+        skeleton_json = pre_plan_skeleton_json
 
         # ---- Reduce ----
         reduce_nodes = [
@@ -809,6 +821,15 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             "retained_nodes": reduce_nodes,
         })
 
+        # v15: 给 Reduce 提供原文摘录（首 25K + 尾 10K chars），让最终渲染有全局视野
+        _red_head_chars = 25000
+        _red_tail_chars = 10000
+        _src = article["content"]
+        if len(_src) > _red_head_chars + _red_tail_chars + 500:
+            reduce_excerpt = _src[:_red_head_chars] + "\n\n[... 中间省略 ...]\n\n" + _src[-_red_tail_chars:]
+        else:
+            reduce_excerpt = _src
+
         prompt = _build_reduce_prompt(
             chunk_summaries=chunk_summaries,
             headings_md=headings_md,
@@ -816,6 +837,7 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             language=language,
             max_depth=state.request.max_depth,
             skeleton_json=skeleton_json,
+            source_excerpt=reduce_excerpt,
         )
         try:
             raw = await _call_llm(prompt, state, temperature=0.3)

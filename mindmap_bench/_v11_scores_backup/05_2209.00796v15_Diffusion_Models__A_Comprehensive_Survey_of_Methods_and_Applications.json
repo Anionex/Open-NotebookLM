@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "覆盖了基础、采样、似然、特殊结构、与其他生成模型关系、应用等大块内容，但遗漏较多关键章节与子类，如未来方向、结论、条件机制细分、自然语言生成、多模态若干细项、精确似然中的具体脉络。层级上基本成树，但混入若干不属于论文原始章节的横向项，如把图扩散、分子设计从特殊结构与应用间混放；“LDM”单列为应用分支也不够合理。分支规模总体尚可。表达多为短语，较简洁。忠实度较弱，出现论文中没有或不准确的内容，如“ReasonFlux”“ScoreGrad”“Stable Diffusion”“代码生成任务增强”“高斯泼溅组合生成”等；也将部分术语关系混淆，如把时间序列方法放入能量模型相关处。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "较好覆盖论文主线：三大基础、两类高效采样、似然改进、特殊结构、跨模型连接、应用场景，并点到具体代表方法如DDIM、DPM-Solver、iDDPM、VDM、D3PM、LDM、LSGM、RPG、VideoTetris、CSDI、TimeGrad、IPDiff、DiffPure。虽然未单列未来方向、结论以及第7章中条件机制/子任务的完整细分，覆盖仍明显优于A。层级关系总体合理，先总后分，子节点多与父节点对应，深度利用适中。各主分支相对均衡，没有明显失衡。表述简洁，以短语为主。准确性较好，术语大多忠实于原文；少量概括略压缩，例如将多种跨范式连接合并、未展开VAE/GAN/NF全部细项，但未见明显虚构或严重错配。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 82.9
+}

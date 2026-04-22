@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 5,
+      "accuracy": 2,
+      "rationale": "导图A遗漏了具体的模型许可类型与微任务设计细节，且错误地将作者简介部分提取为核心内容。层级上，将作者的教育经历和奖项作为“学术研究时间线”和“研究团队人才基础”单列为主分支，逻辑严重错误。此外，“18 KB 通信成本”等过于细节的数据作为主节点破坏了结构均衡。优点是严格遵守了无括号和短语表达的简洁性要求。准确度极低，将作者的生卒/就读年份（如1999-2003）误认为学术研究时间线。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图B全面且精准地覆盖了论文的核心内容，包括传统FL局限、两种开放框架、四种模型重用机制、法律合规及微任务设计。层级结构与原论文的逻辑脉络高度一致，各分支内容详实且分布均衡。准确度极高，忠实保留了论文中的关键术语和分类。但其最大的缺点是严重违反了简洁性要求，节点中大量使用了括号进行英文对照或补充说明（如“(Query-based)”、“(利用验证集或无标签数据)”等），导致节点冗长。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 25.7
+}

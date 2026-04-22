@@ -1,0 +1,28 @@
+{
+  "stem": "08_2502.08826v3_Ask_in_Any_Modality__A_Comprehensive_Survey_on_Multimodal_Retrieval-Augmented_Generation",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完整覆盖了论文的核心章节与附录内容，层级结构逻辑清晰，将复杂的检索、融合、生成技术进行了合理的分类。各分支内容分布均衡，没有出现头重脚轻的情况。节点命名非常精炼，均采用短语形式，且准确提取了论文中的关键模型（如 ColPali, IRAMIG）和核心术语，质量极高。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 B 同样全面覆盖了正文与附录内容，准确度高，保留了大量具体的数据集统计数字。但在层级合理性上，部分节点拆分过度（如将公式与描述拆为父子节点，或将数据集的图像数和文本数拆为两个子节点）。在均衡性上，对附录中数据集统计信息的罗列占用了过大篇幅，略微削弱了对核心方法论的聚焦。此外，部分节点表述（如‘相关性得分 s 大于等于阈值 τ’）不够简练。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.3
+}

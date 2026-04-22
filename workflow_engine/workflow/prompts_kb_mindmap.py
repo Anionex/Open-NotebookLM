@@ -123,15 +123,32 @@ def _build_render_structure_prompt(structure: str, language: str, max_depth: int
 # ==================== Map 阶段（长文本路径） ====================
 
 
-def _build_map_prompt(chunk: Dict, language: str) -> str:
-    """Map 阶段：从单个 chunk 提取 {summary, nodes}。"""
+def _build_map_prompt(chunk: Dict, language: str, skeleton_json: str = "") -> str:
+    """Map 阶段：从单个 chunk 提取 {summary, nodes}。
+
+    skeleton_json：来自 Pre-Plan 阶段的主分支骨架（JSON 数组）；若提供，Map 阶段
+    必须尽量将 parent_topic 对齐到骨架的某个主分支名。
+    """
     chunk_id = chunk["chunk_id"]
     source = chunk["source"]
     text = chunk["text"]
 
     lang_instruction = "使用中文" if language == "zh" else f"Use {language} language"
 
+    skeleton_section = ""
+    if skeleton_json.strip():
+        skeleton_section = f"""
+## 全局骨架（来自 Pre-Plan；抽取时对齐）
+下面是本文档的主分支骨架。抽取节点时：
+- `parent_topic` 字段应当是下面骨架中的某个主分支 `name`（而非 `ROOT`），除非某节点本身就是主分支级概念
+- 骨架的 `keywords` 列出了期望归到该分支的关键子概念；如果文本中出现这些关键词，**务必作为独立节点抽出**并挂到对应主分支
+- 如果抽取的节点确实不属于任何骨架分支，可以用 `ROOT` 作为 parent_topic，但谨慎判断
+
+{skeleton_json}
+"""
+
     return f"""你是一位知识抽取专家。阅读下面这段文本，先写一段片段摘要，再提取核心命名概念作为节点列表。
+{skeleton_section}
 
 ## 节点 = 命名概念，不是描述句
 - 节点 topic 必须是**命名实体 / 方法名 / 模型名 / 算法名 / 任务名 / 概念名**（3–12 字短语）
@@ -152,9 +169,17 @@ def _build_map_prompt(chunk: Dict, language: str) -> str:
 - 用 importance_score 标记节点在**本片段内**的重要性（不跨片段比较）
 - 命名概念默认 ≥ 3；本片段的中心主题 = 5
 
-## 提取数量
-- 8–20 个节点；不超过 20
-- 聚焦命名概念，不要为每个细节都创建节点
+## 提取数量（精简优先）
+- 目标 **12–25 个节点**，命名实体极密时可到 30 个
+- 抓住本片段的"主干概念 / 方法族 / 代表性算法"；细枝末节写进 summary 不要展成节点
+- 同一方法的多种表述只保留一个 topic
+- 不同命名方法不要为压缩数量而合并（`R3Det` 与 `S2A-Net` 必须独立）
+
+## 命名严格约束（违反会导致后续阶段出错）
+- topic 必须是**名词性短语**（实体 / 方法名 / 模型名 / 任务名），不得是动词短语、描述句、或性质描述
+- ❌ 错误：`由粗到精检测范式`、`空间对齐特征提取`、`分类回归一步完成`、`消除手工 NMS 组件`
+- ✅ 正确：`RoI Transformer`、`AlignConv`、`单阶段检测`、`DETR`
+- 性质描述、设计特点、工作原理等一律写在 summary，不得作为 topic
 
 ## 专有名词
 - Transformer / DQN / CLIP / Diffusion / MoE / π/2 / BLEU 等保留英文 / 数学符号原形，不要翻译
@@ -191,15 +216,16 @@ def _build_collapse_prompt(group_a_json: str, group_b_json: str, language: str) 
 
     return f"""你是知识结构整合专家。请将以下两组节点合并去重。
 
-## 合并原则
-1. **只合并真正同义的节点**：topic 字面相同 / 近义 / 同一事物的不同称呼
-2. **保留独立概念**：语义不同的命名概念必须独立保留
-3. **数据保留**：合并节点时，两侧 summary 中的数字 / 百分比 / 年份必须合并保留在新节点的 summary 中
-4. **不强求剪枝**：质量优先，不为压缩硬合并
-5. **保持 topic 是命名概念**：不要把节点改成描述句；不要让 topic 变成数字 / 年份
-6. **建立父子关系**：若 A 是 B 的子概念，正确设置 parent_topic
-7. **node_id**：重新编为 `merged_n0`、`merged_n1`...
-8. {lang_instruction}
+## 合并原则（保守原则，宁多勿合）
+1. **只合并真正同义的节点**：topic 字面完全相同，或同一事物的不同称呼（例：`DQN` 与 `深度Q网络`，`Diffusion` 与 `扩散模型`）
+2. **不同方法绝不合并**：即使同属一类，只要 topic 字面不同就保留为独立节点。例如 `R3Det` 与 `S2A-Net` 都是单阶段检测器，但**必须独立保留**；`RSDet` 与 `CSL` 与 `PSC` 都解决 PoA 问题，但**必须独立保留**
+3. **不要凭"主题相近"或"功能相似"合并**：除非 topic 字面同义
+4. **数据保留**：合并节点时，两侧 summary 中的数字 / 百分比 / 年份必须合并保留在新节点的 summary 中
+5. **质量优先，宁多勿合**：合并后节点数大幅缩水（< 输入总数 70%）说明合并过激，请重新检查并保留更多
+6. **保持 topic 是命名概念**：不要把节点改成描述句；不要让 topic 变成数字 / 年份
+7. **建立父子关系**：若 A 是 B 的子概念，正确设置 parent_topic
+8. **node_id**：重新编为 `merged_n0`、`merged_n1`...
+9. {lang_instruction}
 
 ## 输出格式
 仅输出合法 JSON 数组，不含解释或代码围栏。每个节点：
@@ -214,7 +240,62 @@ def _build_collapse_prompt(group_a_json: str, group_b_json: str, language: str) 
 请直接输出合并后的 JSON 数组："""
 
 
-# ==================== Plan 阶段（NEW，长文本路径） ====================
+# ==================== Pre-Plan 阶段（NEW v14，Map 之前规划全局骨架） ====================
+
+
+def _build_pre_plan_prompt(
+    headings_md: str,
+    excerpt: str,
+    language: str,
+) -> str:
+    """Pre-Plan 阶段：在 Map 之前，仅用标题 + 首尾摘录规划 5–8 个主分支骨架。
+
+    Map 阶段会拿到这个骨架作为对齐参考，让每个 chunk 提取的节点都落到正确分支。
+    """
+    lang_instruction = "使用中文" if language == "zh" else f"Output in {language}"
+    headings_block = headings_md.strip() or "(原文未提供标题结构)"
+    excerpt_block = excerpt.strip() or "(无摘录)"
+
+    return f"""你是一位思维导图架构师。请阅读下面的原文标题和首尾摘录，基于你对整篇文档的理解，规划 5–8 个概念性主分支作为全局骨架。
+
+## 输入 A：原文标题结构
+{headings_block}
+
+## 输入 B：首尾摘录（帮助你把握主题）
+{excerpt_block}
+
+## 你要做的
+基于上述信息，决定这份导图的 5–8 个**概念性主分支**。每个主分支需要给出：
+1. `name`：主分支名（3–12 字短语；命名概念 / 方法族 / 问题域 / 应用领域）
+2. `gist`：一句话描述（≤ 30 字）说明这个分支收什么内容
+3. `keywords`：5–12 个该分支下应包含的具体子概念 / 方法名 / 术语（Map 阶段会用它对齐抽取）
+
+{_BRANCH_RULES_ZH}
+
+{_NAMING_RULES_ZH}
+
+## 语言一致性（关键）
+- `name` 和 `keywords` 都使用 **{language}** 语言；专有名词（模型名 / 方法名 / 算法缩写如 Transformer / DQN / Mamba）保持英文原形
+- 不要为同一概念既给出英文又给出中文翻译（例：`Optical Flow` 与 `光流估计` 不要并列；选其一）
+- 通用术语（如 motion compensation、optical flow）翻译为目标语言（运动补偿、光流）；专有方法名（如 Super Slomo、AMT、VFI-Mamba）保留英文
+
+## 注意
+- 不要把章节顺序当作主分支顺序；要按"概念重要性 / 内容板块"重新组织
+- 跨多个章节的同一主题应合并到同一主分支
+- 如果原文有"挑战 / 局限 / 未来"等叙事性章节，把其内容拆解到对应概念主分支，而不是单独建"未来展望"分支
+- 这份骨架将指导 Map 阶段从每个 chunk 提取节点；骨架越精准，后续分支越干净
+- {lang_instruction}
+
+## 输出格式（仅输出合法 JSON 数组，不含解释或代码围栏）
+[
+  {{"name": "主分支名", "gist": "一句话描述", "keywords": ["子概念1", "子概念2", ...]}},
+  ...
+]
+
+请直接输出 JSON 数组："""
+
+
+# ==================== Plan 阶段（长文本路径） ====================
 
 
 def _build_plan_prompt(
@@ -281,10 +362,12 @@ def _build_reduce_prompt(
     language: str,
     max_depth: int,
     skeleton_json: str = "",
+    source_excerpt: str = "",
 ) -> str:
-    """Reduce 阶段：根据骨架 + 节点 → Markdown 思维导图。
+    """Reduce 阶段：根据骨架 + 节点 + 原文摘录 → Markdown 思维导图。
 
     skeleton_json 来自 Plan 阶段；若提供，必须严格按骨架组织主分支。
+    source_excerpt：原文（或首尾摘录）；让 Reduce 有全局视野，避免漏内容。
     """
     lang_instruction = f"使用 {language} 输出" if language != "zh" else "使用中文输出"
 
@@ -297,7 +380,14 @@ def _build_reduce_prompt(
 
     skeleton_block = skeleton_json.strip() or "(未提供骨架，请基于摘要 + 标题自己规划 5–8 个主分支)"
 
-    return f"""你是一位思维导图设计师。请综合下面四类信息，生成一份层级清晰的思维导图（Markdown 标题树）。
+    source_section = ""
+    if source_excerpt.strip():
+        source_section = f"""
+## 输入 E：原文（节选；仅用于判断 retained_nodes 中的节点如何归类到 skeleton 分支，不得从中抽取新的节点名）
+{source_excerpt}
+"""
+
+    return f"""你是一位思维导图设计师。请综合下面信息，生成一份层级清晰的思维导图（Markdown 标题树）。
 
 ## 输入 A：主分支骨架（如果提供，必须严格按这个组织 ##）
 {skeleton_block}
@@ -308,20 +398,26 @@ def _build_reduce_prompt(
 ## 输入 C：原文标题结构（仅作参考）
 {headings_block}
 
-## 输入 D：保留的命名节点（去重后的命名概念，用于填充骨架的子层级）
+## 输入 D：保留的命名节点（去重后的命名概念，用作 ### / #### 节点候选）
 每项是一个节点：topic / parent_topic / summary / source_chunk_id
 {retained_nodes_json}
+{source_section}
 
 ## 生成规则
 1. **根节点**（# 一级标题）：≤ 15 字短语，覆盖全文主旨
 2. **主分支**（## 二级标题）：**严格按输入 A 的 skeleton 来**（如果有）；如果没有 skeleton，从摘要中归纳 5–8 个概念性主分支
-3. **子层级**（### 三级及以下）：根据 skeleton 中的 keywords + retained_nodes 的 topic / parent_topic 关系组织
-4. **节点位置**：把 retained_nodes 中的节点分配到最合适的主分支下；不需要把每个节点都搬进图
-5. **数据保留**：retained_nodes 的 summary 中出现的数字 / 百分比 / 年份 / 性能指标，作为下层叶子节点呈现（命名为概念性短语，把数字写在节点名里也可以但优先放到子节点）
-6. **总节点数 80–150 个**（含所有层级）
-7. **整体最多 {max_depth} 层**
-8. **覆盖性**：每段摘要对应的主题都应在导图中有相应分支
-9. {lang_instruction}
+3. **子层级**（### 三级及以下）：**严格使用 retained_nodes 中的 topic 作为节点名**，按 skeleton 的 keywords + 节点的 parent_topic 关系组织到各主分支下；**严禁从原文摘录新增节点**（原文摘录只用于判断现有节点的正确归属，以及在同义 retained_node 中选最贴近原文表述的 topic）；严禁凭经验或常识"补全"论文未包含的概念（例：如果 retained_nodes 里没有 PolarDet / NWPU VHR-10 / Stable Diffusion，就不要因为你知道它们存在而加进去）
+4. **节点名必须是命名实体**：优先来自 retained_nodes 的 topic 字段；**严禁从 summary 中提取描述性短语作为节点名**（错例：`由粗到精检测范式`、`空间对齐特征提取`、`分类回归一步完成`）
+5. **节点数紧凑**：总节点数 **60–100 个**（含所有层级）；信息密度取决于概念数，不要堆砌描述
+6. **每个 ### 三级节点下挂 2–5 个 #### 具名子节点**（若同类方法很多，使用 4 层分组，不要展成扁平列表）
+7. **数据点（数字 / 年份 / 百分比 / 性能指标）不作为节点名**：这些信息只能出现在节点名的后缀修饰（例 `多尺度 mAP 79.3%`）或省略；**严禁单独成节点**（错例：`2023年 TGRS 成果`、`多尺度测试 79.34% mAP`）
+8. **严禁同义重复（关键）**：
+   - 父子节点不能同名（错：`### Optical Flow` → `#### 光流估计`；`### Diffusion Models` → `#### 扩散模型`）
+   - 同概念的英中表述只保留一个（例 `Mamba` / `Mamba-based VFI` / `VFIMamba` 中，前两者是同一概念，必须合并；`VFIMamba` 是具体模型可保留）
+   - 通用术语用 {language} 表述（光流、运动补偿）；专有方法名（VFI-Mamba、Super Slomo、AMT）保留英文原形
+9. **整体最多 {max_depth} 层**
+10. **覆盖性**：每段摘要对应的主题都应在导图中有相应分支
+11. {lang_instruction}
 
 {_BRANCH_RULES_ZH}
 

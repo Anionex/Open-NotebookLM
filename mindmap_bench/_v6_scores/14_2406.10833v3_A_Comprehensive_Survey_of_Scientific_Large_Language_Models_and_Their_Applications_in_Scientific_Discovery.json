@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 2,
+      "balance": 4,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图A基本覆盖了论文的主要章节，并从附录表格中提取了准确的数据（如参数规模）。但其层级结构存在严重缺陷，在叶子节点处将模型名称、参数规模、训练数据集等强关联属性作为平级兄弟节点罗列（如将'SciBERT模型'与'110M参数规模'并列），导致逻辑割裂，降低了信息的连贯性和简洁性。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B深刻理解了论文'跨领域、跨模态'的核心主旨，打破了原有的线性章节结构，按预训练范式、序列化技术、领域应用、挑战等高维主题进行了出色的重构与综合。其层级关系严密，父子节点逻辑清晰，各分支内容均衡，语言精炼且精准保留了论文中的关键术语（如OOD、RAG、不变学习等）和代表性模型，质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 52.8
+}

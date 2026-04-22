@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 2,
+      "rationale": "Mind map A completely fails to capture the logical structure of the paper. It randomly selects a few sections (including References and Appendices) as main branches and dumps raw HTML table tags, unformatted text fragments, and long sentences as child nodes. It lacks any meaningful summarization or hierarchical organization."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind map B excellently reconstructs the paper's core content into a highly logical and comprehensive structure. It covers all main sections, including the detailed appendices (TTS pipeline, Gemini evaluation), and groups them reasonably. The nodes use concise and accurate phrases, maintaining a well-balanced tree without any raw text or code dumps."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.7
+}

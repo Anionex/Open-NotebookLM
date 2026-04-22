@@ -1,0 +1,28 @@
+{
+  "stem": "04_1701.07274v6_Deep_Reinforcement_Learning__An_Overview",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 完美覆盖了论文的背景、核心元素、重要机制、应用及未来方向。层级结构极具逻辑性，能够将复杂的算法和概念进行高度抽象和合理分类（如将算法分为基于价值和基于策略）。节点语言精炼，直击学术核心（如指出致命三元组、各类具体算法的创新点），没有冗余信息，且完全忠实于原文内容，是一份高质量的学术思维导图。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图 B 基本覆盖了论文的主要章节，但在层级划分上将“游戏博弈”单独提升为主分支，略微打破了原文的应用分类结构。节点虽然简短，但过度关注琐碎的数字细节（如比赛比分 4:1/3:0、硬件配置 64个GPU/2000个TPU），而忽略了算法本身的机制。此外，准确度上存在幻觉，原文并未提及“3万亿美元医疗挑战”，降低了整体的严谨性。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 22.4
+}

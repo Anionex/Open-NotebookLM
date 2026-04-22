@@ -1,0 +1,25 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A": "v5",
+    "B": "v4"
+  },
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A全面覆盖了论文的核心内容以及附录部分（如发展历史、TTS流水线、Gemini评估实验）。但在层级结构和均衡度上略有瑕疵：将附录中的Gemini自动化评估实验单独提升为一级分支，赋予了过高的结构权重，导致整体略显失衡；同时将控制策略与特征表示合并为一个一级分支，不如原论文结构清晰。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B的内容覆盖同样非常全面，且层级划分更加合理。它将背景知识（发展历程与流水线）合理归类，将控制策略与特征表示独立拆分，高度契合原论文的章节逻辑。此外，将附录中的Gemini评估实验作为“实验性能与未来趋势”的子分支，既没有遗漏重要信息，又保持了极佳的结构均衡度，语言精炼且准确。"
+    }
+  }
+}

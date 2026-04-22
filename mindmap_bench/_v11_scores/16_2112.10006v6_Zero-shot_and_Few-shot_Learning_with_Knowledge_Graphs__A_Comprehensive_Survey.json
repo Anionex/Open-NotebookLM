@@ -1,0 +1,28 @@
+{
+  "stem": "16_2112.10006v6_Zero-shot_and_Few-shot_Learning_with_Knowledge_Graphs__A_Comprehensive_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "A覆盖了KG定义与构建、ZSL/FSL若干方法范式、应用任务、评测与质量等主要板块，但遗漏或弱化了论文的重要部分，如预备知识中对ZSL/FSL正式定义与区别、FSL新增的transfer-based范式、ZSL/FSL系统对比、开放问题的完整结构，以及相关综述与贡献等。层级上基本清晰，但多处把任务、方法、资源和单篇方法细节混放，如将COMET放入KG构建主线、将GPT-3少样本VQA作为独立主枝，父子关系不总是最合理。分支规模较均衡。表述多为短语，简洁性较好。准确性方面有部分数字正确，如WordNet约15.5万词、ConceptNet约3400万事实、Wikidata超1亿项、Wikidata5M约459万实体/2062万三元组，但也有明显失真或不够忠实之处：将论文中的“Class Feature”改写成更泛化的‘语义映射与类特征建模’，未体现FSL的优化/迁移完整分类；把VAE写成已被广泛应用于KG-aware ZSL，而原文明确指出尚无此类工作；若干节点较空泛，缺少论文强调的mapping/data augmentation/propagation/class feature、optimization/transfer等精确术语。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B较完整覆盖了论文核心内容：KG资源与构建、ZSL四大范式、FSL特有机制（优化、迁移、嵌入传播）、三类应用领域，以及结论与挑战。虽未单列预备知识、论文贡献/相关综述、详细benchmark资源和开放问题四分结构，但总体主线与论文组织更贴近。层级关系较合理，先资源构建，再ZSL、FSL、应用、挑战，方法类别也基本符合原文分类；仅有少量概括性合并，如将FSL propagation中的model parameter propagation与embedding propagation未同等展开。分支较均衡，无明显失衡。语言以短语为主，较简洁，但个别节点仍带解释性短句。准确性方面整体较高，保留了关键术语如子图抽取、多源融合、输入/类别/联合映射、模型参数传播、类别置信度传播、MetaR、MAML、GraIL、DRUM、Out-of-KG实体等，且应用与数据集举例基本忠实。主要不足在于少数表述略有泛化或轻微偏差：如将ZSL生成模型写成‘GAN/VAE特征合成’，原文指出KG-aware ZSL中尚未发现VAE工作；‘图像/语音信息深度对齐’中的语音并非论文重点；KGC部分对 unseen entity/unseen relation 的区分还可更细。总体上B比A更贴近论文结构与术语体系。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 112.9
+}

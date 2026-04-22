@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了论文的大致框架，但在高效采样、似然估计优化、与其他模型联系等核心技术章节缺乏细节，仅停留在标题罗列层面。层级结构上，它将原论文的应用章节（Section 7）强行拆分为三个主分支，又将采样与似然估计合并，破坏了原有的分类体系。分支均衡性较差，应用部分列举了具体模型，而理论部分过于单薄，且包含“59页正文”等无关元数据。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B极其全面地覆盖了这篇长篇综述的核心内容。层级划分完美契合原论文的分类学（基础、采样、似然、特殊结构、模型融合、应用矩阵）。各分支细节分布非常均衡，不仅提炼了分类，还精准概括了代表性模型及其核心机制（如DDPM的VLB优化、iDDPM的余弦噪声表、LDM的潜空间降维等）。节点语言高度精炼，专业术语准确无误，忠实度极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 26.3
+}

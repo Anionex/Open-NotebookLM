@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图A覆盖了论文的主要内容，但层级结构较为混乱，未能准确反映这篇综述论文严谨的分类体系（例如在形状分类中，将宏观分类标准与具体模型、优化策略混为一谈，且将背景数据集部分后置）。分支均衡性一般，部分节点过度提取具体的准确率数值而忽略了方法论框架。优点是节点用语相对简练，没有使用括号补充。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图B完美契合了原论文的宏观架构与细分分类体系，精准还原了分类、检测、分割三大任务的分类树（Taxonomy），内容覆盖全面，层级逻辑极其清晰，各分支颗粒度均衡，且准确提炼了各个类别的代表性算法与核心思想。但其在简洁性上表现较差，大量使用了括号进行补充说明，严重违反了“无括号补充”的格式要求。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.8
+}

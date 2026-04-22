@@ -1,0 +1,28 @@
+{
+  "stem": "11_2408.12957v3_Image_Segmentation_in_Foundation_Model_Era__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "A覆盖面较广，基本触及背景、涌现机制、GIS/PIS、少样本/上下文学习、MLLM、医疗适配、开放词汇等主要主题，也保留了SAM的11M图像和1B masks等关键数字。层级上总体合理，按背景—涌现—任务族—扩展方向组织，主分支较均衡。缺点是若干节点偏泛化或脱离原文主线，如“视觉常识推理实现”“跨模态鲁棒性评估”等表述更像扩展解读；同时对论文中非常重要的细分技术脉络保留不够充分，如语义/实例/全景中各FM路线的内部方法类型被大幅压缩。个别术语也不够精确，如把SAM提示类型写成含语言而未说明论文中强调的核心是点、框、掩码等。整体质量较好，但忠实度略逊。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "B结构最清晰，紧扣论文主框架：统一建模、知识涌现、GIS、PIS、多模型协同与开放挑战；层级关系明确，父子节点逻辑强，且充分利用了标题树深度。节点多为短语，简洁性最佳，关键术语如GIS/PIS、Open-vocabulary、training-free、MaskCLIP、NACLIP、LOST、DeepSpectral、DenseCLIP、ZegCLIP、VPD、STEGO、SAM2、LISA、Painter、SegGPT等保留较准确。不足在于覆盖仍有压缩：对foundation model背景章节（LLM/MLLM、CLIP、DM、DINO、SAM的基础介绍）展开不足，对实例分割、全景分割、指代分割、few-shot各自的多条技术路线概括偏少，且缺少一些关键数字如CLIP 400M、SAM 11M/1B。总体比A更规整、更忠实，但覆盖广度略受摘要化影响。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 45.8
+}

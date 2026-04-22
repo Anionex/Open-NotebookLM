@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 2,
+      "hierarchy": 2,
+      "balance": 2,
+      "conciseness": 3,
+      "accuracy": 3,
+      "rationale": "导图A未能完整覆盖论文的分类体系，遗漏了目标检测与分割中的大量子类别；层级关系混乱，将大量随机的细节数据（如'2019年'、'76.0%'、'64倍'）作为独立分支，导致结构极不均衡且脱离上下文。虽然没有使用括号，但存在冗余词汇（如'mIoU 评价指标'、'SFCN 形状全卷积网络'）。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图B完美还原了论文的分类体系，全面覆盖了3D形状分类、目标检测与分割等核心任务，层级逻辑清晰，各分支内容详实且均衡，准确归纳了代表性算法与核心概念。但其在节点中大量使用括号进行补充说明（如'(完整无遮挡)'、'(Point-based)'等），严重违反了简洁性维度中'无括号补充'的明确要求。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 29.3
+}

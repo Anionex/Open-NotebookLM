@@ -1,0 +1,28 @@
+{
+  "stem": "07_1912.12033v2_Deep_Learning_for_3D_Point_Clouds__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "这份导图近乎完美地还原了论文的深度与广度。它不仅涵盖了所有主要章节（分类、检测、分割），还精准地捕捉了论文的核心分类法（如点云卷积的连续与离散之分、实例分割的提议与无提议之分）。层级结构逻辑清晰，甚至包含了论文总结部分的趋势展望，具有极高的信息密度且分布均衡。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 2,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "该版本在前期表述较为专业，但存在严重的“虎头蛇尾”现象。它对第三章（分类架构）描述详尽，但完全忽略了第四章检测任务中的单阶段方法、场景流估计，以及第五章分割任务中的具体算法实现（语义/实例/部件分割仅有标题或完全缺失）。分支极度不均衡，未能完成对全文的质量覆盖。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.0
+}

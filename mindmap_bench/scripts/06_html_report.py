@@ -19,6 +19,12 @@ OUT = Path(os.getenv("BENCH_REPORT_HTML", BENCH_DIR / "report.html"))
 DIMS = ["coverage", "hierarchy", "balance", "conciseness", "accuracy"]
 DIMS_CN = {"coverage": "Coverage", "hierarchy": "Hierarchy", "balance": "Balance",
            "conciseness": "Conciseness", "accuracy": "Accuracy"}
+ALGO_A_NAME = os.getenv("BENCH_ALGO_A_NAME", "mapreduce")
+ALGO_B_NAME = os.getenv("BENCH_ALGO_B_NAME", "original")
+ALGO_A_LABEL = os.getenv("BENCH_ALGO_A_LABEL", ALGO_A_NAME)
+ALGO_B_LABEL = os.getenv("BENCH_ALGO_B_LABEL", ALGO_B_NAME)
+GENERATOR_LABEL = os.getenv("BENCH_GENERATOR_LABEL", "qwen2.5-14b-Instruct-1m")
+JUDGE_LABEL = os.getenv("BENCH_JUDGE_LABEL", "gemini-3-pro-preview")
 
 
 def normalize_mindmap(raw: str) -> str:
@@ -100,12 +106,12 @@ def load() -> list[dict]:
         og_mm = normalize_mindmap(og_path.read_text(encoding="utf-8")) if og_path.exists() else ""
         meta = extract_paper_meta(PAPERS_MD_DIR / f"{stem}.md")
         rationale = {
-            "mr": (d["scores"]["A"].get("rationale") if m["A_is"] == "mapreduce" else d["scores"]["B"].get("rationale")) or "",
-            "og": (d["scores"]["A"].get("rationale") if m["A_is"] == "original"  else d["scores"]["B"].get("rationale")) or "",
+            "mr": (d["scores"]["A"].get("rationale") if m["A_is"] == ALGO_A_NAME else d["scores"]["B"].get("rationale")) or "",
+            "og": (d["scores"]["A"].get("rationale") if m["A_is"] == ALGO_B_NAME else d["scores"]["B"].get("rationale")) or "",
         }
         rows.append({
             "stem": stem,
-            "mr": un["mapreduce"], "og": un["original"],
+            "mr": un[ALGO_A_NAME], "og": un[ALGO_B_NAME],
             "mr_mm": mr_mm, "og_mm": og_mm,
             "meta": meta, "rationale": rationale,
         })
@@ -166,6 +172,10 @@ def main() -> int:
     }
 
     html = TEMPLATE.replace("__DATA_JSON__", json.dumps(data, ensure_ascii=False))
+    html = html.replace("__ALGO_A_LABEL__", ALGO_A_LABEL)
+    html = html.replace("__ALGO_B_LABEL__", ALGO_B_LABEL)
+    html = html.replace("__GENERATOR_LABEL__", GENERATOR_LABEL)
+    html = html.replace("__JUDGE_LABEL__", JUDGE_LABEL)
     OUT.write_text(html, encoding="utf-8")
     print(f"Wrote {OUT}")
     return 0
@@ -175,7 +185,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>MindMap Benchmark: MapReduce vs Original</title>
+<title>MindMap Benchmark: __ALGO_A_LABEL__ vs __ALGO_B_LABEL__</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.17"></script>
@@ -218,9 +228,9 @@ TEMPLATE = r"""<!DOCTYPE html>
 </head>
 <body>
 
-<h1>MindMap Benchmark: <span class="tl">MapReduce</span> vs <span class="tr">Original</span></h1>
+<h1>MindMap Benchmark: <span class="tl">__ALGO_A_LABEL__</span> vs <span class="tr">__ALGO_B_LABEL__</span></h1>
 <p class="meta">
-  Generator: qwen2.5-14b-Instruct-1m (汇云, 1M context — full paper on both paths) · Judge: gemini-3-pro-preview · Dimensions 1–5
+  Generator: __GENERATOR_LABEL__ · Judge: __JUDGE_LABEL__ · Dimensions 1–5
 </p>
 
 <div class="stat-grid">
@@ -235,7 +245,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="stat-card">
     <div>Per-paper wins</div>
     <div class="n"><span class="mr" id="stat-w"></span> · <span class="og" id="stat-l"></span> · <span id="stat-t"></span></div>
-    <div class="legend">MR · OG · Tie</div>
+    <div class="legend">__ALGO_A_LABEL__ · __ALGO_B_LABEL__ · Tie</div>
   </div>
 </div>
 
@@ -250,7 +260,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <h2>2. Per-dimension wins (paired)</h2>
 <div class="chart-wrap"><canvas id="wins" style="max-height:320px"></canvas></div>
 
-<h2>3. Per-paper delta (MR − OG sum score)</h2>
+<h2>3. Per-paper delta (__ALGO_A_LABEL__ − __ALGO_B_LABEL__ sum score)</h2>
 <div class="chart-wrap"><canvas id="delta" style="max-height:520px"></canvas></div>
 
 <h2>4. Side-by-side mindmap compare</h2>
@@ -267,13 +277,13 @@ TEMPLATE = r"""<!DOCTYPE html>
 </details>
 <div class="mm-row">
   <div class="mm-panel mr">
-    <h3>MapReduce（<span id="mr-score"></span>）</h3>
+    <h3>__ALGO_A_LABEL__（<span id="mr-score"></span>）</h3>
     <div id="mm-mr" class="render"></div>
     <details class="src"><summary>查看 Markdown / Mermaid 源码</summary><pre id="mr-src"></pre></details>
     <details class="src"><summary>Judge rationale</summary><p id="mr-rat" style="line-height:1.5"></p></details>
   </div>
   <div class="mm-panel og">
-    <h3>Original（<span id="og-score"></span>）</h3>
+    <h3>__ALGO_B_LABEL__（<span id="og-score"></span>）</h3>
     <div id="mm-og" class="render"></div>
     <details class="src"><summary>查看 Mermaid 源码</summary><pre id="og-src"></pre></details>
     <details class="src"><summary>Judge rationale</summary><p id="og-rat" style="line-height:1.5"></p></details>
@@ -303,8 +313,8 @@ new Chart(document.getElementById('radar'), {
   data: {
     labels: DATA.dims,
     datasets: [
-      { label: 'MapReduce', data: DATA.mr_means, backgroundColor: BLUE, borderColor: BLUE_BORDER, pointBackgroundColor: BLUE_BORDER },
-      { label: 'Original',  data: DATA.og_means, backgroundColor: RED,  borderColor: RED_BORDER,  pointBackgroundColor: RED_BORDER }
+      { label: '__ALGO_A_LABEL__', data: DATA.mr_means, backgroundColor: BLUE, borderColor: BLUE_BORDER, pointBackgroundColor: BLUE_BORDER },
+      { label: '__ALGO_B_LABEL__',  data: DATA.og_means, backgroundColor: RED,  borderColor: RED_BORDER,  pointBackgroundColor: RED_BORDER }
     ]
   },
   options: {
@@ -320,8 +330,8 @@ new Chart(document.getElementById('bar-means'), {
   data: {
     labels: DATA.dims,
     datasets: [
-      { label: 'MapReduce', data: DATA.mr_means, backgroundColor: BLUE, borderColor: BLUE_BORDER, borderWidth: 1 },
-      { label: 'Original',  data: DATA.og_means, backgroundColor: RED,  borderColor: RED_BORDER,  borderWidth: 1 }
+      { label: '__ALGO_A_LABEL__', data: DATA.mr_means, backgroundColor: BLUE, borderColor: BLUE_BORDER, borderWidth: 1 },
+      { label: '__ALGO_B_LABEL__',  data: DATA.og_means, backgroundColor: RED,  borderColor: RED_BORDER,  borderWidth: 1 }
     ]
   },
   options: {
@@ -346,8 +356,8 @@ new Chart(document.getElementById('wins'), {
   data: {
     labels: DATA.dims,
     datasets: [
-      { label: 'MR wins', data: mrWins, backgroundColor: BLUE },
-      { label: 'OG wins', data: ogWins, backgroundColor: RED },
+      { label: '__ALGO_A_LABEL__ wins', data: mrWins, backgroundColor: BLUE },
+      { label: '__ALGO_B_LABEL__ wins', data: ogWins, backgroundColor: RED },
       { label: 'Ties',    data: ties,   backgroundColor: '#d1d5db' }
     ]
   },
@@ -364,7 +374,7 @@ DATA.per_paper.forEach((p, i) => {
   const opt = document.createElement('option');
   opt.value = i;
   const sign = p.delta > 0 ? '+' : '';
-  opt.textContent = `${p.label}  [MR ${p.mr} vs OG ${p.og}, Δ${sign}${p.delta}]`;
+  opt.textContent = `${p.label}  [__ALGO_A_LABEL__ ${p.mr} vs __ALGO_B_LABEL__ ${p.og}, Δ${sign}${p.delta}]`;
   sel.appendChild(opt);
 });
 
@@ -468,7 +478,7 @@ new Chart(document.getElementById('delta'), {
   data: {
     labels: sorted.map(p => p.label),
     datasets: [{
-      label: 'MR − OG (sum /25)',
+      label: '__ALGO_A_LABEL__ − __ALGO_B_LABEL__ (sum /25)',
       data: sorted.map(p => p.delta),
       backgroundColor: sorted.map(p => p.delta > 0 ? BLUE : (p.delta < 0 ? RED : '#9ca3af')),
       borderColor:     sorted.map(p => p.delta > 0 ? BLUE_BORDER : (p.delta < 0 ? RED_BORDER : '#6b7280')),
@@ -478,13 +488,13 @@ new Chart(document.getElementById('delta'), {
   options: {
     indexAxis: 'y',
     responsive: true,
-    scales: { x: { title: { display: true, text: 'Δ (positive = MR wins)' } } },
+    scales: { x: { title: { display: true, text: 'Δ (positive = __ALGO_A_LABEL__ wins)' } } },
     plugins: {
       legend: { display: false },
-      title: { display: true, text: 'Δ per paper — blue=MR wins, red=OG wins' },
+      title: { display: true, text: 'Δ per paper — blue=__ALGO_A_LABEL__ wins, red=__ALGO_B_LABEL__ wins' },
       tooltip: { callbacks: { afterLabel: (ctx) => {
         const p = sorted[ctx.dataIndex];
-        return 'MR=' + p.mr + '  OG=' + p.og;
+        return '__ALGO_A_LABEL__=' + p.mr + '  __ALGO_B_LABEL__=' + p.og;
       } } }
     }
   }

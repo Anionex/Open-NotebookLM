@@ -1,0 +1,28 @@
+{
+  "stem": "08_2502.08826v3_Ask_in_Any_Modality__A_Comprehensive_Survey_on_Multimodal_Retrieval-Augmented_Generation",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 5,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "A 基本覆盖了论文核心方法学主线：任务定义、检索、融合、增强、生成、训练、评估、应用与未来方向，且包含数学公式 r=G(q,X)、OCR-free 文档检索、Agentic RAG、损失函数等关键内容。但对引言背景、相关工作、数据集/基准细分、结论、局限性、伦理声明覆盖不足。层级组织清晰，父子关系合理，方法类分支拆分自然，深度利用较充分。各主分支相对均衡，仅“检索策略”略重。表述多为短语，简洁度高。忠实度整体较好，但个别点有轻微泛化或归并，例如将 VISA 放入 Agentic RAG 分支不够准确，Multimodal-CoT 并非正文 3.4 的主命名项，且评估指标与应用实例保留不够细。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "B 覆盖面较广，涵盖检索、融合、知识增强、生成、训练、数据集、评估、鲁棒性、应用等主要章节，且对数据集与评估部分覆盖明显好于 A。但对论文开头的背景动机、Multimodal RAG 数学建模、相关工作、结论/局限/伦理、开放问题的系统梳理较弱。层级整体合理，不过部分节点抽象化较强，如“外部知识整合”“逻辑整合能力”，与论文具体小节对应不够紧，且“信息融合 with 知识增强机制”标题夹杂英文，不够统一。分支规模最均衡。简洁度尚可，但存在少量非短语表达和冗余修饰。准确性总体良好，保留了 LAION-5B、MINT-1T、MIMIC-CXR、M2RAG、InfoNCE、AppAgent、OmAgent 等关键项，但个别细节不够精确，如 MINT-1T 关键数字未完整保留、MIMIC-CXR 表述被截短，且部分方法归纳偏泛。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 72.9
+}

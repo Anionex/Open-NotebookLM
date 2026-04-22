@@ -1,0 +1,28 @@
+{
+  "stem": "09_2509.16679v1_Reinforcement_Learning_Meets_Large_Language_Models__A_Survey_of_Advancements_and_Applications_Across_the_LLM_Lifecycle",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 A 出色地抽象并重构了这篇长篇综述的结构。它完整覆盖了 LLM 的全生命周期，准确提取了核心算法（如 GRPO、DAPO、RLVR）与前沿应用，层级逻辑清晰，各分支分布均衡。节点命名高度精炼专业，没有冗余信息，完美契合思维导图的质量要求。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 3,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "导图 B 基本覆盖了论文的主要章节，但在结构均衡性和简洁性上存在明显不足。它在某些分支（如顶级模型性能）过度深入了具体的跑分数据（如提升40.6分）和发表年份（如2023年发布），导致叶子节点更像事实罗列而非概念提炼，破坏了导图的宏观概括性，且存在个别大小写不规范（如 Dapo）。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.3
+}

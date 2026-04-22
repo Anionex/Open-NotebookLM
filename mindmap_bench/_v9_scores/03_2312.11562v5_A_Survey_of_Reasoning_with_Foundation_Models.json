@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind map A excellently captures the comprehensive structure of the survey paper. It covers all key sections from background and tasks to techniques and future directions. The hierarchy is logical and deep, the branches are well-balanced, and the nodes use concise, accurate terminology (e.g., LoRA, CoT, specific model names) without unnecessary verbosity."
+    },
+    "B": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "Mind map B completely fails to represent the paper's structure. It elevates random sub-sections to the root level and creates a massive, unbalanced 'References' branch filled with truncated, raw sentences from the text. It lacks conciseness, hierarchy, and fails to cover the core topics of the survey systematically."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.0
+}

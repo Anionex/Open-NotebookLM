@@ -1,0 +1,28 @@
+{
+  "stem": "18_2506.01061v3_AceVFI__A_Comprehensive_Survey_of_Advances_in_Video_Frame_Interpolation",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gpt-5.4",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "覆盖了方法学、CTFI/ATFI、挑战、应用、评测、未来方向等主线，也提到事件/动画/医疗、STVSR、3D/4D与All-in-One，整体较全。但遗漏或弱化了论文中的若干关键块，如VFI通用pipeline、phase-based方法独立地位、数据集与指标的细分、表格中的效率复杂度比较、结论层。层级上存在若干混杂：顶层“深度学习插值架构”下放入“传统运动补偿插值”不合理；把INR单列为学习范式的一支不符合原文主结构；“高维场景理解与全能修复”里又放入低级视觉基础任务，父子关系偏松散。准确性方面有一些偏差，如将经典光流网络作为VFI方法层级核心节点、把Swin Transformer写成典型VFI模型、把Restormer/MambaIR放入VFI相关树中，且缺少原文大量关键术语如cost volume、attention-based alignment、training strategy细分、具体挑战中的velocity ambiguity。整体可用，但不够忠实。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "整体更贴近原文论述主线：按运动建模/对齐机制、学习范式、挑战、评测、应用、未来趋势组织，较好覆盖kernel/flow/diffusion/phase/Transformer/Mamba、CTFI/ATFI、损失函数、四类挑战、数据集与指标、跨领域应用和未来方向。层级关系较清晰，主分支规模均衡，没有明显一枝独大。节点多为短语，虽然个别条目含解释性短句与箭头符号，略影响简洁，但仍控制在可读范围。准确性总体较好，保留了SoftSplat、SuperSloMo、XVFI、AdaConv、SepConv、AdaCoF、CDFI/MSEConv、QVI、DAIN、TimeLens、ToonCrafter、Zooming Slow-mo等关键术语，并正确体现了CTFI/ATFI差异与失真-感知权衡。主要不足是仍有一些遗漏：未体现论文开头的general pipeline与四类alignment策略中的attention/cost volume细分，也未单列传统motion compensation、GAN-based章节和效率复杂度分析；个别表述如“后向变形 SuperSloMo/XVFI”将方法与算子并列，略显粗糙。总体优于A。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 262.9
+}

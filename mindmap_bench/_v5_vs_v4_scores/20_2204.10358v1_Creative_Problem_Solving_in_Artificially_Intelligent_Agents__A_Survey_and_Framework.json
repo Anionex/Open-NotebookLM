@@ -1,0 +1,25 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图A较好地覆盖了论文的核心框架（问题表述、知识表示、知识操作、概念空间等），但在计算创造力（CC）的理论适配（如僵局-孵化-洞察模型）以及评估基准（Benchmarks）等细节上有所缺失。层级结构基本遵循原论文，但将评估环境与未来挑战合并略显生硬。整体表达简洁准确。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B的内容覆盖非常全面，不仅包含了CPS的定义与框架，还精准提取了计算创造力（CC）的核心维度与认知过程模型，并详细列出了具体的评估基准（如AUT、POET等）和文献中的具体技术案例。层级重组逻辑性强，将知识表示与操纵合并、架构与评估体系结合，分类清晰，各分支内容分布均衡，语言精炼且高度准确，是一份高质量的思维导图。"
+    }
+  }
+}

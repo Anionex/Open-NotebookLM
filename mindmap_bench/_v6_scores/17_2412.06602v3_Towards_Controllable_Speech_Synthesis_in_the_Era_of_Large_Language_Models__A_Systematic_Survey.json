@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind map A perfectly captures the systematic taxonomy of the survey paper. The hierarchy strictly follows the paper's logical flow (Tasks -> Architectures -> Strategies -> Features -> Datasets/Eval -> Challenges). The nodes are highly concise, using precise terminology and short phrases. The branches are well-balanced and accurately reflect the core concepts and contributions of the paper."
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 4,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "Mind map B provides excellent coverage, including detailed data points from the appendix and tables (e.g., dataset hours, Gemini evaluation scores). However, its hierarchy is slightly less cohesive (e.g., mixing the appendix pipeline with main architectures). Additionally, some nodes read more like extracted trivia (e.g., specific release dates) rather than conceptual summaries, slightly reducing its conciseness and effectiveness as a mind map."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 24.7
+}

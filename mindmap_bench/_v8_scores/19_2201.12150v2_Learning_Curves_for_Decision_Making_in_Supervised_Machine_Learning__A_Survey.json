@@ -1,0 +1,28 @@
+{
+  "stem": "19_2201.12150v2_Learning_Curves_for_Decision_Making_in_Supervised_Machine_Learning__A_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 2,
+      "rationale": "导图 A 覆盖了论文的部分基础概念，但在后半部分出现了严重的提取错误。它将论文中的零散数字（如 80%、70%-90%、10个分箱）生硬地凑成了一个“性能评估与标准化体系”分支，甚至将致谢部分的基金号（ING-312-2023）和年份作为核心节点，且幻觉出了原文不存在的“1000篇论文”和“LCDB 1.0”。层级逻辑混乱，准确度低。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图 B 完美契合了这篇综述论文的核心框架。它准确地提取了学习曲线的形态学属性、三大决策场景（数据获取、早停、早弃）、三种建模方法（点、范围、分布估计）、推理数据资源以及技术复杂度层级（L1-L6）。逻辑层级非常严密，各分支内容均衡，关键术语（如 p_lim, b_sat, IPL, MCMC, PFN 等）提取极其准确，是一份高质量的学术导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 18.6
+}

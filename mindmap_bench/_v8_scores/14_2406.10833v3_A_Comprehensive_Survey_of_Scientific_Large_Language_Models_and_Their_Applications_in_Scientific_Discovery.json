@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "A份导图采用了高度概括的主题式重构，完美契合了论文强调的“跨领域、跨模态”核心思想。它将预训练范式、多模态序列化、领域评估、科学发现应用和挑战进行了极具逻辑的归纳。节点命名精准（如指出具体的模型、数据集和技术），层级分明，分支均衡，且语言极其精炼，是一份高质量的学术总结。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "B份导图基本按照论文的章节顺序进行提取，覆盖了主要领域。但其信息抽象与层级组织能力较差，例如在“模型参数规模分布”下机械地罗列了大量具体的参数量节点，在评估任务中提取了脱离上下文的孤立数字（如“14个数据集”、“解决27/30几何问题”），导致信息碎片化且缺乏准确的语境。整体结构略显生硬，分支内容的颗粒度极不均衡。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 20.2
+}

@@ -1,0 +1,25 @@
+{
+  "stem": "11_2408.12957v3_Image_Segmentation_in_Foundation_Model_Era__A_Survey",
+  "mapping": {
+    "A": "v4",
+    "B": "v5"
+  },
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A较好地覆盖了论文的主要章节，但在具体方法和技术细节的提取上缺乏深度。部分节点的分类（如将医疗应用和MLLM单独成一个分支）略微偏离了原论文的分类体系。此外，节点中出现了一些原文正文未直接强调的年份信息，可能是过度提取。整体结构清晰，但信息丰富度一般。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B对原论文进行了非常出色的主题重构，不仅完美覆盖了基础模型、通用分割、提示性分割等核心内容，还深入提取了具体的模型名称（如LISA、SegGPT、MedSAM）、架构细节（如Hiera编码器、CLS标记）和关键数据（如提升11% mIoU、100万掩码对）。层级分明，逻辑严密，信息密度高且高度忠实于原文，是一份高质量的思维导图。"
+    }
+  }
+}

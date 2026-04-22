@@ -131,8 +131,7 @@ async def call_judge(client: httpx.AsyncClient, prompt: str) -> tuple[dict | Non
     payload = {
         "model": JUDGE_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-        "max_tokens": 3000,
+        "max_completion_tokens": 3000,
     }
     last_raw = ""
     for attempt in range(MAX_RETRIES + 1):

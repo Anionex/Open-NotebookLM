@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了全文信息，但存在严重的结构失衡问题。它将附录中的内容（如TTS历史演进和基于Gemini的自动化评估实验）提升到了与正文核心章节同等的主分支地位，导致真正核心的综述内容（模型架构、控制策略、特征表示）被过度压缩和合并。虽然节点较为简洁且内容准确，但整体层级未能准确反映综述论文的核心重点。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B完美契合了这篇综述论文的核心结构，精准覆盖了核心任务、模型架构、控制策略、特征表征、数据集与评估以及未来挑战等正文关键章节。层级划分逻辑清晰，各分支内容分布均衡，没有被附录内容喧宾夺主。节点语言极其精炼，且恰当地保留了中英双语的专业术语（如NAR、Zero-shot等），准确度与专业性极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 44.3
+}

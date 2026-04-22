@@ -1,0 +1,28 @@
+{
+  "stem": "03_2312.11562v5_A_Survey_of_Reasoning_with_Foundation_Models",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A覆盖了论文的主要章节，但层级结构的抽象能力较弱，大量叶子节点沦为琐碎的统计数据（如具体的数据集大小、模型参数量、准确率百分比等），未能有效展现综述论文应有的概念分类与分类体系。在简洁性上，虽然没有使用括号，但部分节点偏向陈述句而非精炼短语。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 2,
+      "accuracy": 5,
+      "rationale": "导图B极其精准地提炼了论文的核心分类体系，对推理任务、技术路径和智能体模式的层级划分逻辑清晰、结构合理，完美契合综述论文的宏观视角，各分支均衡度极佳。然而，该导图多次违反了“无括号补充”的明确指令（如使用了“（Transformer软注意力）”、“（如CLUTRR数据集）”等），因此在简洁性维度被大幅扣分。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 30.2
+}

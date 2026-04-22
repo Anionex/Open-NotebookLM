@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 A 提取了大量琐碎的细节（如具体年份、页数、模型统计数量等）作为独立节点，导致重点偏移。其层级结构偏离了论文的原始逻辑，例如将占据重要篇幅的“批量模型重用机制（分类体系）”错误地归入“基于查询的联邦学习”之下，并为大语言模型等具体举例生造了顶级分支，整体结构略显混乱，分支均衡性较差。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 完美地覆盖了论文的核心内容与论点。它准确地提炼了传统联邦学习的局限性、两种开放联邦学习协作范式（基于查询与基于合同）、四种批量模型重用机制、法律合规与许可体系以及微任务设计等关键章节。层级关系高度契合论文的逻辑脉络，各分支内容分布均衡，节点语言精炼专业，忠实度极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 21.3
+}

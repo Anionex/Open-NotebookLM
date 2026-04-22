@@ -1,0 +1,11 @@
+{
+  "stem": "19_2201.12150v2_Learning_Curves_for_Decision_Making_in_Supervised_Machine_Learning__A_Survey",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": null,
+  "raw_response": "[exception: Client error '401 Unauthorized' for url 'https://aihubmix.com/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401]",
+  "elapsed_s": 14.2
+}

@@ -1,0 +1,28 @@
+{
+  "stem": "17_2412.06602v3_Towards_Controllable_Speech_Synthesis_in_the_Era_of_Large_Language_Models__A_Systematic_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind Map A perfectly captures the core structure of the systematic survey, covering all main sections including core tasks, model architectures, control strategies, feature representations, datasets/evaluations, and future directions. The hierarchy is highly logical, the branches are evenly balanced, and the nodes use concise, accurate terminology without unnecessary filler."
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 2,
+      "conciseness": 3,
+      "accuracy": 4,
+      "rationale": "Mind Map B completely misses Section 2 (Main Tasks), which is a core part of the paper. Instead, it disproportionately elevates Appendix content (TTS pipeline and the Gemini evaluation experiment) to main branches, severely disrupting the structural balance. Additionally, it includes overly specific and repetitive leaf nodes (e.g., specific dataset hours and repeating '1-5 分评分标准' three times), which reduces its conciseness and overall quality."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 16.8
+}

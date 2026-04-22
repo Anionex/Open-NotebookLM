@@ -1,0 +1,28 @@
+{
+  "stem": "16_2112.10006v6_Zero-shot_and_Few-shot_Learning_with_Knowledge_Graphs__A_Comprehensive_Survey",
+  "mapping": {
+    "A_is": "ultra",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 2,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 2,
+      "rationale": "导图 A 仅仅是原文句子和片段的无序堆砌，甚至包含了大量截断的文本和无意义的标签（如 [info]）。它完全没有对论文进行抽象和总结，章节顺序混乱，层级结构缺失，分支极不均衡，毫无简洁性可言。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 完美地提炼了论文的核心框架与内容。它完整覆盖了背景、知识图谱定义、ZSL与FSL的各大分类范式、应用场景及未来挑战。节点全部采用精炼的短语，层级关系严谨，各分支内容分布均衡，且准确保留了论文中的关键数据（如论文数量、知识库规模等）和专业术语。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 17.9
+}

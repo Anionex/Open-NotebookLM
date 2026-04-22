@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind map A excellently captures the comprehensive structure of the survey paper, covering all main sections from foundations to applications and future directions. The hierarchy is highly logical, branches are well-balanced, and the nodes use concise, accurate phrases without any redundant text or raw code."
+    },
+    "B": {
+      "coverage": 2,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "Mind map B is highly disorganized and fails to extract the paper's overarching structure. It incorrectly places subsections as main branches, and the child nodes are filled with raw LaTeX formulas, HTML tags, image links, and truncated long sentences. It completely lacks logical hierarchy, conciseness, and accuracy."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 14.2
+}

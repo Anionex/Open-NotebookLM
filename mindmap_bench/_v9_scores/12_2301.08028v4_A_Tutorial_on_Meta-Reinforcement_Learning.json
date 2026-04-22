@@ -1,0 +1,28 @@
+{
+  "stem": "12_2301.08028v4_A_Tutorial_on_Meta-Reinforcement_Learning",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind Map A excellently captures the core structure and content of the paper. It covers all major sections (Background, Few-shot, Many-shot, Applications, Open Problems) and translates the key concepts into highly concise and accurate Chinese phrases. The hierarchy is logical, strictly following the paper's organization, and the branches are well-balanced without any single node being overly dominant."
+    },
+    "B": {
+      "coverage": 2,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 2,
+      "rationale": "Mind Map B is a chaotic extraction of raw text snippets, LaTeX code, and citations. It completely misses major sections like Many-shot Meta-RL, Applications, and Open Problems. The hierarchy is broken, placing random sentences and author emails as child nodes. It fails to use concise phrases, instead relying on long, truncated sentences and unparsed LaTeX arrays, making it structurally inaccurate and difficult to read."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 14.8
+}

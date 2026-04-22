@@ -1,0 +1,28 @@
+{
+  "stem": "14_2406.10833v3_A_Comprehensive_Survey_of_Scientific_Large_Language_Models_and_Their_Applications_in_Scientific_Discovery",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 2,
+      "balance": 3,
+      "conciseness": 2,
+      "accuracy": 4,
+      "rationale": "导图A基本覆盖了论文的主要章节，但在层级设计上存在明显缺陷，例如将Galactica和Med-PaLM等模型的不同参数规模拆分为多个并列的子节点（如‘提供 125M 参数规模’），这不仅破坏了思维导图的层级合理性，导致局部节点冗余和分支失衡，也大大降低了简洁性。内容上过于依赖附录表格中的参数细节，而忽略了对跨学科共性技术的提炼。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图B极具洞察力，没有机械地照搬原文章节，而是紧扣论文摘要中强调的‘跨学科与跨模态联系’这一核心贡献，按预训练范式、多模态序列化、评估体系、科学发现应用和挑战进行了高度概括与重组。层级逻辑清晰，各分支非常均衡；节点命名采用了高度凝练的短语（如‘SMILES/SELFIES线性化’），准确且极具信息密度，是一份高质量的思维导图。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 21.7
+}

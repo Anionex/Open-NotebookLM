@@ -1,0 +1,28 @@
+{
+  "stem": "20_2204.10358v1_Creative_Problem_Solving_in_Artificially_Intelligent_Agents__A_Survey_and_Framework",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图A基本覆盖了论文的主要内容，但在层级划分上存在一些生硬的组合（如将探索性与组合性方法合并，将物体与地形修改合并）。此外，叶子节点过多地罗列了具体文献的发表年份（如“2016年几何形状建模技术”），偏离了综述文章提取核心分类框架的初衷，导致概念层级不够清晰。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B完美契合了原论文提出的CPS理论框架（问题建模、知识表示、知识操纵、概念域、评估与挑战）。层级结构极具逻辑性，准确提取了如“僵局-孵化-洞察”等核心认知机制，以及符号/非符号、三种操纵方式等关键分类。各分支均衡，准确度极高。仅部分节点使用冒号进行解释略微增加了节点长度，但整体依然精炼。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 25.0
+}

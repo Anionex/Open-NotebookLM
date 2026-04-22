@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "Mind Map A excellently captures the technical depth of the survey, accurately extracting specific models (e.g., DDPM, SGM, Score SDE, iDDPM, LDM) and categorizing them logically under the paper's main themes. The hierarchy is well-structured, branches are balanced, and the nodes are concise and highly faithful to the source text."
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "Mind Map B covers the high-level structure but lacks technical depth. It incorrectly includes meta-information (e.g., '2023年59页综述文献') as content nodes. The hierarchy and balance are flawed due to the over-emphasis on minor details, such as listing GPT-1 through GPT-4 as separate nodes, which distorts the paper's actual focus on diffusion models."
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.4
+}

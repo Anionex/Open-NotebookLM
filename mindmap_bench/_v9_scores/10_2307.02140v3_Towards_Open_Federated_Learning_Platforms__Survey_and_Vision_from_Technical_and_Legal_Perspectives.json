@@ -1,0 +1,28 @@
+{
+  "stem": "10_2307.02140v3_Towards_Open_Federated_Learning_Platforms__Survey_and_Vision_from_Technical_and_Legal_Perspectives",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "ultra"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A完整覆盖了论文的核心章节（传统FL局限、查询式FL、模型重用机制、合同式FL、法律许可等），层级结构清晰且逻辑严密，各主分支内容分布十分均衡。节点全部采用精炼的短语形式，无冗余长句，并且极其准确地提取了论文中的关键数据（如各类模型许可的具体数量）和核心术语，高质量地完成了内容的结构化归纳。"
+    },
+    "B": {
+      "coverage": 1,
+      "hierarchy": 1,
+      "balance": 1,
+      "conciseness": 1,
+      "accuracy": 1,
+      "rationale": "导图B的结构完全崩溃，未能正确解析论文的章节大纲，将子章节（如C. Distillation）和参考文献错误地作为主分支，遗漏了大量核心内容。节点内容充斥着被截断的长句、原始的HTML表格代码（如<table><tr>）以及无意义的文本片段，毫无简洁性与可读性，完全未能准确提取论文的论点和关键信息。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 21.6
+}

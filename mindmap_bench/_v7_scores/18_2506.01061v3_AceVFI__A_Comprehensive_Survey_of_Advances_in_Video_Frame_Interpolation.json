@@ -1,0 +1,28 @@
+{
+  "stem": "18_2506.01061v3_AceVFI__A_Comprehensive_Survey_of_Advances_in_Video_Frame_Interpolation",
+  "mapping": {
+    "A_is": "mapreduce",
+    "B_is": "original"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 3,
+      "hierarchy": 3,
+      "balance": 3,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图A遗漏了原论文中重要的GAN和混合（Kernel+Flow）方法，且将作者简介和实验室信息作为一个主分支，偏离了学术论文的核心内容，导致覆盖率和均衡性较差。层级方面，将特定的光流架构与通用的光流插帧技术并列，逻辑不够严密。内容上过度强调了具体年份而非核心机制，准确度一般。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "导图B全面且精准地覆盖了原论文的方法论分类、学习范式、核心挑战、评估体系及应用前景，结构与原文逻辑高度契合。各分支内容详实且分布均衡，准确提炼了论文中的关键术语（如CTFI/ATFI）和核心结论（如失真-感知权衡）。仅在部分叶子节点中使用了略长的短语和符号（如“->”），在简洁性上微扣一分，整体质量极高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 32.8
+}

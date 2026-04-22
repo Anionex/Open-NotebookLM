@@ -1,0 +1,28 @@
+{
+  "stem": "05_2209.00796v15_Diffusion_Models__A_Comprehensive_Survey_of_Methods_and_Applications",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 4,
+      "accuracy": 5,
+      "rationale": "这份思维导图完美地映射了论文的目录结构与核心内容。它不仅覆盖了基础理论（DDPM/SGM/SDE），还精准地捕捉到了文中提及的高级模型（如RPG, VideoTetris, IterComp等2024年的最新成果）。层级划分逻辑严密，与论文的分类学（Taxonomy）高度一致。在准确度上，它保留了关键术语和算法名称，平衡性极佳。"
+    },
+    "B": {
+      "coverage": 3,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "B方案虽然结构清晰，但在全文覆盖度上存在明显缺陷。它仅停留在章节的大类层面，忽略了论文中占据大量篇幅的具体应用案例（Section 7）和与其他生成模型的详细连接（Section 6）。内容过于通用化，像是一份通用的扩散模型总结，而非针对这篇特定长篇综述的深度解析，未能体现论文在2024年更新的最新进展。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 12.8
+}

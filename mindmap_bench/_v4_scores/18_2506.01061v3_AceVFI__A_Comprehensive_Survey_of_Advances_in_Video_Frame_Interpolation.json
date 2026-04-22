@@ -1,0 +1,28 @@
+{
+  "stem": "18_2506.01061v3_AceVFI__A_Comprehensive_Survey_of_Advances_in_Video_Frame_Interpolation",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 4,
+      "rationale": "导图 A 较好地覆盖了论文的核心概念、挑战与应用，但在内容完整性上遗漏了论文中重要的“通用处理流水线（General Pipeline）”以及详尽的“模型效率与计算复杂度分析（Table III-V）”。层级结构合理，但部分节点使用了较长的解释性短语（如带有箭头推导的句子），简洁性稍逊。准确度良好，但缺乏定量数据的支撑。"
+    },
+    "B": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图 B 全面且精准地覆盖了原论文的所有重要章节，不仅包含了通用流水线，还专门提取了论文中非常关键的“模型效率与计算复杂度分析”并列出具体数值（如 GFLOPs、参数量、PSNR 等），极大地提升了准确度与忠实度。层级划分极具逻辑性，各分支规模均衡，且节点命名均采用简短精炼的词组，整体质量非常高。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 19.2
+}

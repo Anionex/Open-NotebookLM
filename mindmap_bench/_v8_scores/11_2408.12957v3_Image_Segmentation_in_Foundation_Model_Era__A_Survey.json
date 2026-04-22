@@ -1,0 +1,28 @@
+{
+  "stem": "11_2408.12957v3_Image_Segmentation_in_Foundation_Model_Era__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mapreduce"
+  },
+  "judge_model": "gemini-3-pro-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "导图A全面且精准地提取了论文的核心概念与具体代表性模型（如MaskCLIP、LISA、SAM等），层级结构逻辑清晰，各分支内容详实且分布均衡。语言高度精炼，专业术语翻译准确（如‘指代分割’、‘免训练’、‘开放词表’），完美契合论文主旨与学术规范。"
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 4,
+      "accuracy": 3,
+      "rationale": "导图B基本覆盖了论文的章节骨架，但在具体技术细节的提取上存在明显偏差，大量使用非核心的年份作为独立节点（如‘2016年传统深度学习’、‘2022年语义分割进展’），缺乏实质性的技术内容。此外，专业术语翻译欠佳（将Referring Segmentation生硬译为‘引用式分割’而非学术界通用的‘指代分割’），降低了内容的准确度与专业性。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 26.4
+}

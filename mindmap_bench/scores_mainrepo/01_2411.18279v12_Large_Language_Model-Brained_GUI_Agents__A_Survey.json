@@ -1,0 +1,28 @@
+{
+  "stem": "01_2411.18279v12_Large_Language_Model-Brained_GUI_Agents__A_Survey",
+  "mapping": {
+    "A_is": "original",
+    "B_is": "mainrepo"
+  },
+  "judge_model": "gemini-3-flash-preview",
+  "scores": {
+    "A": {
+      "coverage": 5,
+      "hierarchy": 5,
+      "balance": 5,
+      "conciseness": 5,
+      "accuracy": 5,
+      "rationale": "该方案展现了极高的专业性。它不仅完整覆盖了论文的所有核心章节（从演进到架构，再到训练策略与特定平台框架），而且精准捕捉了论文中的核心技术术语，如SoM标注、OmniParser、MCTS、TSR（任务完成率）等。层级划分逻辑严密，将LAM微调策略与跨平台框架分列，符合综述论文的结构特点。语言极其简洁，完全使用短语。 "
+    },
+    "B": {
+      "coverage": 4,
+      "hierarchy": 4,
+      "balance": 4,
+      "conciseness": 5,
+      "accuracy": 4,
+      "rationale": "方案B是一个合格的概要，但在深度和针对性上略逊于A。它较好地覆盖了宏观主题，但在具体技术细节（如具体的微调算法名、解析工具名）的保留上不够丰富。层级结构略显常规，虽然清晰但未能充分体现综述论文中关于“数据采集管线”和“大动作模型（LAM）”这两个独立且重要的章节深度。"
+    }
+  },
+  "raw_response": null,
+  "elapsed_s": 11.7
+}
