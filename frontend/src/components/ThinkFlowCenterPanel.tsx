@@ -16,6 +16,9 @@ type ThinkFlowCenterPanelProps = {
   workspaceMode: WorkspaceMode;
   rightPanelOpen: boolean;
   activeOutput: ThinkFlowOutput | null;
+  chatTitle?: string;
+  chatPlaceholder?: string;
+  isOutlineChatMode?: boolean;
   chatMessages: ThinkFlowMessage[];
   chatScrollRef: RefObject<HTMLDivElement | null>;
   handleChatSelectionMouseUp: () => void;
@@ -23,6 +26,7 @@ type ThinkFlowCenterPanelProps = {
   focusedMessageId: string;
   selectedMessageIds: string[];
   renderMessageMarkdown: (message: ThinkFlowMessage) => ReactNode;
+  chatTopPanel?: ReactNode;
   openPushPopover: (message: ThinkFlowMessage, event: React.MouseEvent<HTMLButtonElement>) => void;
   openQAPushPopover: (message: ThinkFlowMessage, event: React.MouseEvent<HTMLButtonElement>) => void;
   toggleMessageSelection: (messageId: string) => void;
@@ -56,6 +60,9 @@ export function ThinkFlowCenterPanel({
   workspaceMode,
   rightPanelOpen,
   activeOutput,
+  chatTitle,
+  chatPlaceholder,
+  isOutlineChatMode = false,
   chatMessages,
   chatScrollRef,
   handleChatSelectionMouseUp,
@@ -63,6 +70,7 @@ export function ThinkFlowCenterPanel({
   focusedMessageId,
   selectedMessageIds,
   renderMessageMarkdown,
+  chatTopPanel,
   openPushPopover,
   openQAPushPopover,
   toggleMessageSelection,
@@ -121,7 +129,7 @@ export function ThinkFlowCenterPanel({
               </button>
             </div>
           ) : (
-            <span>💬 对话</span>
+            <span>{chatTitle || '💬 对话'}</span>
           )}
         </div>
         <div className="thinkflow-chat-header-actions">
@@ -156,56 +164,72 @@ export function ThinkFlowCenterPanel({
         ) : (
           /* 原有聊天消息列表 */
           <>
-        {chatMessages.map((message) => (
-          <div
-            key={message.id}
-            ref={(node) => {
-              messageRefs.current[message.id] = node;
-            }}
-            data-message-id={message.id}
-            className={`thinkflow-message-row ${message.role} ${focusedMessageId === message.id ? 'is-focused' : ''} ${selectedMessageIds.includes(message.id) ? 'is-selected' : ''}`}
-          >
-            <div className={`thinkflow-message-shell ${message.role}`}>
-              <div className={`thinkflow-bubble ${message.role}`}>
-                <div className="thinkflow-bubble-meta">
-                  <span>{message.role === 'assistant' ? 'AI' : '你'}</span>
-                  <span>{message.time}</span>
-                </div>
-                {renderMessageMarkdown(message)}
+        {chatTopPanel}
+        {chatMessages.map((message) => {
+          if (message.role === 'system') {
+            const metaType = message.meta?.type || 'manual_edit';
+            const iconClass = metaType === 'manual_edit' ? 'edit' : metaType === 'stage_change' ? 'stage' : 'conflict';
+            const icon = metaType === 'manual_edit' ? '✏' : metaType === 'stage_change' ? '↩' : '⚠';
+            return (
+              <div key={message.id} className="tf-system-message">
+                <span className={`tf-system-message__icon tf-system-message__icon--${iconClass}`}>
+                  {icon}
+                </span>
+                {message.content}
               </div>
-              {message.role === 'assistant' ? (
-                <div className="thinkflow-message-actions">
-                  <button
-                    type="button"
-                    className={`thinkflow-push-trigger ${message.pushed ? 'is-done' : ''}`}
-                    onClick={(event) => openPushPopover(message, event)}
-                    disabled={!message.content}
-                    title="沉淀当前消息"
-                  >
-                    {message.pushed ? '✓' : '⟩'}
-                  </button>
-                  <button
-                    type="button"
-                    className="thinkflow-message-more"
-                    onClick={(event) => openQAPushPopover(message, event)}
-                    disabled={!message.content}
-                    title="沉淀这一轮问答"
-                  >
-                    本轮
-                  </button>
-                  <button
-                    type="button"
-                    className={`thinkflow-message-select ${selectedMessageIds.includes(message.id) ? 'is-active' : ''}`}
-                    onClick={() => toggleMessageSelection(message.id)}
-                    title="加入多条沉淀"
-                  >
-                    {selectedMessageIds.includes(message.id) ? '✓' : '+'}
-                  </button>
+            );
+          }
+          return (
+            <div
+              key={message.id}
+              ref={(node) => {
+                messageRefs.current[message.id] = node;
+              }}
+              data-message-id={message.id}
+              className={`thinkflow-message-row ${message.role} ${focusedMessageId === message.id ? 'is-focused' : ''} ${selectedMessageIds.includes(message.id) ? 'is-selected' : ''}`}
+            >
+              <div className={`thinkflow-message-shell ${message.role}`}>
+                <div className={`thinkflow-bubble ${message.role}`}>
+                  <div className="thinkflow-bubble-meta">
+                    <span>{message.role === 'assistant' ? 'AI' : '你'}</span>
+                    <span>{message.time}</span>
+                  </div>
+                  {renderMessageMarkdown(message)}
                 </div>
-              ) : null}
+                {!isOutlineChatMode && message.role === 'assistant' ? (
+                  <div className="thinkflow-message-actions">
+                    <button
+                      type="button"
+                      className={`thinkflow-push-trigger ${message.pushed ? 'is-done' : ''}`}
+                      onClick={(event) => openPushPopover(message, event)}
+                      disabled={!message.content}
+                      title="沉淀当前消息"
+                    >
+                      {message.pushed ? '✓' : '⟩'}
+                    </button>
+                    <button
+                      type="button"
+                      className="thinkflow-message-more"
+                      onClick={(event) => openQAPushPopover(message, event)}
+                      disabled={!message.content}
+                      title="沉淀这一轮问答"
+                    >
+                      本轮
+                    </button>
+                    <button
+                      type="button"
+                      className={`thinkflow-message-select ${selectedMessageIds.includes(message.id) ? 'is-active' : ''}`}
+                      onClick={() => toggleMessageSelection(message.id)}
+                      title="加入多条沉淀"
+                    >
+                      {selectedMessageIds.includes(message.id) ? '✓' : '+'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
           </>
         )}
       </div>
@@ -265,38 +289,44 @@ export function ThinkFlowCenterPanel({
                 void handleSendMessage();
               }
             }}
-            placeholder="输入消息，围绕当前素材梳理你真正想要的结论..."
+            placeholder={chatPlaceholder || '输入消息，围绕当前素材梳理你真正想要的结论...'}
             className="thinkflow-chat-input"
             rows={2}
           />
           <div className="thinkflow-chat-toolbar">
-            <button type="button" className="thinkflow-toolbar-btn">
-              🔍 搜索
-            </button>
-            <div className="thinkflow-toolbar-divider" />
-            {documents.map((doc) => (
-              <label
-                key={doc.id}
-                className={`thinkflow-doc-check ${boundDocIds.includes(doc.id) ? 'is-checked' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={boundDocIds.includes(doc.id)}
-                  onChange={() => toggleBoundDoc(doc.id)}
-                />
-                📄 {doc.title}
-              </label>
-            ))}
-            {boundDocIds.length > 0 ? <span className="thinkflow-doc-check-tip">对话将参考此文档</span> : null}
-            {!rightPanelOpen && workspaceMode === 'normal' ? (
-              <button
-                type="button"
-                className="thinkflow-toolbar-btn"
-                onClick={openRightPanelForDocument}
-              >
-                + 新建梳理
-              </button>
-            ) : null}
+            {isOutlineChatMode ? (
+              <span className="thinkflow-doc-check-tip">当前消息会综合来源、梳理文档、产出指导和当前 notebook 对话，先整理这份 PPT 的候选大纲；只有点击“推送改动”后才会覆盖正式大纲，也不会写入普通问答历史。</span>
+            ) : (
+              <>
+                <button type="button" className="thinkflow-toolbar-btn">
+                  🔍 搜索
+                </button>
+                <div className="thinkflow-toolbar-divider" />
+                {documents.map((doc) => (
+                  <label
+                    key={doc.id}
+                    className={`thinkflow-doc-check ${boundDocIds.includes(doc.id) ? 'is-checked' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={boundDocIds.includes(doc.id)}
+                      onChange={() => toggleBoundDoc(doc.id)}
+                    />
+                    📄 {doc.title}
+                  </label>
+                ))}
+                {boundDocIds.length > 0 ? <span className="thinkflow-doc-check-tip">对话将参考此文档</span> : null}
+                {!rightPanelOpen && workspaceMode === 'normal' ? (
+                  <button
+                    type="button"
+                    className="thinkflow-toolbar-btn"
+                    onClick={openRightPanelForDocument}
+                  >
+                    + 新建梳理
+                  </button>
+                ) : null}
+              </>
+            )}
             <div className="thinkflow-toolbar-spacer" />
             <button type="button" className="thinkflow-send-btn" onClick={() => void handleSendMessage()} disabled={!chatInput.trim() || chatLoading}>
               {chatLoading ? '...' : '↑'}

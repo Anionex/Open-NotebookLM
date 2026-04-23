@@ -4494,6 +4494,36 @@
   white-space: pre-wrap;
 }
 
+.tf-system-message {
+  align-self: center;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--tf-bg-secondary, #f8f9fa);
+  border: 1px solid var(--tf-border, #e9ecef);
+  font-size: 12px;
+  color: var(--tf-muted, #868e96);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tf-system-message__icon {
+  width: 14px;
+  height: 14px;
+}
+
+.tf-system-message__icon--edit {
+  color: var(--tf-accent, #339af0);
+}
+
+.tf-system-message__icon--stage {
+  color: var(--tf-success, #40c057);
+}
+
+.tf-system-message__icon--conflict {
+  color: #f59f00;
+}
+
 /* ═══════════════════════════════════════════
    Chat Header Bar (conversation history trigger)
    ═══════════════════════════════════════════ */
@@ -4943,3 +4973,46 @@
    ═══════════════════════════════════════════ */
 
 /* (source-reembed-btn removed — now uses thinkflow-file-action-icon + Upload icon) */
+
+/* ═══════════════════════════════════════════
+   Global Directives Collapsible Panel
+   ═══════════════════════════════════════════ */
+
+.tf-global-directives {
+  margin: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 154, 240, 0.2);
+  background: rgba(51, 154, 240, 0.03);
+}
+
+.tf-global-directives__header {
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tf-global-directives__badge {
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  background: rgba(51, 154, 240, 0.12);
+  color: var(--tf-accent, #339af0);
+  font-weight: 600;
+}
+
+.tf-global-directives__tag {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: rgba(51, 154, 240, 0.08);
+  border: 1px solid rgba(51, 154, 240, 0.16);
+  color: #495057;
+}
+
+.tf-global-directives__hint {
+  padding: 0 12px 8px;
+  font-size: 11px;
+  color: var(--tf-muted, #868e96);
+}
