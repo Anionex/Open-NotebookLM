@@ -5,6 +5,7 @@ import {
   diffPptGlobalDirectives,
   diffPptOutline,
 } from './pptOutlineDiff';
+import { mergeOutlineWithManualEdits, formatConflictToast } from './pptOutlineMerge';
 import type { ManualEditLog } from './thinkflow-types';
 
 // ─── Types (mirrored from ThinkFlowWorkspace) ────────────────────────────────
@@ -483,7 +484,7 @@ export type UsePptOutlineManagerDeps = {
   notebook: Notebook;
   notebookTitle: string;
   effectiveUser: EffectiveUser;
-  pushToast: (message: string, kind?: 'error' | 'success' | 'info', duration?: number) => void;
+  pushToast: (message: string, kind?: 'error' | 'success' | 'info' | 'warning', duration?: number) => void;
   setGlobalError: (msg: string) => void;
   chatMessages: ThinkFlowMessage[];
   setChatMessages: React.Dispatch<React.SetStateAction<ThinkFlowMessage[]>>;
@@ -990,6 +991,25 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
     setOutlineSaving(true);
     setGlobalError('');
     try {
+      let mergePayload: { merge_strategy?: string; manual_edits_since_draft?: ManualEditLog[] } = {};
+
+      if (manualEditsBuffer.length > 0) {
+        const confirmed = lastSavedOutlineRef.current;
+        const draft = activeOutput?.outline_chat_draft_outline || [];
+        const { conflicts } = mergeOutlineWithManualEdits(confirmed, draft, manualEditsBuffer);
+
+        if (conflicts.length > 0) {
+          pushToast(formatConflictToast(conflicts), 'warning');
+        }
+
+        mergePayload = {
+          merge_strategy: 'smart_merge',
+          manual_edits_since_draft: manualEditsBuffer,
+        };
+
+        setManualEditsBuffer([]);
+      }
+
       const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/outline-chat/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -998,11 +1018,13 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
           notebook_title: notebookTitle,
           user_id: effectiveUser?.id || 'local',
           email: effectiveUser?.email || '',
+          ...mergePayload,
         }),
       });
       const data = await parseJson<{ output: ThinkFlowOutput; assistant_message?: string }>(response);
       setOutputs((previous) => previous.map((item) => (item.id === data.output.id ? data.output : item)));
       setPptOutlinePendingMessages([]);
+      lastSavedOutlineRef.current = [];  // Will be re-initialized by the useEffect
       if (data.assistant_message) {
         setGlobalError('');
       }
@@ -1012,7 +1034,7 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
       setOutlineSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOutputId, activeOutput, notebook.id, notebookTitle, effectiveUser, setGlobalError]);
+  }, [activeOutputId, activeOutput, notebook.id, notebookTitle, effectiveUser, setGlobalError, manualEditsBuffer, pushToast]);
 
   const generateOutputById = useCallback(async (outputId: string) => {
     if (!outputId) return;

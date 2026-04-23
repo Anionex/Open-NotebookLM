@@ -127,6 +127,13 @@
   color: #1d4ed8;
 }
 
+.thinkflow-toast-warning {
+  background: rgba(255, 251, 235, 0.97);
+  border: 1px solid rgba(245, 159, 0, 0.3);
+  border-left: 3px solid #f59f00;
+  color: #92400e;
+}
+
 .thinkflow-toast-msg {
   flex: 1;
   min-width: 0;

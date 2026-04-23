@@ -73,6 +73,8 @@ class OutlineChatApplyRequest(BaseModel):
     notebook_title: str = ""
     user_id: str = "local"
     email: Optional[str] = None
+    merge_strategy: Optional[str] = None
+    manual_edits_since_draft: Optional[List[Dict[str, Any]]] = None
 
 
 class GenerateOutputRequest(BaseModel):

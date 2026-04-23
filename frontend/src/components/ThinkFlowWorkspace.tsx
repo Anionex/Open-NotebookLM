@@ -798,7 +798,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [captureFeedback, setCaptureFeedback] = useState('');
 
   // ── Toast system ──────────────────────────────────────────────────────────
-  type ToastKind = 'error' | 'success' | 'info';
+  type ToastKind = 'error' | 'success' | 'info' | 'warning';
   const [toasts, setToasts] = useState<Array<{ id: number; kind: ToastKind; message: string }>>([]);
   const toastIdRef = useRef(0);
 
