@@ -3464,3 +3464,54 @@ class OutputV2Service:
             "source_path": str(source_info.original_path),
             "source_url": _to_outputs_url(str(source_info.original_path)),
         }
+
+    def revert_to_outline_stage(self, notebook_id: str, output_id: str, user_id: str) -> Dict[str, Any]:
+        """Revert pipeline stage from pages_ready to outline_ready, preserving history."""
+        import uuid
+        from datetime import datetime
+
+        manifest_path = self._manifest_path(notebook_id, "", user_id)
+        manifest = self._read_manifest(manifest_path)
+        index, item = self._find_output(manifest, output_id)
+
+        if not item:
+            raise HTTPException(status_code=404, detail="Output not found")
+
+        # Snapshot current state
+        snapshot = {
+            "id": str(uuid.uuid4()),
+            "stage": item.get("pipeline_stage", "pages_ready"),
+            "page_reviews": item.get("page_reviews", []),
+            "result": item.get("result"),
+            "reverted_at": datetime.utcnow().isoformat(),
+        }
+
+        # Append to stage_history
+        history = item.get("stage_history", [])
+        history.append(snapshot)
+
+        # Revert stage
+        item["pipeline_stage"] = "outline_ready"
+        item["page_reviews"] = []
+        item["stage_history"] = history
+
+        # Create new chat session
+        new_session_id = str(uuid.uuid4())
+        new_session = {
+            "id": new_session_id,
+            "status": "active",
+            "messages": [],
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        sessions = item.get("outline_chat_sessions", [])
+        for s in sessions:
+            if s.get("status") == "active":
+                s["status"] = "archived"
+        sessions.append(new_session)
+        item["outline_chat_sessions"] = sessions
+        item["outline_chat_active_session_id"] = new_session_id
+        item["updated_at"] = self._now()
+
+        manifest[index] = item
+        self._write_manifest(manifest_path, manifest)
+        return {"status": "ok", "pipeline_stage": "outline_ready", "snapshot_id": snapshot["id"]}

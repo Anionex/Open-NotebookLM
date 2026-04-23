@@ -93,6 +93,11 @@ class SelectPptPageVersionRequest(GenerateOutputRequest):
     pass
 
 
+class RevertStageRequest(BaseModel):
+    notebook_id: str
+    user_id: str = "local"
+
+
 def _effective_user(user_id: str, email: Optional[str]) -> str:
     return (email or user_id or "local").strip() or "local"
 
@@ -303,5 +308,15 @@ async def import_output_to_source(output_id: str, request: GenerateOutputRequest
         notebook_title=request.notebook_title,
         user_id=_effective_user(request.user_id, request.email),
         output_id=output_id,
+    )
+    return result
+
+
+@router.post("/{output_id}/revert-stage")
+async def revert_output_stage(output_id: str, request: RevertStageRequest) -> Dict[str, Any]:
+    result = service.revert_to_outline_stage(
+        notebook_id=request.notebook_id,
+        output_id=output_id,
+        user_id=_effective_user(request.user_id, None),
     )
     return result
