@@ -37,6 +37,7 @@ import { ThinkFlowOutputContextModal } from './ThinkFlowOutputContextModal';
 import { ThinkFlowQuizStudy } from './ThinkFlowQuizStudy';
 import { ThinkFlowTopBar } from './ThinkFlowTopBar';
 import { ThinkFlowRightPanel } from './ThinkFlowRightPanel';
+import { PptOutlinePanel, PptLockedOutlinePreview } from './PptOutlinePanel';
 import {
   diffPptGlobalDirectives,
   diffPptOutline,
@@ -3504,197 +3505,34 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
 
   const renderPptOutlineWorkspace = () => {
     if (!activeOutput) return null;
-    const slides = activePptOutline;
-    const selectedSlide = activePptSlide?.slide || null;
-    const selectedSlideIndex = activePptSlide?.index ?? 0;
     return (
-      <>
-        {renderPptStageRail()}
-        <div className="thinkflow-ppt-stage-header">
-          <div className="thinkflow-ppt-stage-copy">
-            <h4>{getPptStageLabel(activePptStage)}</h4>
-            <p>
-              {activePptDraftPending
-                ? '当前正在预览一版候选大纲。它还没有覆盖正式大纲，只有点击“推送改动”后才会真正生效。'
-                : '这一步先确认整套页级大纲。中间对话先讨论出候选大纲，推送后再决定是否进入逐页生成。'}
-            </p>
-          </div>
-          <div className="thinkflow-ppt-stage-actions">
-            <button type="button" className="thinkflow-doc-action-btn" onClick={() => setRightMode('doc')}>
-              返回文档
-            </button>
-            <button type="button" className="thinkflow-doc-action-btn is-active" onClick={() => void saveOutline()} disabled={outlineSaving || activePptDraftPending}>
-              {outlineSaving ? '保存中...' : '保存大纲'}
-            </button>
-            <button type="button" className="thinkflow-generate-btn" onClick={() => void confirmPptOutline()} disabled={outlineSaving || generatingOutput || activePptDraftPending}>
-              确认大纲，进入逐页生成
-            </button>
-          </div>
-        </div>
-        <div className="thinkflow-ppt-refine-panel">
-          <div className="thinkflow-doc-check-tip">
-            中间对话区现在是当前 PPT 的主交互入口。系统会先识别你的修改意图，区分全局规则和页级修改，再在对话里生成候选改动卡片；只有点击对话里的“推送这版”后才会覆盖正式大纲。
-          </div>
-          {archivedOutlineChatSessions.length > 0 ? (
-            <div className="thinkflow-doc-check-tip">已收起 {archivedOutlineChatSessions.length} 轮历史对话，当前只显示这次产出的最新一轮讨论。</div>
-          ) : null}
-        </div>
-        <div className="thinkflow-ppt-outline-canvas">
-          {selectedSlide ? (
-            <div className="thinkflow-ppt-focus-shell">
-              <article className="thinkflow-ppt-focus-preview">
-                <div className="thinkflow-ppt-focus-preview-top">
-                  <span className="thinkflow-ppt-outline-summary-index">第 {selectedSlide.pageNum || selectedSlideIndex + 1} 页</span>
-                  <span className="thinkflow-ppt-focus-preview-label">当前页预览</span>
-                </div>
-                <div className="thinkflow-ppt-focus-slide">
-                  <div className="thinkflow-ppt-focus-slide-head">
-                    <h4>{selectedSlide.title || `页面 ${selectedSlideIndex + 1}`}</h4>
-                    <p>{selectedSlide.layout_description || '这页还没有填写布局说明。'}</p>
-                  </div>
-                  {(selectedSlide.key_points || selectedSlide.bullets || []).length > 0 ? (
-                    <ul className="thinkflow-ppt-focus-points">
-                      {(selectedSlide.key_points || selectedSlide.bullets || []).map((point, pointIndex) => (
-                        <li key={`${selectedSlide.id || selectedSlideIndex}_${pointIndex}`}>{point}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="thinkflow-ppt-outline-card-empty">这页还没有要点。</div>
-                  )}
-                  {selectedSlide.asset_ref ? <div className="thinkflow-ppt-outline-card-asset">素材：{selectedSlide.asset_ref}</div> : null}
-                </div>
-              </article>
-              <div className="thinkflow-ppt-slide-editor">
-                <div className="thinkflow-ppt-slide-editor-head">
-                  <div>
-                    <span className="thinkflow-output-workspace-kicker">{activePptDraftPending ? '候选大纲预览' : '单页编辑'}</span>
-                    <h4>{activePptDraftPending ? `正在预览第 ${selectedSlide.pageNum || selectedSlideIndex + 1} 页候选内容` : `正在编辑第 ${selectedSlide.pageNum || selectedSlideIndex + 1} 页`}</h4>
-                  </div>
-                </div>
-                <input
-                  className="thinkflow-outline-input"
-                  value={selectedSlide.title || ''}
-                  onChange={(event) => updateOutlineSection(selectedSlideIndex, { title: event.target.value })}
-                  placeholder="页面标题"
-                  disabled={activePptDraftPending}
-                />
-                <textarea
-                  className="thinkflow-outline-textarea"
-                  value={selectedSlide.layout_description || ''}
-                  onChange={(event) =>
-                    updateOutlineSection(selectedSlideIndex, {
-                      layout_description: event.target.value,
-                      summary: event.target.value,
-                    })
-                  }
-                  placeholder="这一页的布局描述 / 页面角色"
-                  rows={3}
-                  disabled={activePptDraftPending}
-                />
-                <textarea
-                  className="thinkflow-outline-textarea"
-                  value={(selectedSlide.key_points || selectedSlide.bullets || []).join('\n')}
-                  onChange={(event) =>
-                    updateOutlineSection(selectedSlideIndex, {
-                      key_points: event.target.value.split('\n').map((text) => text.trim()).filter(Boolean),
-                      bullets: event.target.value.split('\n').map((text) => text.trim()).filter(Boolean),
-                    })
-                  }
-                  placeholder="每行一个要点"
-                  rows={7}
-                  disabled={activePptDraftPending}
-                />
-                <input
-                  className="thinkflow-outline-input"
-                  value={selectedSlide.asset_ref || ''}
-                  onChange={(event) => updateOutlineSection(selectedSlideIndex, { asset_ref: event.target.value || null })}
-                  placeholder="可选：来源素材引用（asset_ref）"
-                  disabled={activePptDraftPending}
-                />
-                {activePptDraftPending ? <div className="thinkflow-doc-check-tip">当前页面展示的是候选大纲。若认可这版内容，请在对话区点击“推送这版”。</div> : null}
-              </div>
-            </div>
-          ) : null}
-          <div className="thinkflow-ppt-outline-strip">
-            {slides.map((item, index) => (
-              <button
-                key={item.id || `${activeOutput.id}_${index}`}
-                type="button"
-                className={`thinkflow-ppt-outline-card ${selectedSlideIndex === index ? 'is-active' : ''}`}
-                onClick={() => setActivePptSlideIndex(index)}
-              >
-                <div className="thinkflow-ppt-outline-card-top">
-                  <span className="thinkflow-ppt-outline-summary-index">第 {item.pageNum || index + 1} 页</span>
-                  <span className="thinkflow-ppt-outline-card-cta">{selectedSlideIndex === index ? '编辑中' : '查看'}</span>
-                </div>
-                <h4>{item.title || `页面 ${index + 1}`}</h4>
-                {item.layout_description ? <p>{item.layout_description}</p> : null}
-                {(item.key_points || item.bullets || []).length > 0 ? (
-                  <ul>
-                    {(item.key_points || item.bullets || []).slice(0, 3).map((point, pointIndex) => (
-                      <li key={`${item.id || index}_${pointIndex}`}>{point}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="thinkflow-ppt-outline-card-empty">这页还没有要点。</div>
-                )}
-              </button>
-            ))}
-            <button type="button" className="thinkflow-outline-add-btn thinkflow-ppt-outline-add-card" onClick={addPptOutlineSection} disabled={activePptDraftPending}>
-              + 添加页面
-            </button>
-          </div>
-        </div>
-        <div className="thinkflow-outline-footer">
-          <div className="thinkflow-outline-actions">
-            <button type="button" className="thinkflow-doc-action-btn" onClick={() => setRightMode('doc')}>
-              返回文档
-            </button>
-            <button type="button" className="thinkflow-doc-action-btn is-active" onClick={() => void saveOutline()} disabled={outlineSaving || activePptDraftPending}>
-              {outlineSaving ? '保存中...' : '保存大纲'}
-            </button>
-            <button type="button" className="thinkflow-generate-btn" onClick={() => void confirmPptOutline()} disabled={outlineSaving || generatingOutput || activePptDraftPending}>
-              确认大纲，进入逐页生成
-            </button>
-          </div>
-        </div>
-      </>
+      <PptOutlinePanel
+        activeOutput={activeOutput}
+        activePptOutline={activePptOutline}
+        activePptSlide={activePptSlide}
+        activePptStage={activePptStage}
+        activePptDraftPending={activePptDraftPending}
+        archivedOutlineChatSessions={archivedOutlineChatSessions}
+        outlineSaving={outlineSaving}
+        generatingOutput={generatingOutput}
+        onSetRightMode={setRightMode}
+        onSaveOutline={saveOutline}
+        onConfirmPptOutline={confirmPptOutline}
+        onUpdateOutlineSection={updateOutlineSection}
+        onSetActivePptSlideIndex={setActivePptSlideIndex}
+        onAddPptOutlineSection={addPptOutlineSection}
+      />
     );
   };
 
   const renderPptLockedOutlinePreview = () => {
-    if (!activeOutput || !pptOutlineReadonlyOpen) return null;
-    const slides = activeOutput.outline || [];
+    if (!activeOutput) return null;
     return (
-      <div className="thinkflow-ppt-locked-outline">
-        <div className="thinkflow-ppt-locked-outline-head">
-          <div>
-            <span className="thinkflow-output-workspace-kicker">已确认大纲</span>
-            <h4>当前大纲只读</h4>
-          </div>
-          <button type="button" className="thinkflow-doc-action-btn" onClick={() => setPptOutlineReadonlyOpen(false)}>
-            收起
-          </button>
-        </div>
-        <div className="thinkflow-ppt-outline-summary-list">
-          {slides.map((item, index) => (
-            <article key={item.id || `${activeOutput.id}_${index}`} className="thinkflow-ppt-outline-summary-card">
-              <span className="thinkflow-ppt-outline-summary-index">第 {item.pageNum || index + 1} 页</span>
-              <h4>{item.title || `页面 ${index + 1}`}</h4>
-              {item.layout_description ? <p>{item.layout_description}</p> : null}
-              {(item.key_points || item.bullets || []).length > 0 ? (
-                <ul>
-                  {(item.key_points || item.bullets || []).slice(0, 4).map((point, pointIndex) => (
-                    <li key={`${item.id || index}_${pointIndex}`}>{point}</li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="thinkflow-ppt-outline-card-empty">这页还没有要点。</div>
-              )}
-            </article>
-          ))}
-        </div>
-      </div>
+      <PptLockedOutlinePreview
+        activeOutput={activeOutput}
+        pptOutlineReadonlyOpen={pptOutlineReadonlyOpen}
+        onSetPptOutlineReadonlyOpen={setPptOutlineReadonlyOpen}
+      />
     );
   };
 
