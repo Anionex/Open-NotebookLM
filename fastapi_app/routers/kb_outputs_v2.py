@@ -41,6 +41,7 @@ class SaveOutlineRequest(BaseModel):
     outline: List[Dict[str, Any]]
     pipeline_stage: Optional[str] = None
     enable_images: Optional[bool] = None
+    manual_edit_log: Optional[List[Dict[str, Any]]] = None
 
 
 class RefineOutlineRequest(BaseModel):
@@ -52,6 +53,26 @@ class RefineOutlineRequest(BaseModel):
     api_url: Optional[str] = None
     api_key: Optional[str] = None
     model: Optional[str] = None
+
+
+class OutlineChatRequest(BaseModel):
+    notebook_id: str
+    notebook_title: str = ""
+    user_id: str = "local"
+    email: Optional[str] = None
+    message: str
+    active_slide_index: Optional[int] = None
+    conversation_history: Optional[List[Dict[str, Any]]] = None
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+
+class OutlineChatApplyRequest(BaseModel):
+    notebook_id: str
+    notebook_title: str = ""
+    user_id: str = "local"
+    email: Optional[str] = None
 
 
 class GenerateOutputRequest(BaseModel):
@@ -143,6 +164,7 @@ async def save_outline(output_id: str, request: SaveOutlineRequest) -> Dict[str,
         outline=request.outline,
         pipeline_stage=request.pipeline_stage,
         enable_images=request.enable_images,
+        manual_edit_log=request.manual_edit_log,
     )
     return {"success": True, "output": item}
 
@@ -161,6 +183,47 @@ async def refine_outline(output_id: str, request: RefineOutlineRequest) -> Dict[
         model=request.model,
     )
     return {"success": True, "output": item}
+
+
+@router.post("/{output_id}/outline-chat")
+async def outline_chat(output_id: str, request: OutlineChatRequest) -> Dict[str, Any]:
+    output, assistant_message, applied_scope, applied_slide_index, change_summary, intent_summary = await service.outline_chat(
+        notebook_id=request.notebook_id,
+        notebook_title=request.notebook_title,
+        user_id=_effective_user(request.user_id, request.email),
+        email=(request.email or request.user_id or "local").strip() or "local",
+        output_id=output_id,
+        message=request.message,
+        active_slide_index=request.active_slide_index,
+        conversation_history=request.conversation_history,
+        api_url=request.api_url,
+        api_key=request.api_key,
+        model=request.model,
+    )
+    return {
+        "success": True,
+        "output": output,
+        "assistant_message": assistant_message,
+        "applied_scope": applied_scope,
+        "applied_slide_index": applied_slide_index,
+        "change_summary": change_summary,
+        "intent_summary": intent_summary,
+    }
+
+
+@router.post("/{output_id}/outline-chat/apply")
+async def apply_outline_chat(output_id: str, request: OutlineChatApplyRequest) -> Dict[str, Any]:
+    output, assistant_message = await service.apply_outline_chat(
+        notebook_id=request.notebook_id,
+        notebook_title=request.notebook_title,
+        user_id=_effective_user(request.user_id, request.email),
+        output_id=output_id,
+    )
+    return {
+        "success": True,
+        "output": output,
+        "assistant_message": assistant_message,
+    }
 
 
 @router.post("/{output_id}/generate")

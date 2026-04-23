@@ -1,10 +1,11 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../config/api';
 import type { KnowledgeFile } from '../types';
 import {
   diffPptGlobalDirectives,
   diffPptOutline,
 } from './pptOutlineDiff';
+import type { ManualEditLog } from './thinkflow-types';
 
 // ─── Types (mirrored from ThinkFlowWorkspace) ────────────────────────────────
 
@@ -395,6 +396,43 @@ function outputLabel(type: OutputType) {
   return outputButtons.find((item) => item.type === type)?.label || type;
 }
 
+function diffOutlineFields(
+  prev: OutlineSection[],
+  current: OutlineSection[],
+): { page_index: number; field: string }[] {
+  const changes: { page_index: number; field: string }[] = [];
+  const fields = ['title', 'layout_description', 'key_points', 'asset_ref'] as const;
+  const len = Math.max(prev.length, current.length);
+  for (let i = 0; i < len; i++) {
+    const p = prev[i];
+    const c = current[i];
+    if (!p || !c) continue;
+    for (const f of fields) {
+      if (JSON.stringify(p[f] ?? '') !== JSON.stringify(c[f] ?? '')) {
+        changes.push({ page_index: i, field: f });
+      }
+    }
+  }
+  return changes;
+}
+
+function formatEditSummary(changes: { page_index: number; field: string }[]): string {
+  const byPage = new Map<number, string[]>();
+  const fieldLabels: Record<string, string> = {
+    title: '标题', layout_description: '布局', key_points: '要点', asset_ref: '素材',
+  };
+  for (const c of changes) {
+    const arr = byPage.get(c.page_index) ?? [];
+    arr.push(fieldLabels[c.field] || c.field);
+    byPage.set(c.page_index, arr);
+  }
+  const parts: string[] = [];
+  for (const [idx, fields] of byPage) {
+    parts.push(`第${idx + 1}页(${fields.join('、')})`);
+  }
+  return parts.join('、');
+}
+
 function resolveFileUrl(file: any): string {
   return file?.static_url || file?.url || file?.storage_path || '';
 }
@@ -525,6 +563,9 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
   const [outputContexts, setOutputContexts] = useState<Record<string, OutputContextState>>({});
   const [pptSourceLockIntent, setPptSourceLockIntent] = useState<PptSourceLockIntent | null>(null);
   const [directOutputIntent, setDirectOutputIntent] = useState<DirectOutputIntent | null>(null);
+  const [manualEditsBuffer, setManualEditsBuffer] = useState<ManualEditLog[]>([]);
+  const lastSavedOutlineRef = useRef<OutlineSection[]>([]);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Computed values ─────────────────────────────────────────────────────────
   const activeOutput = useMemo(
@@ -1097,7 +1138,7 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
     buildOutputContextSnapshot, refreshOutputs, generateOutputById,
   ]);
 
-  const saveOutline = useCallback(async (options?: { pipelineStage?: string; enableImages?: boolean }) => {
+  const saveOutline = useCallback(async (options?: { pipelineStage?: string; enableImages?: boolean; manual_edit_log?: ManualEditLog[] }) => {
     if (!activeOutputId || !activeOutput) return;
     setOutlineSaving(true);
     try {
@@ -1117,6 +1158,7 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
             typeof options?.enableImages === 'boolean'
               ? options.enableImages
               : activeOutput.enable_images,
+          manual_edit_log: options?.manual_edit_log,
         }),
       });
       const data = await parseJson<{ output: ThinkFlowOutput }>(response);
@@ -1132,6 +1174,43 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
   const confirmPptOutline = useCallback(async () => {
     await saveOutline({ pipelineStage: 'pages_ready' });
   }, [saveOutline]);
+
+  const updateOutlineSection = useCallback((index: number, patch: Partial<OutlineSection>) => {
+    setOutputs(prev => prev.map(o => {
+      if (o.id !== activeOutputId) return o;
+      const outline = [...(o.outline || [])];
+      if (outline[index]) {
+        outline[index] = { ...outline[index], ...patch };
+      }
+      return { ...o, outline };
+    }));
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const current = activePptOutline.map(s => ({ ...s }));
+      const lastSaved = lastSavedOutlineRef.current;
+      const changes = diffOutlineFields(lastSaved, current);
+      if (changes.length === 0) return;
+
+      const editLog: ManualEditLog = {
+        page_index: changes[0].page_index,
+        fields: [...new Set(changes.map(c => c.field))] as ManualEditLog['fields'],
+        summary: formatEditSummary(changes),
+        timestamp: new Date().toISOString(),
+      };
+
+      await saveOutline({ manual_edit_log: [editLog] });
+      setManualEditsBuffer(prev => [...prev, editLog]);
+      lastSavedOutlineRef.current = current;
+    }, 500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOutputId, activePptOutline, saveOutline]);
+
+  useEffect(() => {
+    if (activePptOutline.length > 0 && lastSavedOutlineRef.current.length === 0) {
+      lastSavedOutlineRef.current = activePptOutline.map(s => ({ ...s }));
+    }
+  }, [activePptOutline]);
 
   return {
     // State
@@ -1184,6 +1263,9 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
     createOutline,
     saveOutline,
     confirmPptOutline,
+    updateOutlineSection,
     generateOutputById,
+    manualEditsBuffer,
+    setManualEditsBuffer,
   };
 }
