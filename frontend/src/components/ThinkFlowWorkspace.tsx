@@ -1036,6 +1036,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     regenerateActivePptPage,
     selectActivePptPageVersion,
     confirmActivePptPage,
+    revertToOutlineStage,
   } = usePptPageReviewManager({
     activeOutput,
     activePptSlideIndex,
@@ -3529,6 +3530,9 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         onRegenerateActivePptPage={regenerateActivePptPage}
         onConfirmActivePptPage={confirmActivePptPage}
         renderOutputPreview={renderOutputPreview}
+        onRevert={revertToOutlineStage}
+        onGenerate={() => void generateOutputById(activeOutput.id)}
+        allConfirmed={activePptConfirmedCount === (activeOutput.outline || []).length && (activeOutput.outline || []).length > 0}
       />
     );
   };

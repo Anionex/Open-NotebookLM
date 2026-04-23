@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { apiFetch } from '../config/api';
 import type {
   ThinkFlowOutput, PptPageReview, PptPageVersion, OutlineSection,
@@ -60,6 +60,21 @@ export function usePptPageReviewManager(deps: PptPageReviewManagerDeps) {
   const [pptPagePrompt, setPptPagePrompt] = useState('');
   const [pptPageBusyAction, setPptPageBusyAction] = useState<'regenerate' | 'confirm' | 'select_version' | ''>('');
   const [pptPageStatus, setPptPageStatus] = useState('');
+  const [pageReviewFilter, setPageReviewFilter] = useState<number | null>(null);
+
+  const pageReviewChatContext = useMemo(() => {
+    if (!deps.activeOutput || deps.activeOutput.pipeline_stage !== 'pages_ready') return null;
+    const slides = deps.activePptOutline;
+    const slide = slides[deps.activePptSlideIndex];
+    if (!slide) return null;
+    const idx = (slide as any).index ?? deps.activePptSlideIndex;
+    return {
+      title: `逐页审阅 · 第 ${idx + 1} 页`,
+      placeholder: `描述第${idx + 1}页需要怎么调整...`,
+      pageIndex: idx,
+      pageTitle: (slide as any).title || slide.title || '',
+    };
+  }, [deps.activeOutput, deps.activePptOutline, deps.activePptSlideIndex]);
 
   const activePptPageReviews = useMemo<PptPageReview[]>(() => {
     if (!activeOutput || activeOutput.target_type !== 'ppt') return [];
@@ -242,6 +257,28 @@ export function usePptPageReviewManager(deps: PptPageReviewManagerDeps) {
     }
   };
 
+  const revertToOutlineStage = useCallback(async () => {
+    if (!deps.activeOutput) return;
+    try {
+      const resp = await apiFetch(`/api/v1/kb/outputs/${deps.activeOutput.id}/revert-stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: deps.notebook?.id || '',
+          user_id: 'local',
+        }),
+      });
+      if (resp.ok) {
+        await deps.refreshOutputs();
+        deps.pushToast('已返回大纲编辑阶段');
+      } else {
+        deps.setGlobalError('回退失败');
+      }
+    } catch (err: any) {
+      deps.setGlobalError(err?.message || '回退失败');
+    }
+  }, [deps.activeOutput, deps.notebook, deps.refreshOutputs, deps.pushToast, deps.setGlobalError]);
+
   return {
     pptPagePrompt,
     setPptPagePrompt,
@@ -255,5 +292,9 @@ export function usePptPageReviewManager(deps: PptPageReviewManagerDeps) {
     regenerateActivePptPage,
     selectActivePptPageVersion,
     confirmActivePptPage,
+    revertToOutlineStage,
+    pageReviewFilter,
+    setPageReviewFilter,
+    pageReviewChatContext,
   };
 }

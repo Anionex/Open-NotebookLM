@@ -108,6 +108,9 @@ export type PptPageReviewPanelProps = {
   onRegenerateActivePptPage: () => Promise<void>;
   onConfirmActivePptPage: () => Promise<void>;
   renderOutputPreview: () => React.ReactNode;
+  onRevert?: () => void;
+  onGenerate?: () => void;
+  allConfirmed?: boolean;
 };
 
 export function PptPageReviewPanel({
@@ -131,6 +134,9 @@ export function PptPageReviewPanel({
   onRegenerateActivePptPage,
   onConfirmActivePptPage,
   renderOutputPreview,
+  onRevert,
+  onGenerate,
+  allConfirmed,
 }: PptPageReviewPanelProps) {
   const hasDraftPages = activePptPreviewImages.length > 0;
   const totalSlides = (activeOutput.outline || []).length || activeOutput.page_count || 0;
@@ -296,6 +302,26 @@ export function PptPageReviewPanel({
             {generatingOutput ? '生成页面结果中...' : hasDraftPages ? '重新生成每页结果' : '生成每页结果'}
           </button>
         </div>
+      </div>
+      <div className="tf-page-review-actions">
+        <button
+          className="tf-page-review-actions__revert"
+          onClick={() => {
+            if (window.confirm('返回大纲编辑将保留当前页面为历史版本，确定继续？')) {
+              onRevert?.();
+            }
+          }}
+        >
+          ← 返回大纲编辑
+        </button>
+        <button
+          className="thinkflow-ppt-confirm-btn"
+          onClick={onGenerate}
+          disabled={!allConfirmed}
+          style={{ padding: '5px 16px', borderRadius: 6, fontSize: 12, fontWeight: 500 }}
+        >
+          生成 PPT
+        </button>
       </div>
     </>
   );
