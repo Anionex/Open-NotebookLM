@@ -948,10 +948,23 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
           conversation_history: buildConversationHistoryPayload(chatMessages),
         }),
       });
-      const data = await parseJson<{ output: ThinkFlowOutput; assistant_message?: string }>(response);
+      const data = await parseJson<{ output: ThinkFlowOutput; assistant_message?: string; applied_slide_index?: number }>(response);
       const nextOutput = data.output;
+      const appliedSlideIndex = data.applied_slide_index;
       setOutputs((previous) => previous.map((item) => (item.id === nextOutput.id ? nextOutput : item)));
       setPptOutlinePendingMessages([]);
+
+      // Auto-navigate to affected slide
+      if (typeof appliedSlideIndex === 'number' && appliedSlideIndex >= 0) {
+        setActivePptSlideIndex(appliedSlideIndex);
+        // Scroll the outline card into view after a short delay for DOM update
+        setTimeout(() => {
+          const cards = document.querySelectorAll('.thinkflow-ppt-outline-card');
+          if (cards[appliedSlideIndex]) {
+            cards[appliedSlideIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 100);
+      }
     } catch (error: any) {
       setGlobalError(error?.message || '整理 PPT 候选大纲失败');
       setPptOutlinePendingMessages([
