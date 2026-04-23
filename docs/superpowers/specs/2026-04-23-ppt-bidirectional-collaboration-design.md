@@ -153,7 +153,82 @@ type PptPageReviewManagerReturn = {
 };
 ```
 
-### 3.4 拆分原则
+### 3.4 补充类型定义
+
+```typescript
+// 手动编辑记录
+type ManualEditLog = {
+  page_index: number;
+  fields: ('title' | 'layout_description' | 'key_points' | 'asset_ref')[];
+  summary: string;       // "第3页(标题、要点)"
+  timestamp: string;
+};
+
+// 合并冲突条目
+type MergeConflict = {
+  page_index: number;
+  field: string;
+  draft_value: string;
+  manual_value: string;
+};
+
+// 合并冲突报告
+type MergeConflictReport = {
+  conflicts: MergeConflict[];
+  auto_merged_count: number;
+};
+
+// createOutline 选项
+type CreateOutlineOptions = {
+  title?: string;
+  prompt?: string;
+  pageCount?: number;
+  sourcePaths?: string[];
+  guidanceItemIds?: string[];
+  autoGenerate?: boolean;
+};
+
+// saveOutline 选项
+type SaveOutlineOptions = {
+  pipelineStage?: PptPipelineStage;
+  manual_edit_log?: ManualEditLog[];
+};
+
+// system 消息元数据
+type SystemMessageMeta = {
+  type: 'manual_edit' | 'stage_change' | 'merge_result' | 'page_action';
+  content: string;
+  edit_log?: ManualEditLog;
+  conflict_report?: MergeConflictReport;
+  page_filter?: number;
+};
+
+// 逐页审阅对话上下文
+type PageReviewChatContext = {
+  title: string;          // "逐页审阅 · 第 3 页"
+  placeholder: string;    // "描述第3页需要怎么调整..."
+  pageIndex: number;
+  pageTitle: string;
+  thumbnailUrl?: string;
+};
+
+// 阶段回退历史快照
+type StageHistorySnapshot = {
+  id: string;
+  stage: PptPipelineStage;
+  page_reviews: PptPageReview[];
+  result: Record<string, any> | null;
+  reverted_at: string;
+};
+```
+
+**ThinkFlowMessage 扩展：** 现有 `ThinkFlowMessage` 类型新增 `role: 'system'` 支持。`OutlineChatMessage` 不是独立类型，而是 `ThinkFlowMessage` 的同一类型，扩展 role 枚举即可。所有 system 消息（手动编辑记录、阶段切换等）统一走 `ThinkFlowMessage`，存储在 outline chat session 的 messages 数组中。
+
+**ThinkFlowOutput 扩展：** 新增 `stage_history: StageHistorySnapshot[]` 字段，记录阶段回退时的快照。后端 JSON manifest 中同步新增此字段。
+
+**insertSystemMessage 目标：** 所有 system 消息写入当前 active outline chat session 的 messages（不是顶层 ThinkFlow chat），因为它们是大纲编辑上下文的一部分。
+
+### 3.5 拆分原则
 
 - 行为不变：拆分是纯重构，不改变任何现有功能的行为
 - 逐文件提取：每个新文件提取后立即验证（build + 现有 Playwright 测试）
@@ -182,7 +257,24 @@ type PptPageReviewManagerReturn = {
 手动修改了大纲: 第3页(标题、要点)、第5页(标题)
 ```
 
-**后端变更：** `PUT /kb/outputs/{id}/outline` 新增可选参数 `manual_edit_log: ManualEditLog[]`，写入 active chat session 的 messages。
+**后端变更：** `PUT /kb/outputs/{id}/outline` 的 Pydantic 请求模型变更：
+
+```python
+class SaveOutlineRequest(BaseModel):
+    notebook_id: str
+    notebook_title: str = ""
+    user_id: str = "local"
+    email: Optional[str] = None
+    outline: List[Dict[str, Any]]
+    title: Optional[str] = None
+    prompt: Optional[str] = None
+    pipeline_stage: Optional[str] = None
+    enable_images: Optional[bool] = None
+    # 新增
+    manual_edit_log: Optional[List[Dict[str, Any]]] = None
+```
+
+后端收到 `manual_edit_log` 后，将每条记录转为 `{role: "system", content: summary, meta: {type: "manual_edit", edit_log: ...}}` 写入 active chat session 的 messages 数组。
 
 ### 4.2 Draft 推送智能合并
 
@@ -197,11 +289,18 @@ function mergeOutlineWithManualEdits(
 ): { merged: OutlineSection[]; conflicts: MergeConflict[] }
 ```
 
-字段级合并规则：
-1. draft 修改的字段 → 用 draft 版本
-2. 仅 manual 修改的字段 → 保留 manual 版本
-3. 两边都改了同一字段 → draft 优先，记录到 conflicts
-4. 都没改 → 保持原样
+**输入说明：**
+- `confirmed`：推送前的正式大纲（即 draft 生成时的基线）
+- `draft`：AI 生成的候选大纲
+- `manualEdits`：draft 生成后用户在右侧做的手动修改记录（`ManualEditLog[]`，每条包含 `page_index` 和 `fields` 数组）
+
+**合并逻辑：**
+1. 以 `draft` 为基础，逐页逐字段对比
+2. 对于 draft 中每一页，检查 `manualEdits` 中是否有同页同字段的修改
+3. 如果 draft 未修改该字段（与 confirmed 相同）但 manualEdits 修改了 → 用 manual 版本
+4. 如果 draft 修改了该字段且 manualEdits 也修改了 → draft 优先，记录到 conflicts
+5. 如果 draft 修改了但 manualEdits 未修改 → 用 draft 版本
+6. draft 新增的页面直接保留；draft 删除的页面直接移除
 
 **冲突通知：** Toast（3秒自动消失），内容如"第3页标题的手动修改被AI版本覆盖"。
 
@@ -348,6 +447,8 @@ type OutlineChatMessage = {
 7. 右侧编辑自动保存 + 对话 system 消息
 8. Draft 色条指示器
 9. 对话→右侧自动导航
+
+**外部触点：** ThinkFlowCenterPanel.tsx 需要配合修改以支持 system 消息渲染和逐页对话 UI，但不纳入模块拆分范围。在 Phase 2-4 中作为消费方直接修改。
 
 ### Phase 3: P1 功能（协作增强）
 
