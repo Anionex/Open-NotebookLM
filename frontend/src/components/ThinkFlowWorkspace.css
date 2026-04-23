@@ -2181,6 +2181,345 @@
   background: rgba(250, 251, 253, 0.96);
 }
 
+.thinkflow-ppt-diff-panel {
+  margin: 14px 16px 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(217, 225, 236, 0.96);
+  background:
+    linear-gradient(135deg, rgba(246, 249, 255, 0.98), rgba(251, 252, 254, 0.98));
+  box-shadow: 0 18px 42px rgba(22, 32, 51, 0.05);
+  display: grid;
+  gap: 14px;
+}
+
+.thinkflow-ppt-diff-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.thinkflow-ppt-diff-head h4 {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--tf-text);
+}
+
+.thinkflow-ppt-diff-head p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-ppt-diff-counts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.thinkflow-ppt-diff-chip,
+.thinkflow-ppt-diff-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.thinkflow-ppt-diff-chip.is-modified,
+.thinkflow-ppt-diff-kind.is-modified {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.thinkflow-ppt-diff-chip.is-added,
+.thinkflow-ppt-diff-kind.is-added {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.thinkflow-ppt-diff-chip.is-removed,
+.thinkflow-ppt-diff-kind.is-removed {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.thinkflow-ppt-diff-summary {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(221, 227, 236, 0.88);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-ppt-diff-list {
+  display: grid;
+  gap: 10px;
+}
+
+.thinkflow-ppt-diff-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(224, 230, 239, 0.92);
+}
+
+.thinkflow-ppt-diff-item.is-added {
+  border-color: rgba(34, 197, 94, 0.22);
+}
+
+.thinkflow-ppt-diff-item.is-removed {
+  border-color: rgba(239, 68, 68, 0.22);
+}
+
+.thinkflow-ppt-diff-item.is-modified {
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.thinkflow-ppt-diff-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.thinkflow-ppt-diff-item-head strong {
+  font-size: 12px;
+  color: var(--tf-text);
+}
+
+.thinkflow-ppt-diff-item-title {
+  font-size: 12px;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-ppt-diff-item-details {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-ppt-diff-before-after {
+  display: grid;
+  gap: 10px;
+}
+
+.thinkflow-ppt-diff-compare-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.thinkflow-ppt-diff-compare-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tf-muted);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.thinkflow-ppt-diff-compare-block {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(223, 229, 238, 0.92);
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.thinkflow-ppt-diff-compare-block.is-before {
+  background: rgba(247, 248, 250, 0.9);
+}
+
+.thinkflow-ppt-diff-compare-block.is-after {
+  background: rgba(239, 246, 255, 0.7);
+  border-color: rgba(147, 197, 253, 0.5);
+}
+
+.thinkflow-ppt-diff-compare-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tf-muted);
+}
+
+.thinkflow-ppt-diff-compare-block strong,
+.thinkflow-ppt-diff-compare-block p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--tf-text);
+}
+
+.thinkflow-ppt-diff-compare-block ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-outline-chat-top-panel {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(127, 91, 48, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 249, 240, 0.98), rgba(250, 241, 229, 0.92));
+}
+
+.thinkflow-outline-chat-top-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  color: #4d3721;
+}
+
+.thinkflow-inline-outline-card {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(127, 91, 48, 0.16);
+  background: #fffaf3;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.thinkflow-inline-outline-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.thinkflow-inline-outline-card-head h4 {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: #2a2118;
+}
+
+.thinkflow-inline-outline-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinkflow-inline-outline-card-summary,
+.thinkflow-inline-outline-card-intent {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5b4630;
+}
+
+.thinkflow-inline-outline-rule-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.thinkflow-inline-outline-rule-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a6542;
+}
+
+.thinkflow-inline-outline-rule-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.thinkflow-inline-outline-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(127, 91, 48, 0.1);
+  color: #5d4227;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.thinkflow-inline-outline-empty {
+  font-size: 12px;
+  color: #7f6d58;
+}
+
+.thinkflow-inline-outline-diff-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(127, 91, 48, 0.12);
+  color: #4d3721;
+  font-size: 12px;
+}
+
+.thinkflow-inline-outline-diff-line.is-added {
+  background: rgba(48, 120, 94, 0.08);
+}
+
+.thinkflow-inline-outline-diff-line.is-removed {
+  background: rgba(173, 68, 46, 0.08);
+}
+
+.thinkflow-inline-outline-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.thinkflow-inline-outline-diff-item {
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(127, 91, 48, 0.12);
+}
+
+.thinkflow-inline-outline-diff-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  color: #33261a;
+}
+
+.thinkflow-inline-outline-diff-item-head span:first-child {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a6542;
+}
+
+.thinkflow-inline-outline-diff-item ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #5b4630;
+}
+
 .thinkflow-ppt-refine-actions {
   display: flex;
   align-items: center;
@@ -3032,6 +3371,18 @@
   .thinkflow-ppt-stage-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .thinkflow-ppt-diff-head {
+    flex-direction: column;
+  }
+
+  .thinkflow-ppt-diff-compare-row {
+    grid-template-columns: 1fr;
+  }
+
+  .thinkflow-ppt-diff-compare-arrow {
+    display: none;
   }
 
   .thinkflow-ppt-stage-actions {
@@ -4354,6 +4705,32 @@
   font-size: 12px;
   line-height: 1.6;
   color: var(--tf-muted);
+}
+
+/* ═══════════════════════════════════════════
+   Draft Color Bar Indicators
+   ═══════════════════════════════════════════ */
+
+.tf-outline-card--draft-modified {
+  border-left: 3px solid var(--tf-accent, #339af0);
+}
+
+.tf-outline-card--draft-added {
+  border-left: 3px solid var(--tf-success, #40c057);
+}
+
+.tf-outline-card--draft-removed {
+  border-left: 3px solid var(--tf-danger, #fa5252);
+  opacity: 0.5;
+}
+
+.tf-outline-card--draft-added .tf-outline-card__badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  background: rgba(64, 192, 87, 0.12);
+  color: #15803d;
 }
 
 /* ═══════════════════════════════════════════

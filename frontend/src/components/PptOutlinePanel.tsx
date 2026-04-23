@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { OutlineSection, ThinkFlowOutput, PptPipelineStage } from './thinkflow-types';
 import { getPptStageLabel } from './usePptOutlineManager';
+import { diffPptOutline } from './pptOutlineDiff';
 
 type PptOutlinePanelProps = {
   activeOutput: ThinkFlowOutput;
@@ -11,6 +12,7 @@ type PptOutlinePanelProps = {
   archivedOutlineChatSessions: unknown[];
   outlineSaving: boolean;
   generatingOutput: boolean;
+  draftOutline?: OutlineSection[];
   onSetRightMode: (mode: string) => void;
   onSaveOutline: () => Promise<void>;
   onConfirmPptOutline: () => Promise<void>;
@@ -54,6 +56,7 @@ export function PptOutlinePanel({
   archivedOutlineChatSessions,
   outlineSaving,
   generatingOutput,
+  draftOutline,
   onSetRightMode,
   onSaveOutline,
   onConfirmPptOutline,
@@ -64,6 +67,23 @@ export function PptOutlinePanel({
   const slides = activePptOutline;
   const selectedSlide = activePptSlide?.slide || null;
   const selectedSlideIndex = activePptSlide?.index ?? 0;
+
+  const outlineDiff = useMemo(() => {
+    if (!activePptDraftPending || !draftOutline) return null;
+    return diffPptOutline(activePptOutline, draftOutline);
+  }, [activePptDraftPending, draftOutline, activePptOutline]);
+
+  const getDraftClass = (index: number): string => {
+    if (!outlineDiff) return '';
+    const entry = outlineDiff.entries.find(e => e.pageNum === activePptOutline[index]?.pageNum);
+    if (!entry) return '';
+    switch (entry.kind) {
+      case 'modified': return 'tf-outline-card--draft-modified';
+      case 'added': return 'tf-outline-card--draft-added';
+      case 'removed': return 'tf-outline-card--draft-removed';
+      default: return '';
+    }
+  };
   return (
     <>
       <PptStageRail activePptStage={activePptStage} />
@@ -178,13 +198,16 @@ export function PptOutlinePanel({
             <button
               key={item.id || `${activeOutput.id}_${index}`}
               type="button"
-              className={`thinkflow-ppt-outline-card ${selectedSlideIndex === index ? 'is-active' : ''}`}
+              className={`thinkflow-ppt-outline-card ${selectedSlideIndex === index ? 'is-active' : ''} ${getDraftClass(index)}`}
               onClick={() => onSetActivePptSlideIndex(index)}
             >
               <div className="thinkflow-ppt-outline-card-top">
                 <span className="thinkflow-ppt-outline-summary-index">第 {item.pageNum || index + 1} 页</span>
                 <span className="thinkflow-ppt-outline-card-cta">{selectedSlideIndex === index ? '编辑中' : '查看'}</span>
               </div>
+              {getDraftClass(index) === 'tf-outline-card--draft-added' && (
+                <span className="tf-outline-card__badge">新增</span>
+              )}
               <h4>{item.title || `页面 ${index + 1}`}</h4>
               {item.layout_description ? <p>{item.layout_description}</p> : null}
               {(item.key_points || item.bullets || []).length > 0 ? (

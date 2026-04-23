@@ -3494,6 +3494,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         archivedOutlineChatSessions={archivedOutlineChatSessions}
         outlineSaving={outlineSaving}
         generatingOutput={generatingOutput}
+        draftOutline={activeOutput.outline_chat_draft_outline}
         onSetRightMode={setRightMode}
         onSaveOutline={saveOutline}
         onConfirmPptOutline={confirmPptOutline}
