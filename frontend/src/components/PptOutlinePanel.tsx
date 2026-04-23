@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { OutlineSection, ThinkFlowOutput, PptPipelineStage } from './thinkflow-types';
 import { getPptStageLabel } from './usePptOutlineManager';
 import { diffPptOutline } from './pptOutlineDiff';
@@ -13,6 +13,7 @@ type PptOutlinePanelProps = {
   outlineSaving: boolean;
   generatingOutput: boolean;
   draftOutline?: OutlineSection[];
+  globalDirectives?: any[];
   onSetRightMode: (mode: string) => void;
   onSaveOutline: () => Promise<void>;
   onConfirmPptOutline: () => Promise<void>;
@@ -57,6 +58,7 @@ export function PptOutlinePanel({
   outlineSaving,
   generatingOutput,
   draftOutline,
+  globalDirectives,
   onSetRightMode,
   onSaveOutline,
   onConfirmPptOutline,
@@ -64,6 +66,7 @@ export function PptOutlinePanel({
   onSetActivePptSlideIndex,
   onAddPptOutlineSection,
 }: PptOutlinePanelProps) {
+  const [directivesOpen, setDirectivesOpen] = useState(false);
   const slides = activePptOutline;
   const selectedSlide = activePptSlide?.slide || null;
   const selectedSlideIndex = activePptSlide?.index ?? 0;
@@ -192,6 +195,28 @@ export function PptOutlinePanel({
             </div>
           </div>
         ) : null}
+
+        {globalDirectives && globalDirectives.length > 0 && (
+          <div className="tf-global-directives">
+            <div className="tf-global-directives__header" onClick={() => setDirectivesOpen(!directivesOpen)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#495057' }}>全局规则</span>
+                <span className="tf-global-directives__badge">{globalDirectives.length}</span>
+              </div>
+              <span style={{ fontSize: 11, color: '#868e96' }}>{directivesOpen ? '▲ 收起' : '▼ 展开'}</span>
+            </div>
+            {directivesOpen && (
+              <>
+                <div style={{ padding: '0 12px 8px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {globalDirectives.map((d: any) => (
+                    <span key={d.id} className="tf-global-directives__tag">{d.label}</span>
+                  ))}
+                </div>
+                <div className="tf-global-directives__hint">通过左侧对话添加或修改</div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="thinkflow-ppt-outline-strip">
           {slides.map((item, index) => (
