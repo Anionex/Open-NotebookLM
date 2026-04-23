@@ -17,7 +17,7 @@ export type PushDestinationType = 'summary' | 'document' | 'guidance';
 
 export type ThinkFlowMessage = {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   time: string;
   pushed?: boolean;
@@ -26,6 +26,24 @@ export type ThinkFlowMessage = {
   sourceMapping?: Record<string, string>;
   sourcePreviewMapping?: Record<string, string>;
   sourceReferenceMapping?: Record<string, CitationReference>;
+  meta?: Record<string, any>;
+};
+
+export type OutlineDirective = {
+  id: string;
+  scope?: 'global' | 'slide';
+  type?: string;
+  label: string;
+  instruction?: string;
+  action?: 'set' | 'remove';
+  value?: string;
+  page_num?: number | null;
+};
+
+export type OutlineIntentSummary = {
+  mode?: 'global' | 'slide' | 'mixed' | 'none';
+  global_directives?: OutlineDirective[];
+  slide_targets?: { page_num: number; instruction: string }[];
 };
 
 export type DocumentSourceRef = {
@@ -144,6 +162,7 @@ export type ThinkFlowOutput = {
   prompt?: string;
   page_count?: number;
   outline?: OutlineSection[];
+  outline_global_directives?: OutlineDirective[];
   result?: Record<string, any>;
   guidance_item_ids?: string[];
   guidance_snapshot_text?: string;
@@ -153,10 +172,73 @@ export type ThinkFlowOutput = {
   bound_document_titles?: string[];
   result_path?: string;
   enable_images?: boolean;
+  outline_chat_history?: ConversationHistoryMessage[];
+  outline_chat_sessions?: {
+    id: string;
+    status?: 'active' | 'applied' | 'archived';
+    messages?: ConversationHistoryMessage[];
+    draft_outline?: OutlineSection[];
+    draft_global_directives?: OutlineDirective[];
+    intent_summary?: OutlineIntentSummary;
+    summary?: string;
+    has_pending_changes?: boolean;
+    change_summary?: string;
+    created_at?: string;
+    updated_at?: string;
+    applied_at?: string;
+  }[];
+  outline_chat_active_session_id?: string;
+  outline_chat_draft_outline?: OutlineSection[];
+  outline_chat_draft_global_directives?: OutlineDirective[];
+  outline_chat_has_pending_changes?: boolean;
   page_reviews?: PptPageReview[];
   page_versions?: PptPageVersion[];
+  stage_history?: StageHistorySnapshot[];
   created_at: string;
   updated_at: string;
+};
+
+export type ManualEditLog = {
+  page_index: number;
+  fields: ('title' | 'layout_description' | 'key_points' | 'asset_ref')[];
+  summary: string;
+  timestamp: string;
+};
+
+export type MergeConflict = {
+  page_index: number;
+  field: string;
+  draft_value: string;
+  manual_value: string;
+};
+
+export type MergeConflictReport = {
+  conflicts: MergeConflict[];
+  auto_merged_count: number;
+};
+
+export type SystemMessageMeta = {
+  type: 'manual_edit' | 'stage_change' | 'merge_result' | 'page_action';
+  content: string;
+  edit_log?: ManualEditLog;
+  conflict_report?: MergeConflictReport;
+  page_filter?: number;
+};
+
+export type PageReviewChatContext = {
+  title: string;
+  placeholder: string;
+  pageIndex: number;
+  pageTitle: string;
+  thumbnailUrl?: string;
+};
+
+export type StageHistorySnapshot = {
+  id: string;
+  stage: PptPipelineStage;
+  page_reviews: PptPageReview[];
+  result: Record<string, any> | null;
+  reverted_at: string;
 };
 
 export type FlashcardItem = {
