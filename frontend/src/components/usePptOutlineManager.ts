@@ -1,0 +1,1189 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import { apiFetch } from '../config/api';
+import type { KnowledgeFile } from '../types';
+import {
+  diffPptGlobalDirectives,
+  diffPptOutline,
+} from './pptOutlineDiff';
+
+// ─── Types (mirrored from ThinkFlowWorkspace) ────────────────────────────────
+
+type OutputType = 'ppt' | 'report' | 'mindmap' | 'podcast' | 'flashcard' | 'quiz';
+type PptPipelineStage = 'outline_ready' | 'pages_ready' | 'generated';
+type WorkspaceMode = 'normal' | 'output_focus' | 'output_immersive';
+
+type OutlineDirective = {
+  id: string;
+  scope?: 'global' | 'slide';
+  type?: string;
+  label: string;
+  instruction?: string;
+  action?: 'set' | 'remove';
+  value?: string;
+  page_num?: number | null;
+};
+
+type OutlineIntentSummary = {
+  mode?: 'global' | 'slide' | 'mixed' | 'none';
+  global_directives?: OutlineDirective[];
+  slide_targets?: { page_num: number; instruction: string }[];
+};
+
+type OutlineSection = {
+  id: string;
+  pageNum?: number;
+  title: string;
+  summary?: string;
+  bullets?: string[];
+  layout_description?: string;
+  key_points?: string[];
+  asset_ref?: string | null;
+  ppt_img_path?: string;
+  generated_img_path?: string;
+};
+
+type ConversationHistoryMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at?: string;
+};
+
+type OutlineChatSession = {
+  id: string;
+  status?: 'active' | 'applied' | 'archived';
+  messages?: ConversationHistoryMessage[];
+  draft_outline?: OutlineSection[];
+  draft_global_directives?: OutlineDirective[];
+  intent_summary?: OutlineIntentSummary;
+  summary?: string;
+  has_pending_changes?: boolean;
+  change_summary?: string;
+  created_at?: string;
+  updated_at?: string;
+  applied_at?: string;
+};
+
+type ThinkFlowOutput = {
+  id: string;
+  document_id: string;
+  title: string;
+  target_type: OutputType;
+  status: string;
+  pipeline_stage?: string;
+  prompt?: string;
+  page_count?: number;
+  outline?: OutlineSection[];
+  outline_global_directives?: OutlineDirective[];
+  result?: Record<string, any>;
+  guidance_item_ids?: string[];
+  guidance_snapshot_text?: string;
+  source_paths?: string[];
+  source_names?: string[];
+  bound_document_ids?: string[];
+  bound_document_titles?: string[];
+  result_path?: string;
+  enable_images?: boolean;
+  outline_chat_history?: ConversationHistoryMessage[];
+  outline_chat_sessions?: OutlineChatSession[];
+  outline_chat_active_session_id?: string;
+  outline_chat_draft_outline?: OutlineSection[];
+  outline_chat_draft_global_directives?: OutlineDirective[];
+  outline_chat_has_pending_changes?: boolean;
+  page_reviews?: PptPageReview[];
+  page_versions?: PptPageVersion[];
+  created_at: string;
+  updated_at: string;
+};
+
+type PptPageReview = {
+  page_index: number;
+  page_num?: number;
+  confirmed: boolean;
+  confirmed_at?: string;
+  updated_at?: string;
+};
+
+type PptPageVersion = {
+  id: string;
+  page_index: number;
+  page_num?: number;
+  title?: string;
+  source?: string;
+  prompt?: string;
+  preview_path?: string;
+  selected?: boolean;
+  created_at: string;
+};
+
+type OutputContextSnapshot = {
+  outputId: string;
+  targetType: OutputType;
+  documentId: string;
+  documentTitle: string;
+  selectedSourceIds: string[];
+  sourceNames: string[];
+  boundDocumentIds: string[];
+  boundDocumentTitles: string[];
+  guidanceItemIds: string[];
+  guidanceTitles: string[];
+  capturedAt: string;
+};
+
+type OutputContextState = {
+  snapshot: OutputContextSnapshot;
+  isStale: boolean;
+  staleReason: string;
+  ignoredDraftSignature?: string;
+};
+
+type PptSourceLockIntent = {
+  outputDocumentId: string;
+  outputDocumentTitle: string;
+  outputTitle: string;
+  guidanceItemIds: string[];
+  guidanceTitles: string[];
+  boundDocumentIds: string[];
+  boundDocumentTitles: string[];
+  sourcePaths: string[];
+  sourceNames: string[];
+  loading?: boolean;
+  errorMessage?: string;
+};
+
+type DirectOutputIntent = {
+  targetType: Exclude<OutputType, 'ppt'>;
+  outputDocumentId: string;
+  outputDocumentTitle: string;
+  outputTitle: string;
+  guidanceItemIds: string[];
+  guidanceTitles: string[];
+  boundDocumentIds: string[];
+  boundDocumentTitles: string[];
+  sourceIds: string[];
+  sourcePaths: string[];
+  sourceNames: string[];
+  loading?: boolean;
+  errorMessage?: string;
+};
+
+type ThinkFlowMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  time: string;
+  pushed?: boolean;
+  capturedTargets?: any[];
+  fileAnalyses?: any[];
+  sourceMapping?: Record<string, string>;
+  sourcePreviewMapping?: Record<string, string>;
+  sourceReferenceMapping?: Record<string, any>;
+  meta?: Record<string, any>;
+};
+
+type ThinkFlowWorkspaceItem = {
+  id: string;
+  type: 'summary' | 'guidance';
+  title: string;
+  content?: string;
+  source_refs?: any[];
+  capture_count?: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type ThinkFlowDocument = {
+  id: string;
+  title: string;
+  content?: string;
+  created_at: string;
+  updated_at: string;
+  version_count?: number;
+  status_tokens?: Record<string, number>;
+  push_traces?: any[];
+};
+
+// ─── Standalone helper functions ─────────────────────────────────────────────
+
+export function normalizePptStage(output: ThinkFlowOutput | null): PptPipelineStage {
+  if (!output) return 'outline_ready';
+  if (output.pipeline_stage === 'generated' || output.status === 'generated') return 'generated';
+  if (output.pipeline_stage === 'pages_ready') return 'pages_ready';
+  return 'outline_ready';
+}
+
+export function getPptStageLabel(stage: PptPipelineStage) {
+  switch (stage) {
+    case 'outline_ready':
+      return '大纲确认';
+    case 'pages_ready':
+      return '逐页生成确认';
+    case 'generated':
+      return '生成结果';
+    default:
+      return 'PPT';
+  }
+}
+
+export function getPptPreviewImages(output: ThinkFlowOutput | null): string[] {
+  if (!output) return [];
+  const outlineImages = (output.outline || [])
+    .map((item) => item.generated_img_path || item.ppt_img_path || '')
+    .filter(Boolean);
+  if (outlineImages.length > 0) return outlineImages;
+  const resultPagecontent = Array.isArray(output.result?.pagecontent) ? output.result?.pagecontent : [];
+  return resultPagecontent
+    .map((item: any) => item?.generated_img_path || item?.ppt_img_path || '')
+    .filter(Boolean);
+}
+
+export function buildOutlineSummaryFallback(outline: OutlineSection[]) {
+  if (!outline.length) {
+    return '我先总结一下当前大纲思路：这份 PPT 还没有形成明确页面。你可以先说想强调的结构、重点或表达方式，我会先整理成候选改动。';
+  }
+  const titles = outline.map((item, index) => item.title || `第 ${index + 1} 页`);
+  const parts = [`我先总结一下当前大纲思路：这版 PPT 目前共 ${titles.length} 页。`];
+  if (titles.length === 1) {
+    parts.push(`当前主要围绕「${titles[0]}」展开。`);
+  } else {
+    parts.push(`开场从「${titles[0]}」切入。`);
+    if (titles.length > 2) {
+      parts.push(`中段重点覆盖「${titles.slice(1, -1).slice(0, 3).join('」「')}」。`);
+    }
+    parts.push(`最后收束到「${titles[titles.length - 1]}」。`);
+  }
+  parts.push('你可以继续说想怎么改结构、页序、重点或表达方式，我会先整理成候选大纲，是否推送由你决定。');
+  return parts.join('');
+}
+
+export function getOutlineChatSessions(output: ThinkFlowOutput | null): OutlineChatSession[] {
+  if (!output) return [];
+  const sessions = Array.isArray(output.outline_chat_sessions) ? output.outline_chat_sessions : [];
+  if (sessions.length > 0) return sessions;
+  const fallbackOutline = Array.isArray(output.outline) ? output.outline : [];
+  const fallbackHistory = Array.isArray(output.outline_chat_history) ? output.outline_chat_history : [];
+  return [
+    {
+      id: 'outline_chat_fallback',
+      status: 'active',
+      messages:
+        fallbackHistory.length > 0
+          ? fallbackHistory
+          : [
+              {
+                id: 'ppt_outline_summary',
+                role: 'assistant',
+                content: buildOutlineSummaryFallback(fallbackOutline),
+                created_at: new Date().toISOString(),
+              },
+            ],
+      draft_outline: fallbackOutline,
+      has_pending_changes: false,
+    },
+  ];
+}
+
+export function getActiveOutlineChatSession(output: ThinkFlowOutput | null): OutlineChatSession | null {
+  const sessions = getOutlineChatSessions(output);
+  if (!sessions.length) return null;
+  const activeSessionId = String(output?.outline_chat_active_session_id || '').trim();
+  const byId = sessions.find((session) => session.id === activeSessionId);
+  if (byId) return byId;
+  return sessions.find((session) => session.status === 'active') || sessions[sessions.length - 1] || null;
+}
+
+export function getArchivedOutlineChatSessions(output: ThinkFlowOutput | null): OutlineChatSession[] {
+  const active = getActiveOutlineChatSession(output);
+  return getOutlineChatSessions(output).filter((session) => session.id !== active?.id);
+}
+
+export function getVisiblePptOutline(output: ThinkFlowOutput | null): OutlineSection[] {
+  const activeSession = getActiveOutlineChatSession(output);
+  if (Array.isArray(activeSession?.draft_outline) && activeSession!.draft_outline!.length > 0) {
+    return activeSession!.draft_outline!;
+  }
+  if (Array.isArray(output?.outline)) return output!.outline!;
+  return [];
+}
+
+export function getAppliedOutlineGlobalDirectives(output: ThinkFlowOutput | null): OutlineDirective[] {
+  if (Array.isArray(output?.outline_global_directives)) return output!.outline_global_directives!;
+  return [];
+}
+
+export function getDraftOutlineGlobalDirectives(output: ThinkFlowOutput | null): OutlineDirective[] {
+  const activeSession = getActiveOutlineChatSession(output);
+  if (Array.isArray(activeSession?.draft_global_directives)) return activeSession!.draft_global_directives!;
+  if (Array.isArray(output?.outline_chat_draft_global_directives)) return output!.outline_chat_draft_global_directives!;
+  return getAppliedOutlineGlobalDirectives(output);
+}
+
+export function hasPendingOutlineDraft(output: ThinkFlowOutput | null): boolean {
+  if (!output) return false;
+  if (typeof output.outline_chat_has_pending_changes === 'boolean') {
+    return output.outline_chat_has_pending_changes;
+  }
+  const activeSession = getActiveOutlineChatSession(output);
+  return Boolean(activeSession?.has_pending_changes);
+}
+
+function formatChatTime(value?: string) {
+  if (!value) return new Date().toLocaleTimeString();
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return new Date().toLocaleTimeString();
+  return parsed.toLocaleTimeString();
+}
+
+export function buildOutlineChatMessages(output: ThinkFlowOutput | null): ThinkFlowMessage[] {
+  const activeSession = getActiveOutlineChatSession(output);
+  const history = Array.isArray(activeSession?.messages)
+    ? activeSession?.messages
+    : Array.isArray(output?.outline_chat_history)
+      ? output?.outline_chat_history
+      : [];
+  if (history.length === 0) {
+    return [
+      {
+        id: 'ppt_outline_welcome',
+        role: 'assistant',
+        content: buildOutlineSummaryFallback(getVisiblePptOutline(output)),
+        time: new Date().toLocaleTimeString(),
+      },
+    ];
+  }
+  const appliedOutline = Array.isArray(output?.outline) ? output!.outline! : [];
+  const draftOutline = getVisiblePptOutline(output);
+  const appliedDirectives = getAppliedOutlineGlobalDirectives(output);
+  const draftDirectives = getDraftOutlineGlobalDirectives(output);
+  const outlineDiff = diffPptOutline(appliedOutline, draftOutline);
+  const directiveDiff = diffPptGlobalDirectives(appliedDirectives, draftDirectives);
+  const hasPendingChanges = hasPendingOutlineDraft(output);
+  const lastAssistantIndex = history.reduce((latest, item, index) => (item.role === 'assistant' ? index : latest), -1);
+
+  return history.map((item, index) => ({
+    id: item.id || `outline_chat_${index}`,
+    role: item.role === 'user' ? 'user' : 'assistant',
+    content: item.content || '',
+    time: formatChatTime(item.created_at),
+    meta:
+      hasPendingChanges && index === lastAssistantIndex && item.role === 'assistant'
+        ? {
+            type: 'ppt_outline_draft',
+            outlineDiff,
+            directiveDiff,
+            appliedDirectives,
+            draftDirectives,
+            intentSummary: activeSession?.intent_summary || { mode: 'none', global_directives: [], slide_targets: [] },
+            changeSummary: String(activeSession?.change_summary || '').trim(),
+          }
+        : undefined,
+  }));
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+const outputButtons: Array<{ type: OutputType; label: string }> = [
+  { type: 'ppt', label: 'PPT' },
+  { type: 'report', label: '报告' },
+  { type: 'mindmap', label: '导图' },
+  { type: 'podcast', label: '播客' },
+  { type: 'flashcard', label: '卡片' },
+  { type: 'quiz', label: '测验' },
+];
+
+function outputLabel(type: OutputType) {
+  return outputButtons.find((item) => item.type === type)?.label || type;
+}
+
+function resolveFileUrl(file: any): string {
+  return file?.static_url || file?.url || file?.storage_path || '';
+}
+
+async function parseJson<T>(response: Response): Promise<T> {
+  const raw = await response.text();
+  let data: any = null;
+
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      if (!response.ok) {
+        throw new Error(raw.trim() || `Request failed: ${response.status}`);
+      }
+      throw new Error(`Invalid JSON response: ${raw.slice(0, 160)}`);
+    }
+  }
+
+  if (!response.ok || data?.success === false) {
+    const detail = typeof data?.detail === 'string' ? data.detail.trim() : '';
+    const message = typeof data?.message === 'string' ? data.message.trim() : '';
+    const nestedErrorMessage =
+      typeof data?.error?.message === 'string'
+        ? data.error.message.trim()
+        : '';
+    const fallback =
+      raw.trim() ||
+      response.statusText ||
+      `Request failed: ${response.status}`;
+    throw new Error(detail || message || nestedErrorMessage || fallback);
+  }
+  return data as T;
+}
+
+type Notebook = {
+  id: string;
+  title?: string;
+  name?: string;
+};
+
+type EffectiveUser = {
+  id: string;
+  email: string;
+};
+
+export type UsePptOutlineManagerDeps = {
+  notebook: Notebook;
+  notebookTitle: string;
+  effectiveUser: EffectiveUser;
+  pushToast: (message: string, kind?: 'error' | 'success' | 'info', duration?: number) => void;
+  setGlobalError: (msg: string) => void;
+  chatMessages: ThinkFlowMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ThinkFlowMessage[]>>;
+  setChatInput: React.Dispatch<React.SetStateAction<string>>;
+  setChatLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  buildConversationHistoryPayload: (messages: ThinkFlowMessage[]) => ConversationHistoryMessage[];
+  selectedGuidanceIds: string[];
+  guidanceItems: ThinkFlowWorkspaceItem[];
+  documents: ThinkFlowDocument[];
+  files: KnowledgeFile[];
+  selectedSourceIds: string[];
+  boundDocIds: string[];
+  activeDocumentId: string;
+  documentTitle: string;
+  documentContent: string;
+  activeDocument: ThinkFlowDocument | null;
+  notebookQuery: string;
+  selectedSourceNames: string[];
+  setLeftTab: React.Dispatch<React.SetStateAction<'materials' | 'outputs'>>;
+  setRightMode: React.Dispatch<React.SetStateAction<'summary' | 'doc' | 'guidance' | 'outline'>>;
+  enterOutputWorkspace: (mode?: WorkspaceMode) => void;
+  buildOutputContextSnapshot: (params: {
+    outputId: string;
+    targetType: OutputType;
+    documentId?: string;
+    guidanceItemIds?: string[];
+    selectedSourceIds?: string[];
+    boundDocumentIds?: string[];
+  }) => OutputContextSnapshot;
+  ensureDocumentContent: (documentId: string) => Promise<ThinkFlowDocument | null>;
+  setIsOutputHeaderCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  loadDocumentDetail: (documentId: string) => Promise<ThinkFlowDocument>;
+};
+
+export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
+  const {
+    notebook,
+    notebookTitle,
+    effectiveUser,
+    pushToast,
+    setGlobalError,
+    chatMessages,
+    setChatMessages,
+    setChatInput,
+    setChatLoading,
+    buildConversationHistoryPayload,
+    selectedGuidanceIds,
+    guidanceItems,
+    documents,
+    files,
+    selectedSourceIds,
+    boundDocIds,
+    activeDocumentId,
+    documentTitle,
+    documentContent,
+    activeDocument,
+    notebookQuery,
+    selectedSourceNames,
+    setLeftTab,
+    setRightMode,
+    enterOutputWorkspace,
+    buildOutputContextSnapshot,
+    ensureDocumentContent,
+    setIsOutputHeaderCollapsed,
+    loadDocumentDetail,
+  } = deps;
+
+  // ─── State ──────────────────────────────────────────────────────────────────
+  const [outputs, setOutputs] = useState<ThinkFlowOutput[]>([]);
+  const [activeOutputId, setActiveOutputId] = useState('');
+  const [outlineSaving, setOutlineSaving] = useState(false);
+  const [generatingOutline, setGeneratingOutline] = useState<OutputType | null>(null);
+  const [generatingOutput, setGeneratingOutput] = useState(false);
+  const [activePptSlideIndex, setActivePptSlideIndex] = useState<number>(0);
+  const [pptOutlineReadonlyOpen, setPptOutlineReadonlyOpen] = useState(false);
+  const [pptOutlinePendingMessages, setPptOutlinePendingMessages] = useState<ThinkFlowMessage[]>([]);
+  const [outputContexts, setOutputContexts] = useState<Record<string, OutputContextState>>({});
+  const [pptSourceLockIntent, setPptSourceLockIntent] = useState<PptSourceLockIntent | null>(null);
+  const [directOutputIntent, setDirectOutputIntent] = useState<DirectOutputIntent | null>(null);
+
+  // ─── Computed values ─────────────────────────────────────────────────────────
+  const activeOutput = useMemo(
+    () => outputs.find((item) => item.id === activeOutputId) || null,
+    [activeOutputId, outputs],
+  );
+  const activePptStage = useMemo(() => normalizePptStage(activeOutput), [activeOutput]);
+  const activePptOutline = useMemo(() => getVisiblePptOutline(activeOutput), [activeOutput]);
+  const activePptDraftPending = useMemo(() => hasPendingOutlineDraft(activeOutput), [activeOutput]);
+  const activeOutlineChatSession = useMemo(() => getActiveOutlineChatSession(activeOutput), [activeOutput]);
+  const archivedOutlineChatSessions = useMemo(() => getArchivedOutlineChatSessions(activeOutput), [activeOutput]);
+  const activePptGlobalDirectives = useMemo(() => getAppliedOutlineGlobalDirectives(activeOutput), [activeOutput]);
+  const activePptPreviewImages = useMemo(() => getPptPreviewImages(activeOutput), [activeOutput]);
+  const activePptSlide = useMemo(() => {
+    if (!activeOutput || activeOutput.target_type !== 'ppt') return null;
+    const slides = activePptOutline;
+    if (slides.length === 0) return null;
+    const safeIndex = Math.min(Math.max(activePptSlideIndex, 0), slides.length - 1);
+    return { slide: slides[safeIndex], index: safeIndex };
+  }, [activeOutput, activePptOutline, activePptSlideIndex]);
+  const isPptOutlineChatStage = useMemo(
+    () => Boolean(activeOutput?.target_type === 'ppt' && activePptStage === 'outline_ready'),
+    [activeOutput?.target_type, activePptStage],
+  );
+  const pptOutlineChatMessages = useMemo(
+    () => buildOutlineChatMessages(isPptOutlineChatStage ? activeOutput : null),
+    [activeOutput, isPptOutlineChatStage],
+  );
+  const activeOutputContext = useMemo(
+    () => {
+      if (!activeOutputId) return null;
+      const output = outputs.find((item) => item.id === activeOutputId) || null;
+      if (!output || output.target_type === 'ppt') return null;
+      return outputContexts[activeOutputId] || null;
+    },
+    [activeOutputId, outputContexts, outputs],
+  );
+
+  // ─── Functions ───────────────────────────────────────────────────────────────
+
+  const refreshOutputs = useCallback(async (preferredId?: string) => {
+    try {
+      const response = await apiFetch(`/api/v1/kb/outputs?${notebookQuery}`);
+      const data = await parseJson<{ outputs: ThinkFlowOutput[] }>(response);
+      const items = data.outputs || [];
+      setOutputs(items);
+      const targetId = preferredId || activeOutputId;
+      if (targetId && items.some((item) => item.id === targetId)) {
+        setActiveOutputId(targetId);
+      } else if (items[0]) {
+        setActiveOutputId(items[0].id);
+      } else {
+        setActiveOutputId('');
+      }
+    } catch (error: any) {
+      setGlobalError(error?.message || '加载产出失败');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebookQuery, activeOutputId, setGlobalError]);
+
+  const handleOutputWorkspaceScroll = useCallback((scrollTop: number) => {
+    setIsOutputHeaderCollapsed((previous) => {
+      if (!previous && scrollTop > 24) return true;
+      if (previous && scrollTop <= 4) return false;
+      return previous;
+    });
+  }, [setIsOutputHeaderCollapsed]);
+
+  const resolveOutputCreationInputs = useCallback(async (
+    targetType: OutputType,
+    options?: {
+      titleOverride?: string;
+      documentIdOverride?: string;
+      guidanceItemIdsOverride?: string[];
+      boundDocumentIdsOverride?: string[];
+      sourceIdsOverride?: string[];
+      sourcePathsOverride?: string[];
+      sourceNamesOverride?: string[];
+    },
+  ) => {
+    const overrideGuidanceIds = options?.guidanceItemIdsOverride;
+    const overrideBoundDocIds = options?.boundDocumentIdsOverride;
+    const overrideSourceIds = options?.sourceIdsOverride;
+    const overrideSourcePaths = options?.sourcePathsOverride;
+    const overrideSourceNames = options?.sourceNamesOverride;
+    const resolvedGuidanceIds = overrideGuidanceIds ? [...overrideGuidanceIds] : [...selectedGuidanceIds];
+    const resolvedBoundDocIds = overrideBoundDocIds ? [...overrideBoundDocIds] : [...boundDocIds];
+    const resolvedSourceIds =
+      overrideSourceIds && overrideSourceIds.length > 0
+        ? [...overrideSourceIds]
+        : selectedSourceIds.length > 0
+          ? [...selectedSourceIds]
+          : files.map((file) => file.id);
+    const resolvedSourceEntries =
+      resolvedSourceIds.length > 0
+        ? files.filter((file) => resolvedSourceIds.includes(file.id))
+        : files;
+    const resolvedSourcePaths =
+      overrideSourcePaths && overrideSourcePaths.length > 0
+        ? [...overrideSourcePaths]
+        : resolvedSourceEntries.map((file) => resolveFileUrl(file)).filter(Boolean);
+    const resolvedSourceNames =
+      overrideSourceNames && overrideSourceNames.length > 0
+        ? [...overrideSourceNames]
+        : resolvedSourceEntries.map((file) => file.name || '未命名来源');
+
+    let outputDocumentId =
+      options?.documentIdOverride ??
+      activeDocumentId ??
+      (targetType === 'ppt' ? activeOutput?.document_id || '' : '');
+    let outputDocumentTitle = documentTitle || activeDocument?.title || '文档';
+    let outputDocumentContent = documentContent;
+    if (outputDocumentId && outputDocumentId !== activeDocumentId) {
+      const ensuredDocument = await ensureDocumentContent(outputDocumentId);
+      if (ensuredDocument) {
+        outputDocumentTitle = ensuredDocument.title || outputDocumentTitle;
+        outputDocumentContent = ensuredDocument.content || outputDocumentContent;
+      }
+    }
+    if (targetType === 'ppt' && (!outputDocumentTitle || outputDocumentTitle === '文档')) {
+      outputDocumentTitle = resolvedSourceNames[0] || notebookTitle || 'PPT';
+    }
+    if (targetType !== 'ppt' && !String(outputDocumentContent || '').trim()) {
+      outputDocumentId = '';
+      outputDocumentTitle = resolvedSourceNames[0] || notebookTitle || outputLabel(targetType);
+      outputDocumentContent = '';
+    }
+    if (
+      resolvedSourcePaths.length === 0 &&
+      !String(outputDocumentContent || '').trim() &&
+      resolvedBoundDocIds.length === 0 &&
+      resolvedGuidanceIds.length === 0
+    ) {
+      throw new Error('请先选择至少一个来源，或选择一份梳理文档 / 参考文档 / 产出指导。');
+    }
+
+    const resolvedGuidanceTitles = guidanceItems
+      .filter((item) => resolvedGuidanceIds.includes(item.id))
+      .map((item) => item.title || '未命名产出指导');
+    const resolvedBoundDocTitles = documents
+      .filter((item) => resolvedBoundDocIds.includes(item.id))
+      .map((item) => item.title || '未命名参考文档');
+    const outputTitle =
+      options?.titleOverride ||
+      `${outputDocumentTitle || '文档'} · ${outputButtons.find((item) => item.type === targetType)?.label || targetType}`;
+
+    return {
+      outputDocumentId,
+      outputDocumentTitle,
+      outputDocumentContent,
+      resolvedGuidanceIds,
+      resolvedGuidanceTitles,
+      resolvedBoundDocIds,
+      resolvedBoundDocTitles,
+      resolvedSourceIds,
+      resolvedSourcePaths,
+      resolvedSourceNames,
+      outputTitle,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedGuidanceIds, boundDocIds, selectedSourceIds, files,
+    activeDocumentId, activeOutput, documentTitle, activeDocument,
+    documentContent, notebookTitle, guidanceItems, documents,
+    ensureDocumentContent,
+  ]);
+
+  const openPptSourceLockIntent = useCallback(async () => {
+    setGlobalError('');
+    setPptSourceLockIntent({
+      outputDocumentId: '',
+      outputDocumentTitle: documentTitle || activeDocument?.title || '梳理文档',
+      outputTitle: `${documentTitle || activeDocument?.title || notebookTitle || '文档'} · PPT`,
+      guidanceItemIds: [],
+      guidanceTitles: [],
+      boundDocumentIds: [],
+      boundDocumentTitles: [],
+      sourcePaths: [],
+      sourceNames: [],
+      loading: true,
+      errorMessage: '',
+    });
+    try {
+      const resolved = await resolveOutputCreationInputs('ppt');
+      setPptSourceLockIntent((current) =>
+        current
+          ? {
+              ...current,
+              outputDocumentId: resolved.outputDocumentId,
+              outputDocumentTitle: resolved.outputDocumentTitle,
+              outputTitle: resolved.outputTitle,
+              guidanceItemIds: resolved.resolvedGuidanceIds,
+              guidanceTitles: resolved.resolvedGuidanceTitles,
+              boundDocumentIds: resolved.resolvedBoundDocIds,
+              boundDocumentTitles: resolved.resolvedBoundDocTitles,
+              sourcePaths: resolved.resolvedSourcePaths,
+              sourceNames: resolved.resolvedSourceNames,
+              loading: false,
+              errorMessage: '',
+            }
+          : current,
+      );
+    } catch (error: any) {
+      const message = error?.message || '无法确认本次 PPT 来源';
+      setGlobalError(message);
+      setPptSourceLockIntent((current) =>
+        current
+          ? {
+              ...current,
+              loading: false,
+              errorMessage: message,
+            }
+          : current,
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentTitle, activeDocument, notebookTitle, resolveOutputCreationInputs, setGlobalError]);
+
+  const confirmPptSourceLockIntent = useCallback(async () => {
+    if (!pptSourceLockIntent || pptSourceLockIntent.loading || pptSourceLockIntent.errorMessage) return;
+    const intent = pptSourceLockIntent;
+    setPptSourceLockIntent(null);
+    await createOutline('ppt', {
+      titleOverride: intent.outputTitle,
+      documentIdOverride: intent.outputDocumentId,
+      guidanceItemIdsOverride: intent.guidanceItemIds,
+      boundDocumentIdsOverride: intent.boundDocumentIds,
+      sourcePathsOverride: intent.sourcePaths,
+      sourceNamesOverride: intent.sourceNames,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pptSourceLockIntent]);
+
+  const openDirectOutputIntent = useCallback(async (targetType: Exclude<OutputType, 'ppt'>) => {
+    setGlobalError('');
+    setDirectOutputIntent({
+      targetType,
+      outputDocumentId: '',
+      outputDocumentTitle: documentTitle || activeDocument?.title || selectedSourceNames[0] || '基于当前来源直接生成',
+      outputTitle: `${documentTitle || activeDocument?.title || selectedSourceNames[0] || notebookTitle || '来源'} · ${outputLabel(targetType)}`,
+      guidanceItemIds: [],
+      guidanceTitles: [],
+      boundDocumentIds: [],
+      boundDocumentTitles: [],
+      sourceIds: [],
+      sourcePaths: [],
+      sourceNames: [],
+      loading: true,
+      errorMessage: '',
+    });
+    try {
+      const resolved = await resolveOutputCreationInputs(targetType);
+      setDirectOutputIntent((current) =>
+        current && current.targetType === targetType
+          ? {
+              ...current,
+              outputDocumentId: resolved.outputDocumentId,
+              outputDocumentTitle: resolved.outputDocumentTitle,
+              outputTitle: resolved.outputTitle,
+              guidanceItemIds: resolved.resolvedGuidanceIds,
+              guidanceTitles: resolved.resolvedGuidanceTitles,
+              boundDocumentIds: resolved.resolvedBoundDocIds,
+              boundDocumentTitles: resolved.resolvedBoundDocTitles,
+              sourceIds: resolved.resolvedSourceIds,
+              sourcePaths: resolved.resolvedSourcePaths,
+              sourceNames: resolved.resolvedSourceNames,
+              loading: false,
+              errorMessage: '',
+            }
+          : current,
+      );
+    } catch (error: any) {
+      const message = error?.message || '无法确认本次产出来源';
+      setGlobalError(message);
+      setDirectOutputIntent((current) =>
+        current && current.targetType === targetType
+          ? {
+              ...current,
+              loading: false,
+              errorMessage: message,
+            }
+          : current,
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentTitle, activeDocument, selectedSourceNames, notebookTitle, resolveOutputCreationInputs, setGlobalError]);
+
+  const confirmDirectOutputIntent = useCallback(async () => {
+    if (!directOutputIntent || directOutputIntent.loading || directOutputIntent.errorMessage) return;
+    const intent = directOutputIntent;
+    setDirectOutputIntent(null);
+    await createOutline(intent.targetType, {
+      autoGenerate: true,
+      titleOverride: intent.outputTitle,
+      documentIdOverride: intent.outputDocumentId,
+      guidanceItemIdsOverride: intent.guidanceItemIds,
+      boundDocumentIdsOverride: intent.boundDocumentIds,
+      sourceIdsOverride: intent.sourceIds,
+      sourcePathsOverride: intent.sourcePaths,
+      sourceNamesOverride: intent.sourceNames,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [directOutputIntent]);
+
+  const openExistingOutput = useCallback(async (output: ThinkFlowOutput) => {
+    setPptSourceLockIntent(null);
+    setDirectOutputIntent(null);
+    setPptOutlinePendingMessages([]);
+    setActivePptSlideIndex(0);
+    setActiveOutputId(output.id);
+    setLeftTab('outputs');
+    setOutputContexts((previous) => {
+      if (previous[output.id]) return previous;
+      if (!output?.id || output.target_type === 'ppt') return previous;
+      const sourceIdsFromOutput = files
+        .filter((file) => {
+          const fileUrl = resolveFileUrl(file);
+          return (
+            (output.source_paths || []).includes(fileUrl) ||
+            (output.source_names || []).includes(file.name || '')
+          );
+        })
+        .map((file) => file.id);
+      return {
+        ...previous,
+        [output.id]: {
+          snapshot: buildOutputContextSnapshot({
+            outputId: output.id,
+            targetType: output.target_type,
+            documentId: output.document_id,
+            guidanceItemIds: output.guidance_item_ids || [],
+            selectedSourceIds: sourceIdsFromOutput,
+            boundDocumentIds: output.bound_document_ids || [],
+          }),
+          isStale: false,
+          staleReason: '',
+        },
+      };
+    });
+    enterOutputWorkspace(output.target_type === 'ppt' ? 'output_focus' : 'output_immersive');
+    if (output.document_id) {
+      try {
+        await loadDocumentDetail(output.document_id);
+      } catch {}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setLeftTab, enterOutputWorkspace, files, buildOutputContextSnapshot, loadDocumentDetail]);
+
+  const handlePptOutlineChatMessage = useCallback(async (query: string) => {
+    if (!activeOutputId || !activeOutput || activeOutput.target_type !== 'ppt') return;
+    const focusIndex = activePptSlide?.index ?? activePptSlideIndex ?? 0;
+    const requestStartedAt = new Date().toLocaleTimeString();
+    const pendingUserMessage: ThinkFlowMessage = {
+      id: `ppt_outline_user_${Date.now()}`,
+      role: 'user',
+      content: query,
+      time: requestStartedAt,
+    };
+    const pendingAssistantMessage: ThinkFlowMessage = {
+      id: `ppt_outline_assistant_${Date.now()}`,
+      role: 'assistant',
+      content: '正在基于来源整理候选大纲...',
+      time: requestStartedAt,
+    };
+    setChatLoading(true);
+    setGlobalError('');
+    setChatInput('');
+    setPptOutlinePendingMessages([pendingUserMessage, pendingAssistantMessage]);
+    try {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/outline-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          notebook_title: notebookTitle,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+          message: query,
+          active_slide_index: focusIndex,
+          conversation_history: buildConversationHistoryPayload(chatMessages),
+        }),
+      });
+      const data = await parseJson<{ output: ThinkFlowOutput; assistant_message?: string }>(response);
+      const nextOutput = data.output;
+      setOutputs((previous) => previous.map((item) => (item.id === nextOutput.id ? nextOutput : item)));
+      setPptOutlinePendingMessages([]);
+    } catch (error: any) {
+      setGlobalError(error?.message || '整理 PPT 候选大纲失败');
+      setPptOutlinePendingMessages([
+        pendingUserMessage,
+        {
+          ...pendingAssistantMessage,
+          content: `请求失败：${error?.message || '未知错误'}`,
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeOutputId, activeOutput, activePptSlide, activePptSlideIndex,
+    setChatLoading, setGlobalError, setChatInput,
+    notebook.id, notebookTitle, effectiveUser,
+    buildConversationHistoryPayload, chatMessages,
+  ]);
+
+  const applyPptOutlineDraft = useCallback(async () => {
+    if (!activeOutputId || !activeOutput || activeOutput.target_type !== 'ppt') return;
+    setOutlineSaving(true);
+    setGlobalError('');
+    try {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/outline-chat/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          notebook_title: notebookTitle,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+        }),
+      });
+      const data = await parseJson<{ output: ThinkFlowOutput; assistant_message?: string }>(response);
+      setOutputs((previous) => previous.map((item) => (item.id === data.output.id ? data.output : item)));
+      setPptOutlinePendingMessages([]);
+      if (data.assistant_message) {
+        setGlobalError('');
+      }
+    } catch (error: any) {
+      setGlobalError(error?.message || '推送大纲改动失败');
+    } finally {
+      setOutlineSaving(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOutputId, activeOutput, notebook.id, notebookTitle, effectiveUser, setGlobalError]);
+
+  const generateOutputById = useCallback(async (outputId: string) => {
+    if (!outputId) return;
+    setGeneratingOutput(true);
+    try {
+      const response = await apiFetch(`/api/v1/kb/outputs/${outputId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          notebook_title: notebookTitle,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+        }),
+      });
+      await parseJson<{ output: ThinkFlowOutput }>(response);
+      await refreshOutputs(outputId);
+      setOutputContexts((previous) => {
+        const current = previous[outputId];
+        if (!current) return previous;
+        return {
+          ...previous,
+          [outputId]: {
+            ...current,
+            isStale: false,
+            staleReason: '',
+          },
+        };
+      });
+    } catch (error: any) {
+      setGlobalError(error?.message || '生成产出失败');
+    } finally {
+      setGeneratingOutput(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebook.id, notebookTitle, effectiveUser, refreshOutputs, setGlobalError]);
+
+  const createOutline = useCallback(async (
+    targetType: OutputType,
+    options?: {
+      autoGenerate?: boolean;
+      titleOverride?: string;
+      documentIdOverride?: string;
+      guidanceItemIdsOverride?: string[];
+      boundDocumentIdsOverride?: string[];
+      sourceIdsOverride?: string[];
+      sourcePathsOverride?: string[];
+      sourceNamesOverride?: string[];
+    },
+  ) => {
+    setGlobalError('');
+    setGeneratingOutline(targetType);
+    setActiveOutputId('');
+    setPptOutlinePendingMessages([]);
+    setActivePptSlideIndex(0);
+    setLeftTab('outputs');
+    setRightMode('outline');
+    enterOutputWorkspace(targetType === 'ppt' ? 'output_focus' : 'output_immersive');
+    try {
+      const {
+        outputDocumentId,
+        resolvedGuidanceIds,
+        resolvedBoundDocIds,
+        resolvedSourceIds,
+        resolvedSourcePaths,
+        outputTitle,
+        resolvedSourceNames,
+      } = await resolveOutputCreationInputs(targetType, options);
+      const outlinePayload = {
+        notebook_id: notebook.id,
+        notebook_title: notebookTitle,
+        user_id: effectiveUser?.id || 'local',
+        email: effectiveUser?.email || '',
+        document_id: outputDocumentId,
+        target_type: targetType,
+        title: outputTitle,
+        prompt: '',
+        page_count: targetType === 'ppt' ? 10 : 6,
+        guidance_item_ids: resolvedGuidanceIds,
+        source_paths: resolvedSourcePaths,
+        source_names: resolvedSourceNames,
+        bound_document_ids: resolvedBoundDocIds,
+        enable_images: targetType === 'ppt' ? true : undefined,
+      };
+      console.info('[ThinkFlow] createOutline payload', outlinePayload);
+      const response = await apiFetch('/api/v1/kb/outputs/outline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outlinePayload),
+      });
+      const data = await parseJson<{ output: ThinkFlowOutput }>(response);
+      const nextOutput = data.output;
+      setActivePptSlideIndex(0);
+      setRightMode('outline');
+      setLeftTab('outputs');
+      setOutputs((previous) => {
+        const existingIndex = previous.findIndex((item) => item.id === nextOutput.id);
+        if (existingIndex >= 0) {
+          const nextItems = [...previous];
+          nextItems[existingIndex] = nextOutput;
+          return nextItems;
+        }
+        return [nextOutput, ...previous];
+      });
+      setActiveOutputId(nextOutput.id);
+      if (targetType !== 'ppt') {
+        setOutputContexts((previous) => ({
+          ...previous,
+          [nextOutput.id]: {
+            snapshot: buildOutputContextSnapshot({
+              outputId: nextOutput.id,
+              targetType,
+              documentId: outputDocumentId,
+              guidanceItemIds: resolvedGuidanceIds,
+              selectedSourceIds: resolvedSourceIds,
+              boundDocumentIds: resolvedBoundDocIds,
+            }),
+            isStale: false,
+            staleReason: '',
+          },
+        }));
+      }
+      void refreshOutputs(nextOutput.id);
+      if (options?.autoGenerate) {
+        await generateOutputById(nextOutput.id);
+      }
+    } catch (error: any) {
+      setGlobalError(error?.message || '生成大纲失败');
+    } finally {
+      setGeneratingOutline(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    setGlobalError, setLeftTab, setRightMode, enterOutputWorkspace,
+    resolveOutputCreationInputs, notebook.id, notebookTitle, effectiveUser,
+    buildOutputContextSnapshot, refreshOutputs, generateOutputById,
+  ]);
+
+  const saveOutline = useCallback(async (options?: { pipelineStage?: string; enableImages?: boolean }) => {
+    if (!activeOutputId || !activeOutput) return;
+    setOutlineSaving(true);
+    try {
+      const response = await apiFetch(`/api/v1/kb/outputs/${activeOutputId}/outline`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          notebook_title: notebookTitle,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+          title: activeOutput.title,
+          prompt: activeOutput.prompt || '',
+          outline: activeOutput.outline || [],
+          pipeline_stage: options?.pipelineStage,
+          enable_images:
+            typeof options?.enableImages === 'boolean'
+              ? options.enableImages
+              : activeOutput.enable_images,
+        }),
+      });
+      const data = await parseJson<{ output: ThinkFlowOutput }>(response);
+      setOutputs((previous) => previous.map((item) => (item.id === data.output.id ? data.output : item)));
+    } catch (error: any) {
+      setGlobalError(error?.message || '保存大纲失败');
+    } finally {
+      setOutlineSaving(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOutputId, activeOutput, notebook.id, notebookTitle, effectiveUser, setGlobalError]);
+
+  const confirmPptOutline = useCallback(async () => {
+    await saveOutline({ pipelineStage: 'pages_ready' });
+  }, [saveOutline]);
+
+  return {
+    // State
+    outputs,
+    setOutputs,
+    activeOutputId,
+    setActiveOutputId,
+    outlineSaving,
+    setOutlineSaving,
+    generatingOutline,
+    setGeneratingOutline,
+    generatingOutput,
+    setGeneratingOutput,
+    activePptSlideIndex,
+    setActivePptSlideIndex,
+    pptOutlineReadonlyOpen,
+    setPptOutlineReadonlyOpen,
+    pptOutlinePendingMessages,
+    setPptOutlinePendingMessages,
+    outputContexts,
+    setOutputContexts,
+    pptSourceLockIntent,
+    setPptSourceLockIntent,
+    directOutputIntent,
+    setDirectOutputIntent,
+    // Computed
+    activeOutput,
+    activePptStage,
+    activePptOutline,
+    activePptDraftPending,
+    activeOutlineChatSession,
+    archivedOutlineChatSessions,
+    activePptGlobalDirectives,
+    activePptPreviewImages,
+    activePptSlide,
+    isPptOutlineChatStage,
+    pptOutlineChatMessages,
+    activeOutputContext,
+    // Functions
+    refreshOutputs,
+    handleOutputWorkspaceScroll,
+    resolveOutputCreationInputs,
+    openPptSourceLockIntent,
+    confirmPptSourceLockIntent,
+    openDirectOutputIntent,
+    confirmDirectOutputIntent,
+    openExistingOutput,
+    handlePptOutlineChatMessage,
+    applyPptOutlineDraft,
+    createOutline,
+    saveOutline,
+    confirmPptOutline,
+    generateOutputById,
+  };
+}
