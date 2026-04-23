@@ -1037,6 +1037,9 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     selectActivePptPageVersion,
     confirmActivePptPage,
     revertToOutlineStage,
+    pageReviewFilter,
+    setPageReviewFilter,
+    pageReviewChatContext,
   } = usePptPageReviewManager({
     activeOutput,
     activePptSlideIndex,
@@ -3919,6 +3922,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             userId: effectiveUser?.id || 'local',
             userEmail: effectiveUser?.email || '',
           }}
+          pageReviewChatContext={pageReviewChatContext}
+          pageReviewFilter={pageReviewFilter}
+          onPageReviewFilterChange={setPageReviewFilter}
+          totalPages={activePptOutline.length}
         />
 
         {rightPanelOpen ? (

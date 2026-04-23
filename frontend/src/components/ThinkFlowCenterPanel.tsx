@@ -54,6 +54,16 @@ type ThinkFlowCenterPanelProps = {
   activeDataset: KnowledgeFile | null;
   dataSessionId: string | null;
   notebookContext: NotebookContext;
+  // ─── 逐页审阅模式 ────────────────────────────────────────────────────────
+  pageReviewChatContext?: {
+    title: string;
+    placeholder: string;
+    pageIndex: number;
+    pageTitle: string;
+  } | null;
+  pageReviewFilter?: number | null;
+  onPageReviewFilterChange?: (filter: number | null) => void;
+  totalPages?: number;
 };
 
 export function ThinkFlowCenterPanel({
@@ -97,6 +107,10 @@ export function ThinkFlowCenterPanel({
   activeDataset,
   dataSessionId,
   notebookContext,
+  pageReviewChatContext,
+  pageReviewFilter,
+  onPageReviewFilterChange,
+  totalPages,
 }: ThinkFlowCenterPanelProps) {
   return (
     <main className={`thinkflow-center-panel ${workspaceMode === 'output_immersive' ? 'is-output-immersive' : ''} ${workspaceMode === 'output_focus' ? 'is-output-focus' : ''}`}>
@@ -153,6 +167,17 @@ export function ThinkFlowCenterPanel({
           </button>
         </div>
       </div>
+      {pageReviewChatContext && (
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 48, height: 27, borderRadius: 4, background: '#e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#868e96' }}>
+            P{pageReviewChatContext.pageIndex + 1}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: '#212529' }}>{pageReviewChatContext.title}</div>
+            <div style={{ fontSize: 11, color: '#868e96' }}>{pageReviewChatContext.pageTitle}</div>
+          </div>
+        </div>
+      )}
       <div className="thinkflow-chat-scroll" ref={chatScrollRef} onMouseUp={handleChatSelectionMouseUp}>
         {/* 表格分析模式 */}
         {chatMode === 'table-analysis' && activeDataset ? (
@@ -279,6 +304,25 @@ export function ThinkFlowCenterPanel({
       {/* 表格分析模式下隐藏原有聊天输入区 */}
       {chatMode !== 'table-analysis' && (
       <div className="thinkflow-chat-input-area">
+        {pageReviewChatContext && totalPages && totalPages > 0 && (
+          <div className="tf-page-filter">
+            <span className="tf-page-filter__label">筛选:</span>
+            <button
+              type="button"
+              className={`tf-page-filter__chip ${pageReviewFilter === pageReviewChatContext.pageIndex ? 'tf-page-filter__chip--active' : ''}`}
+              onClick={() => onPageReviewFilterChange?.(pageReviewChatContext.pageIndex)}
+            >
+              P{pageReviewChatContext.pageIndex + 1}
+            </button>
+            <button
+              type="button"
+              className={`tf-page-filter__chip ${pageReviewFilter === null ? 'tf-page-filter__chip--active' : ''}`}
+              onClick={() => onPageReviewFilterChange?.(null)}
+            >
+              全部
+            </button>
+          </div>
+        )}
         <div className="thinkflow-chat-input-box">
           <textarea
             value={chatInput}
@@ -289,7 +333,7 @@ export function ThinkFlowCenterPanel({
                 void handleSendMessage();
               }
             }}
-            placeholder={chatPlaceholder || '输入消息，围绕当前素材梳理你真正想要的结论...'}
+            placeholder={pageReviewChatContext?.placeholder || chatPlaceholder || '输入消息，围绕当前素材梳理你真正想要的结论...'}
             className="thinkflow-chat-input"
             rows={2}
           />
