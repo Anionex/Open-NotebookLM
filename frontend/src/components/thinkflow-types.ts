@@ -122,9 +122,11 @@ export type ConversationHistoryMessage = {
 export type ThinkFlowWorkspaceItem = {
   id: string;
   type: WorkspaceItemType;
+  summary_kind?: 'item' | 'all';
   title: string;
   content?: string;
   source_refs?: DocumentSourceRef[];
+  source_summary_item_ids?: string[];
   capture_count?: number;
   created_at: string;
   updated_at: string;
