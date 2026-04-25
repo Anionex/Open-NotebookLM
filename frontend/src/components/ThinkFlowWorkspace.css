@@ -1216,6 +1216,19 @@
   color: var(--tf-accent);
 }
 
+.thinkflow-doc-tab.is-all-summary {
+  border: 1px solid rgba(154, 190, 255, 0.72);
+  background: rgba(240, 246, 255, 0.86);
+  color: #355d9d;
+  font-weight: 600;
+}
+
+.thinkflow-doc-tab.is-all-summary.is-active {
+  border-color: rgba(91, 141, 229, 0.88);
+  background: rgba(226, 238, 255, 0.98);
+  color: #244d8f;
+}
+
 .thinkflow-doc-new-btn {
   border: 1px dashed var(--tf-border-strong);
 }

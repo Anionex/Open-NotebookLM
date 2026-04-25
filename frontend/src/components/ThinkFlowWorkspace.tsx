@@ -46,6 +46,7 @@ import {
   getPptOutlineDiffKindLabel,
 } from './pptOutlineDiff';
 import type { ChatMode } from './thinkflow-types';
+import { splitSummaryCards } from './summaryCards';
 import type { NotebookContext } from './TableAnalysisPanel';
 import { usePptPageReviewManager } from './usePptPageReviewManager';
 import {
@@ -209,9 +210,11 @@ type ConversationListItem = {
 type ThinkFlowWorkspaceItem = {
   id: string;
   type: WorkspaceItemType;
+  summary_kind?: 'item' | 'all';
   title: string;
   content?: string;
   source_refs?: DocumentSourceRef[];
+  source_summary_item_ids?: string[];
   capture_count?: number;
   created_at: string;
   updated_at: string;
@@ -758,6 +761,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [guidanceContent, setGuidanceContent] = useState('');
   const [summaryEditMode, setSummaryEditMode] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState<WorkspaceItemType | null>(null);
+  const [rebuildingAllSummary, setRebuildingAllSummary] = useState(false);
   const [selectedGuidanceIds, setSelectedGuidanceIds] = useState<string[]>([]);
   const [panelGuideVisibility, setPanelGuideVisibility] = useState<Record<PanelGuideKey, boolean>>(() => {
     if (typeof window === 'undefined') {
@@ -892,6 +896,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const summaryItems = useMemo(
     () => workspaceItems.filter((item) => item.type === 'summary'),
     [workspaceItems],
+  );
+  const { itemSummaries: itemSummaryItems, allSummary } = useMemo(
+    () => splitSummaryCards(summaryItems),
+    [summaryItems],
   );
 
   const guidanceItems = useMemo(
@@ -1240,13 +1248,15 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       const data = await parseJson<{ items: ThinkFlowWorkspaceItem[] }>(response);
       const items = data.items || [];
       setWorkspaceItems(items);
+      const loadedSummaryItems = items.filter((item) => item.type === 'summary');
+      const loadedAllSummary = loadedSummaryItems.find((item) => item.summary_kind === 'all') || null;
 
       const nextSummaryId =
         preferredId && items.some((item) => item.id === preferredId && item.type === 'summary')
           ? preferredId
           : activeSummaryId && items.some((item) => item.id === activeSummaryId && item.type === 'summary')
             ? activeSummaryId
-            : items.find((item) => item.type === 'summary')?.id || '';
+            : loadedAllSummary?.id || loadedSummaryItems[0]?.id || '';
 
       const nextGuidanceId =
         preferredId && items.some((item) => item.id === preferredId && item.type === 'guidance')
@@ -2005,7 +2015,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       targetDocId: activeDocumentId || documents[0]?.id || '__new__',
       targetItemId:
         preferredDestination === 'summary'
-          ? activeSummaryId || summaryItems[0]?.id || '__new__'
+          ? (activeSummary?.summary_kind === 'item' ? activeSummaryId : '') || itemSummaryItems[0]?.id || '__new__'
           : preferredDestination === 'guidance'
             ? activeGuidanceId || guidanceItems[0]?.id || '__new__'
             : '',
@@ -2343,6 +2353,35 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       setGlobalError(error?.message || `保存${workspaceItemLabel(itemType)}失败`);
     } finally {
       setWorkspaceSaving(null);
+    }
+  };
+
+  const rebuildAllSummary = async () => {
+    if (itemSummaryItems.length === 0) {
+      setGlobalError('请先从对话中生成 item summary。');
+      return;
+    }
+    setRebuildingAllSummary(true);
+    try {
+      const response = await apiFetch('/api/v1/kb/workspace-items/summary/all/rebuild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          notebook_title: notebookTitle,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+          title: 'All Summary',
+        }),
+      });
+      const data = await parseJson<{ item: ThinkFlowWorkspaceItem }>(response);
+      await refreshWorkspaceItems(data.item.id);
+      setRightMode('summary');
+      setCaptureFeedback('已根据所有 item summary 重新生成总 Summary');
+    } catch (error: any) {
+      setGlobalError(error?.message || '重算总 Summary 失败');
+    } finally {
+      setRebuildingAllSummary(false);
     }
   };
 
@@ -3654,9 +3693,9 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     if (!panelGuideVisibility[panel]) return null;
     const config: Record<PanelGuideKey, { title: string; description: string; capabilities: string }> = {
       summary: {
-        title: '摘要区说明',
-        description: '这里用来沉淀你已经确认的理解、结论和待追问点，适合把单条回答、本轮问答或多轮讨论整理成 AI 笔记。',
-        capabilities: '可继续编辑、补充和改名，适合作为阅读记录与后续追问线索。',
+        title: 'Summary 卡片说明',
+        description: '这里维护多张 item summary 卡片，以及一张由所有 item summary 重新总结出来的总 Summary。',
+        capabilities: '第一版只从你主动选择的对话内容生成 item summary；总 Summary 只在你点击重算时更新。',
       },
       doc: {
         title: '梳理文档说明',
@@ -3731,19 +3770,22 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           };
 
   const summaryPanelProps = {
-    summaryItems: summaryItems.map((item) => ({ id: item.id, title: item.title })),
+    summaryItems: itemSummaryItems.map((item) => ({ id: item.id, title: item.title, summary_kind: item.summary_kind })),
+    allSummary: allSummary ? { id: allSummary.id, title: allSummary.title, summary_kind: allSummary.summary_kind } : null,
     activeSummaryId,
-    activeSummary: activeSummary ? { id: activeSummary.id, title: activeSummary.title } : null,
+    activeSummary: activeSummary ? { id: activeSummary.id, title: activeSummary.title, summary_kind: activeSummary.summary_kind } : null,
     summaryTitle,
     summaryContent,
     summaryEditMode,
     workspaceSaving,
+    rebuildingAllSummary,
     panelGuide: renderPanelGuide('summary'),
     onSelectSummary: async (id: string) => {
       setRightMode('summary');
       await loadWorkspaceItemDetail(id);
     },
     onCreateSummary: () => createWorkspaceItem('summary'),
+    onRebuildAllSummary: rebuildAllSummary,
     onToggleSummaryEdit: () => setSummaryEditMode((previous) => !previous),
     onDeleteSummary: (id: string) => deleteWorkspaceItem('summary', id),
     onSummaryTitleChange: setSummaryTitle,
@@ -4205,7 +4247,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                             destinationType: item.value as PushDestinationType,
                             targetItemId:
                               item.value === 'summary'
-                                ? activeSummaryId || summaryItems[0]?.id || '__new__'
+                                ? (activeSummary?.summary_kind === 'item' ? activeSummaryId : '') || itemSummaryItems[0]?.id || '__new__'
                                 : item.value === 'guidance'
                                   ? activeGuidanceId || guidanceItems[0]?.id || '__new__'
                                   : previous.targetItemId,
@@ -4247,7 +4289,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                     disabled={pushSubmitting}
                     onChange={(event) => setPushPopover((previous) => ({ ...previous, targetItemId: event.target.value }))}
                   >
-                    {(pushPopover.destinationType === 'summary' ? summaryItems : guidanceItems).map((item) => (
+                    {(pushPopover.destinationType === 'summary' ? itemSummaryItems : guidanceItems).map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.title}
                       </option>

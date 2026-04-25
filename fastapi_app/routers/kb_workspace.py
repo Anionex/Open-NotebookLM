@@ -43,6 +43,14 @@ class CaptureWorkspaceItemRequest(BaseModel):
     prompt: str = ""
 
 
+class RebuildAllSummaryRequest(BaseModel):
+    notebook_id: str
+    notebook_title: str = ""
+    user_id: str = "local"
+    email: Optional[str] = None
+    title: str = "All Summary"
+
+
 def _effective_user(user_id: str, email: Optional[str]) -> str:
     return (email or user_id or "local").strip() or "local"
 
@@ -73,6 +81,17 @@ async def create_workspace_item(request: CreateWorkspaceItemRequest) -> Dict[str
         item_type=request.item_type,
         title=request.title,
         content=request.content,
+    )
+    return {"success": True, "item": item}
+
+
+@router.post("/summary/all/rebuild")
+async def rebuild_all_summary(request: RebuildAllSummaryRequest) -> Dict[str, Any]:
+    item = service.rebuild_all_summary(
+        notebook_id=request.notebook_id,
+        notebook_title=request.notebook_title,
+        user_id=_effective_user(request.user_id, request.email),
+        title=request.title,
     )
     return {"success": True, "item": item}
 

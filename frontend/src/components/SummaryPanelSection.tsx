@@ -1,19 +1,28 @@
 import type { ReactNode } from 'react';
-import { Save, Trash2 } from 'lucide-react';
+import { RefreshCw, Save, Trash2 } from 'lucide-react';
 
 import type { WorkspaceItemType } from './thinkflow-types';
 
+type SummaryListItem = {
+  id: string;
+  title: string;
+  summary_kind?: string;
+};
+
 type SummaryPanelSectionProps = {
-  summaryItems: Array<{ id: string; title: string }>;
+  summaryItems: SummaryListItem[];
+  allSummary: SummaryListItem | null;
   activeSummaryId: string;
-  activeSummary: { id: string; title: string } | null;
+  activeSummary: SummaryListItem | null;
   summaryTitle: string;
   summaryContent: string;
   summaryEditMode: boolean;
   workspaceSaving: WorkspaceItemType | null;
+  rebuildingAllSummary: boolean;
   panelGuide: ReactNode;
   onSelectSummary: (id: string) => Promise<void>;
   onCreateSummary: () => Promise<void>;
+  onRebuildAllSummary: () => Promise<void>;
   onToggleSummaryEdit: () => void;
   onDeleteSummary: (id: string) => Promise<void>;
   onSummaryTitleChange: (value: string) => void;
@@ -23,15 +32,18 @@ type SummaryPanelSectionProps = {
 
 export function SummaryPanelSection({
   summaryItems,
+  allSummary,
   activeSummaryId,
   activeSummary,
   summaryTitle,
   summaryContent,
   summaryEditMode,
   workspaceSaving,
+  rebuildingAllSummary,
   panelGuide,
   onSelectSummary,
   onCreateSummary,
+  onRebuildAllSummary,
   onToggleSummaryEdit,
   onDeleteSummary,
   onSummaryTitleChange,
@@ -42,6 +54,16 @@ export function SummaryPanelSection({
     <>
       <div className="thinkflow-doc-header">
         <div className="thinkflow-doc-tabs">
+          {allSummary ? (
+            <button
+              key={allSummary.id}
+              type="button"
+              className={`thinkflow-doc-tab is-all-summary ${activeSummaryId === allSummary.id ? 'is-active' : ''}`}
+              onClick={() => void onSelectSummary(allSummary.id)}
+            >
+              总 Summary
+            </button>
+          ) : null}
           {summaryItems.map((item) => (
             <button
               key={item.id}
@@ -54,8 +76,18 @@ export function SummaryPanelSection({
           ))}
         </div>
         <div className="thinkflow-doc-header-actions">
+          <button
+            type="button"
+            className="thinkflow-doc-action-btn"
+            onClick={() => void onRebuildAllSummary()}
+            disabled={summaryItems.length === 0 || rebuildingAllSummary}
+            title={summaryItems.length === 0 ? '先从对话中生成 item summary' : '根据所有 item summary 重新生成总 Summary'}
+          >
+            <RefreshCw size={14} />
+            {rebuildingAllSummary ? '总结中' : '重算总 Summary'}
+          </button>
           <button type="button" className="thinkflow-doc-new-btn" onClick={() => void onCreateSummary()}>
-            + 新建
+            + 手动 item
           </button>
           {activeSummary ? (
             <div className="thinkflow-doc-actions">
@@ -87,9 +119,9 @@ export function SummaryPanelSection({
       <div className="thinkflow-doc-body">
         {!activeSummary ? (
           <div className="thinkflow-empty">
-            摘要不是默认生成的，它更像 AI 帮你记下来的阅读笔记。
+            Summary 是多级卡片，不会自动生成。
             <br />
-            你在中间对话区对某个回答、某组问答或多条消息点击“沉淀”后，它会结合来源整理成可继续编辑的笔记卡。
+            先在中间对话区选择有价值内容并沉淀为 item summary，再点击“重算总 Summary”生成 all summary。
           </div>
         ) : summaryEditMode ? (
           <textarea
@@ -108,8 +140,10 @@ export function SummaryPanelSection({
       </div>
 
       <div className="thinkflow-output-toolbar">
-        <span className="thinkflow-output-toolbar-label">摘要</span>
-        <span className="thinkflow-output-toolbar-tip">这是 AI 笔记区，用来沉淀你当前理解和后续可追问点。</span>
+        <span className="thinkflow-output-toolbar-label">Summary</span>
+        <span className="thinkflow-output-toolbar-tip">
+          {allSummary ? `当前有 ${summaryItems.length} 张 item summary，已生成总 Summary。` : `当前有 ${summaryItems.length} 张 item summary。`}
+        </span>
         <button type="button" className="thinkflow-save-btn" onClick={() => void onSaveSummary()} disabled={!activeSummaryId || workspaceSaving === 'summary'}>
           <Save size={14} />
           {workspaceSaving === 'summary' ? '保存中' : '保存摘要'}
