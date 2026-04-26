@@ -2,6 +2,8 @@
 ApiYi Embedding Provider 独立测试
 运行: python providers/apiyi_embedding.py
 """
+import os
+
 from fastapi_app.providers.base import EmbeddingProvider
 from typing import List
 import httpx
@@ -54,7 +56,7 @@ if __name__ == "__main__":
     async def test():
         provider = ApiYiEmbeddingProvider()
         api_url = "https://api.apiyi.com/v1"
-        api_key = "sk-IU27kBNHcenZqp2O97A4D30f32194cE2B16a07Cb8fC9B0A6"
+        api_key = os.environ["APIYI_API_KEY"]
         model = "text-embedding-3-small"
         texts = ["Hello world", "Test embedding"]
 

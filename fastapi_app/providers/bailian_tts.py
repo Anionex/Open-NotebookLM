@@ -2,6 +2,8 @@
 阿里云百炼 TTS Provider
 运行: python -m providers.bailian_tts
 """
+import os
+
 from fastapi_app.providers.base import TTSProvider
 from typing import Optional, List, Dict
 import httpx
@@ -54,7 +56,7 @@ if __name__ == "__main__":
         print(f"✓ 支持的音色: {len(provider.get_voices())} 个")
 
         api_url = "https://dashscope.aliyuncs.com/api/v1"
-        api_key = "sk-4a290ed8704047b3870b04cbff040d98"
+        api_key = os.environ["BAILIAN_API_KEY"]
         model = "qwen3-tts-flash"
         text = "你好，这是百炼语音合成测试"
 

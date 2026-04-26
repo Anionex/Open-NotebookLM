@@ -2,6 +2,8 @@
 ApiYi TTS Provider 独立测试
 运行: python providers/apiyi_tts.py
 """
+import os
+
 from fastapi_app.providers.base import TTSProvider
 from typing import Optional
 import httpx
@@ -39,7 +41,7 @@ if __name__ == "__main__":
     async def test():
         provider = ApiYiTTSProvider()
         api_url = "https://api.apiyi.com/v1"
-        api_key = "sk-IU27kBNHcenZqp2O97A4D30f32194cE2B16a07Cb8fC9B0A6"
+        api_key = os.environ["APIYI_API_KEY"]
         model = "gemini-2.5-flash-tts"
         text = "Hello world"
 
