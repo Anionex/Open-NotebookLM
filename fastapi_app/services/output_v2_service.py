@@ -2994,6 +2994,9 @@ class OutputV2Service:
                 api_url=api_url,
                 api_key=api_key,
                 model=payload_model,
+                mindmap_style="default",
+                max_depth=6,
+                language="zh",
             )
         if target_type == "podcast":
             return await generate_podcast_from_kb(

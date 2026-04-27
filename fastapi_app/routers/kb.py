@@ -2514,7 +2514,7 @@ async def generate_mindmap_from_kb(
     api_key: Optional[str] = Body(None, embed=True),
     model: str = Body("deepseek-v3.2", embed=True),
     mindmap_style: str = Body("default", embed=True),
-    max_depth: int = Body(3, embed=True),
+    max_depth: int = Body(6, embed=True),
     language: str = Body("zh", embed=True),
 ):
     """
