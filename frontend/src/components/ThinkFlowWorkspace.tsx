@@ -3264,6 +3264,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     await handleNotebookChatMessage(query);
   };
 
+  const handleMindmapNodeClick = (question: string) => {
+    setChatInput(question);
+  };
+
   const updateOutlineSection = (index: number, patch: Partial<OutlineSection>) => {
     setOutputs((previous) =>
       previous.map((item) => {
@@ -3658,7 +3662,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     if (result.mermaid_code) {
       return (
         <div className="thinkflow-output-preview">
-          <MermaidPreview mermaidCode={String(result.mermaid_code)} title="导图预览" />
+          <MermaidPreview mermaidCode={String(result.mermaid_code)} title="导图预览" onNodeClick={handleMindmapNodeClick} />
         </div>
       );
     }
