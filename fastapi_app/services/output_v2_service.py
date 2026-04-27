@@ -3015,7 +3015,7 @@ class OutputV2Service:
                 api_key=api_key,
                 model=model or "deepseek-v4-flash",
                 mindmap_style="default",
-                max_depth=6,
+                max_depth=10,
                 language="zh",
             )
         payload_model = model or settings.KB_CHAT_MODEL
