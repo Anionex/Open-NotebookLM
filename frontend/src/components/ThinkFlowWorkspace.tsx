@@ -3793,6 +3793,16 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     return Array.from(new Set(titles));
   };
 
+  const buildDirectOutputDocumentTitles = (documentId: string, primaryTitle: string, boundTitles: string[]) => {
+    const titles = [
+      documentId ? primaryTitle : '',
+      ...boundTitles,
+    ]
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+    return Array.from(new Set(titles));
+  };
+
   const renderOutputWorkspaceHeader = () => {
     if (!activeOutput) return null;
     const snapshot = activeOutputContext?.snapshot;
@@ -4582,11 +4592,13 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                   <section className="thinkflow-output-context-group">
                     <div className="thinkflow-output-context-group-title">梳理文档 / 参考文档</div>
                     <div className="thinkflow-output-lock-list">
-                      {buildPptReferenceDocumentTitles(
+                      {buildDirectOutputDocumentTitles(
+                        directOutputIntent.outputDocumentId,
                         directOutputIntent.outputDocumentTitle,
                         directOutputIntent.boundDocumentTitles,
                       ).length > 0 ? (
-                        buildPptReferenceDocumentTitles(
+                        buildDirectOutputDocumentTitles(
+                          directOutputIntent.outputDocumentId,
                           directOutputIntent.outputDocumentTitle,
                           directOutputIntent.boundDocumentTitles,
                         ).map((item) => (
