@@ -32,7 +32,7 @@ import { ThinkFlowAddSourceModal } from './ThinkFlowAddSourceModal';
 import { ThinkFlowCenterPanel } from './ThinkFlowCenterPanel';
 import { ThinkFlowFlashcardStudy } from './ThinkFlowFlashcardStudy';
 import { ThinkFlowLeftSidebar } from './ThinkFlowLeftSidebar';
-import { MermaidPreview } from './MermaidPreview';
+import { ThinkFlowMindmapPreview } from './ThinkFlowMindmapPreview';
 import { ThinkFlowOutputContextModal } from './ThinkFlowOutputContextModal';
 import { ThinkFlowQuizStudy } from './ThinkFlowQuizStudy';
 import { ThinkFlowTopBar } from './ThinkFlowTopBar';
@@ -3264,10 +3264,6 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     await handleNotebookChatMessage(query);
   };
 
-  const handleMindmapNodeClick = (question: string) => {
-    setChatInput(question);
-  };
-
   const updateOutlineSection = (index: number, patch: Partial<OutlineSection>) => {
     setOutputs((previous) =>
       previous.map((item) => {
@@ -3661,9 +3657,18 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
     if (result.mermaid_code) {
       return (
-        <div className="thinkflow-output-preview">
-          <MermaidPreview mermaidCode={String(result.mermaid_code)} title="导图预览" onNodeClick={handleMindmapNodeClick} />
-        </div>
+        <ThinkFlowMindmapPreview
+          activeOutput={activeOutput}
+          files={files}
+          conversationSourceRefs={conversationSourceRefs}
+          resolveFileUrl={resolveFileUrl}
+          setConversationSourceRefs={setConversationSourceRefs}
+          setSelectedIds={setSelectedIds}
+          persistConversationWorkspaceState={({ sourceRefs }) => persistConversationWorkspaceState({ sourceRefs })}
+          setCaptureFeedback={setCaptureFeedback}
+          setGlobalError={setGlobalError}
+          setChatInput={setChatInput}
+        />
       );
     }
     if (activeOutput.target_type === 'flashcard' && flashcards.length > 0) return renderFlashcardPreview(flashcards);
