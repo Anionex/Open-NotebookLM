@@ -186,6 +186,23 @@ class OutputV2Service:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    def _materialize_mindmap_text_output(
+        self,
+        *,
+        output_dir: Path,
+        result: Dict[str, Any],
+    ) -> Optional[Path]:
+        if not isinstance(result, dict):
+            return None
+        mindmap_text = str(result.get("mermaid_code") or "").strip()
+        if not mindmap_text:
+            return None
+        mindmap_md = output_dir / "mindmap.md"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        mindmap_md.write_text(mindmap_text, encoding="utf-8")
+        result["markdown_path"] = _to_outputs_url(str(mindmap_md))
+        return mindmap_md
+
     def _has_explicit_llm_config(self, api_url: Optional[str], api_key: Optional[str]) -> bool:
         return bool(str(api_url or "").strip() and str(api_key or "").strip())
 
@@ -3203,6 +3220,8 @@ class OutputV2Service:
                     model=model,
                 ),
             )
+            if item["target_type"] == "mindmap":
+                self._materialize_mindmap_text_output(output_dir=output_dir, result=result)
             item["status"] = "generated"
 
         item["result"] = result
@@ -3450,6 +3469,7 @@ class OutputV2Service:
         manifest = self._read_manifest(manifest_path)
         index, item = self._find_output(manifest, output_id)
         result = item.get("result") or {}
+        output_dir = self._item_dir(notebook_id, notebook_title, user_id, output_id)
         candidate_paths: List[str] = []
         for key in (
             "markdown_path",
@@ -3475,6 +3495,10 @@ class OutputV2Service:
             if maybe_path.exists() and maybe_path.is_file():
                 local_file = maybe_path
                 break
+        if local_file is None and str(item.get("target_type") or "").strip() == "mindmap":
+            local_file = self._materialize_mindmap_text_output(output_dir=output_dir, result=result)
+            if local_file is not None:
+                item["result"] = result
         if local_file is None:
             raise HTTPException(status_code=400, detail="No generated file can be imported as source")
         paths = get_notebook_paths(notebook_id, notebook_title, user_id)

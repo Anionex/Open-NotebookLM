@@ -3505,8 +3505,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           email: effectiveUser?.email || '',
         }),
       });
-      await parseJson(response);
+      const result = await parseJson(response);
       await refreshFiles();
+      const sourceName = result?.source_path ? String(result.source_path).split('/').pop() : '';
+      pushToast(sourceName ? `已导入为来源素材：${sourceName}` : '已导入为来源素材', 'success');
     } catch (error: any) {
       setGlobalError(error?.message || '回流来源失败');
     }

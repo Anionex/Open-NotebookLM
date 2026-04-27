@@ -326,24 +326,24 @@ export function MermaidPreview({ mermaidCode, title = '思维导图预览', onNo
               type="button"
               className="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-cyan-50 hover:text-cyan-700"
               onClick={() => {
-                onNodeClick(`讨论这些来源对「${askMenu.nodeText}」的看法。`);
+                onNodeClick(`根据来源，展开说明「${askMenu.nodeText}」。`);
                 setAskMenu(null);
               }}
             >
               <MessageSquare size={14} className="mr-2 inline text-cyan-500" />
-              讨论这些来源对「{askMenu.nodeText}」的看法
+              根据来源，展开说明「{askMenu.nodeText}」
             </button>
             {askMenu.parentText ? (
               <button
                 type="button"
                 className="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-cyan-50 hover:text-cyan-700"
                 onClick={() => {
-                  onNodeClick(`在更大的「${askMenu.parentText}」背景范畴下，讨论这些来源对「${askMenu.nodeText}」的看法。`);
+                  onNodeClick(`在「${askMenu.parentText}」背景下，根据来源展开说明「${askMenu.nodeText}」。`);
                   setAskMenu(null);
                 }}
               >
                 <MessageSquare size={14} className="mr-2 inline text-cyan-500" />
-                在「{askMenu.parentText}」背景下，讨论对「{askMenu.nodeText}」的看法
+                在「{askMenu.parentText}」背景下，根据来源展开说明「{askMenu.nodeText}」
               </button>
             ) : null}
           </div>
@@ -351,7 +351,7 @@ export function MermaidPreview({ mermaidCode, title = '思维导图预览', onNo
       ) : null}
 
       <div className="mt-3 text-xs text-gray-400">
-        {onNodeClick ? '提示：滚轮缩放，点击节点可发起提问。' : '提示：滚轮缩放，点击节点旁按钮可展开/收缩。'}
+        {onNodeClick ? '提示：点击拖拽，Ctrl+滚轮缩放，点击节点并发起提问并自动选中来源。' : '提示：滚轮缩放，点击节点旁按钮可展开/收缩。'}
       </div>
     </div>
   );
