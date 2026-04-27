@@ -3000,7 +3000,6 @@ class OutputV2Service:
             generate_quiz,
         )
 
-        payload_model = model or settings.KB_CHAT_MODEL
         if target_type == "mindmap":
             return await generate_mindmap_from_kb(
                 file_paths=[str(md_path)],
@@ -3010,11 +3009,12 @@ class OutputV2Service:
                 notebook_title=notebook_title,
                 api_url=api_url,
                 api_key=api_key,
-                model=payload_model,
+                model=model or "deepseek-v4-flash",
                 mindmap_style="default",
                 max_depth=6,
                 language="zh",
             )
+        payload_model = model or settings.KB_CHAT_MODEL
         if target_type == "podcast":
             return await generate_podcast_from_kb(
                 file_paths=[str(md_path)],
