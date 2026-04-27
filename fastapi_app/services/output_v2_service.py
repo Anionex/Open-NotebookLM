@@ -2992,6 +2992,7 @@ class OutputV2Service:
         api_url: Optional[str],
         api_key: Optional[str],
         model: Optional[str],
+        source_paths: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         from fastapi_app.routers.kb import (
             generate_flashcards,
@@ -3001,8 +3002,11 @@ class OutputV2Service:
         )
 
         if target_type == "mindmap":
+            mindmap_paths = [str(path or "").strip() for path in source_paths or [] if str(path or "").strip()]
+            if not mindmap_paths:
+                mindmap_paths = [str(md_path)]
             return await generate_mindmap_from_kb(
-                file_paths=[str(md_path)],
+                file_paths=mindmap_paths,
                 user_id=user_id,
                 email=email,
                 notebook_id=notebook_id,
@@ -3218,6 +3222,7 @@ class OutputV2Service:
                     api_url=resolved_api_url,
                     api_key=resolved_api_key,
                     model=model,
+                    source_paths=item.get("source_paths") or [],
                 ),
             )
             if item["target_type"] == "mindmap":
