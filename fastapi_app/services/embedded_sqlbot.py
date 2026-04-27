@@ -187,9 +187,9 @@ class EmbeddedSQLBotAdapter:
         try:
             from sqlmodel import Session, select
 
-            from fastapi_app.adapters.csv_datasource import CSVDataSource
-            from fastapi_app.adapters.excel_datasource import ExcelDataSource
-            from fastapi_app.agents.tools.datasource_manager import (
+            from fastapi_app.datasources.adapters.csv_datasource import CSVDataSource
+            from fastapi_app.datasources.adapters.excel_datasource import ExcelDataSource
+            from fastapi_app.modules.agents.tools.datasource_manager import (
                 get_datasource_handler,
                 set_datasource_handler,
             )
@@ -235,7 +235,7 @@ class EmbeddedSQLBotAdapter:
         if self.__class__._agent is None:
             async with self.__class__._agent_lock:
                 if self.__class__._agent is None:
-                    from fastapi_app.agents.sqlbot_agent import SQLBotAgent
+                    from fastapi_app.modules.agents.sqlbot_agent import SQLBotAgent
 
                     self.__class__._agent = SQLBotAgent(verbose=True)
         return self.__class__._agent
@@ -905,7 +905,7 @@ class EmbeddedSQLBotAdapter:
                 result = await self._run_fetch_workflow(runtime, chat.datasource_id, question)
             else:
                 agent = await self._get_agent()
-                from fastapi_app.agents.sqlbot_agent import DataFormat, OutputMode
+                from fastapi_app.modules.agents.sqlbot_agent import DataFormat, OutputMode
 
                 dfmt = (
                     DataFormat.JSON if fmt == "json"
@@ -961,7 +961,7 @@ class EmbeddedSQLBotAdapter:
                     result = await self._run_fetch_workflow(runtime, chat.datasource_id, question)
                 else:
                     agent = await self._get_agent()
-                    from fastapi_app.agents.sqlbot_agent import DataFormat, OutputMode
+                    from fastapi_app.modules.agents.sqlbot_agent import DataFormat, OutputMode
 
                     result = await agent.run(
                         chat.datasource_id,

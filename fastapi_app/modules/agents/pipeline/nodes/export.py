@@ -5,8 +5,8 @@ import json
 import logging
 from typing import Any
 
-from fastapi_app.agents.pipeline.state import AgentState, DataFormat
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState, DataFormat
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 

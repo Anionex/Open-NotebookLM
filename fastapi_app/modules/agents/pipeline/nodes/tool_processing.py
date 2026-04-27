@@ -7,8 +7,8 @@ from typing import Dict, Any
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 from fastapi_app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ def process_tool_output_node(state: AgentState, config: PipelineConfig) -> dict:
                             logger.warning(f"SQL execution failed: {result.get('error_message')}")
                         err_msg = str(result.get("error_message") or "")
                         try:
-                            from fastapi_app.agents.prompts.error_classifier import infer_failure_stage
+                            from fastapi_app.modules.agents.prompts.error_classifier import infer_failure_stage
                             failure_stage = infer_failure_stage(err_msg)
                         except Exception:
                             failure_stage = "unknown"
@@ -229,7 +229,7 @@ def process_tool_output_node(state: AgentState, config: PipelineConfig) -> dict:
             update_dict["error_count"] = next_error_count
             if not state.get("failure_stage"):
                 try:
-                    from fastapi_app.agents.prompts.error_classifier import infer_failure_stage
+                    from fastapi_app.modules.agents.prompts.error_classifier import infer_failure_stage
                     update_dict["failure_stage"] = infer_failure_stage(str(state.get("last_sql_error") or ""))
                 except Exception:
                     update_dict["failure_stage"] = "unknown"

@@ -11,9 +11,9 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any, List
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
-from fastapi_app.agents.tools.datasource_manager import get_datasource_handler
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.tools.datasource_manager import get_datasource_handler
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def ega_prepare_node(state: AgentState, config: PipelineConfig) -> Dict[str, Any
     deep_probe = str(state.get("failure_stage") or "") in {"instance_alignment", "discovery", "schema_alignment"}
 
     try:
-        from fastapi_app.agents.tools.cross_source_tools import _get_or_create_engine
+        from fastapi_app.modules.agents.tools.cross_source_tools import _get_or_create_engine
         from fastapi_app.modules.ega.orchestrator import prepare_ega_context
 
         engine = _get_or_create_engine(ds_ids)

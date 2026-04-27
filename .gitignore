@@ -74,6 +74,7 @@ uploads/
 .gemini/
 .playwright-mcp/
 .ace-tool/
+openspec/
 # Test screenshots (Playwright / QA)
 test-*.png
 test-*.jpg

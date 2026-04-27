@@ -674,6 +674,24 @@ class OutputV2Service:
             return ""
         return self._truncate_text(_extract_text_from_files(resolved_paths, max_chars=max_chars), max_chars)
 
+    def _build_source_summary(self, source_paths: List[str], max_chars: int = 1500) -> str:
+        raw = self._extract_output_source_text(source_paths, max_chars=max_chars * 3)
+        if not raw.strip():
+            return ""
+        lines = raw.splitlines()
+        kept: List[str] = []
+        total = 0
+        for line in lines:
+            stripped = line.strip()
+            is_heading = stripped.startswith("#") or stripped.startswith("##")
+            if total + len(line) > max_chars and not is_heading:
+                continue
+            kept.append(line)
+            total += len(line) + 1
+            if total > max_chars:
+                break
+        return "\n".join(kept).strip()
+
     def _build_source_first_context(
         self,
         *,
@@ -1145,10 +1163,13 @@ class OutputV2Service:
     ) -> Dict[str, Any]:
         source_names = [str(name or "").strip() for name in item.get("source_names") or [] if str(name or "").strip()]
         source_paths = [str(path or "").strip() for path in item.get("source_paths") or [] if str(path or "").strip()]
+        source_summary = str(item.get("source_summary") or "").strip()
+        if not source_summary:
+            source_summary = self._build_source_summary(source_paths, max_chars=1500)
         return {
             "source_names": source_names,
             "source_paths": source_paths,
-            "source_text": self._extract_output_source_text(source_paths, max_chars=4000),
+            "source_text": source_summary,
             "document_title": str(document.get("title") or "").strip(),
             "document_content": self._truncate_text(str(document.get("content") or "").strip(), 3000),
             "bound_documents": [
@@ -2464,7 +2485,9 @@ class OutputV2Service:
             "source_document_path": str(document_md) if document_md.exists() else "",
         }
         if target_type == "ppt":
+            source_summary = self._build_source_summary(normalized_source_paths, max_chars=1500)
             item, _ = self._sync_outline_chat_state(item)
+            item["source_summary"] = source_summary
         manifest_path = self._manifest_path(notebook_id, notebook_title, user_id)
         manifest = self._read_manifest(manifest_path)
         manifest.append(item)

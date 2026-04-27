@@ -1,5 +1,5 @@
 import type { MutableRefObject, ReactNode, RefObject } from 'react';
-import { History, MessageSquarePlus } from 'lucide-react';
+import { Check, FileText, History, MessageSquarePlus, Plus } from 'lucide-react';
 
 import type {
   SelectionToolbarState,
@@ -54,16 +54,7 @@ type ThinkFlowCenterPanelProps = {
   activeDataset: KnowledgeFile | null;
   dataSessionId: string | null;
   notebookContext: NotebookContext;
-  // ─── 逐页审阅模式 ────────────────────────────────────────────────────────
-  pageReviewChatContext?: {
-    title: string;
-    placeholder: string;
-    pageIndex: number;
-    pageTitle: string;
-  } | null;
-  pageReviewFilter?: number | null;
-  onPageReviewFilterChange?: (filter: number | null) => void;
-  totalPages?: number;
+  chatDisabled?: boolean;
 };
 
 export function ThinkFlowCenterPanel({
@@ -107,11 +98,18 @@ export function ThinkFlowCenterPanel({
   activeDataset,
   dataSessionId,
   notebookContext,
-  pageReviewChatContext,
-  pageReviewFilter,
-  onPageReviewFilterChange,
-  totalPages,
 }: ThinkFlowCenterPanelProps) {
+  const formatReferenceDocumentLabel = (doc: ThinkFlowDocument) => {
+    const focusState = doc.focus_state;
+    if (focusState?.type === 'sections' && Array.isArray(focusState.section_ids) && focusState.section_ids.length > 0) {
+      const focusLabel = String(focusState.description || '')
+        .replace(/^(焦点|确认模块)：/u, '')
+        .trim() || `${focusState.section_ids.length} 个模块`;
+      return `${doc.title} / ${focusLabel}`;
+    }
+    return `${doc.title} / 全文`;
+  };
+
   return (
     <main className={`thinkflow-center-panel ${workspaceMode === 'output_immersive' ? 'is-output-immersive' : ''} ${workspaceMode === 'output_focus' ? 'is-output-focus' : ''}`}>
       <div className="thinkflow-chat-header-bar">
@@ -167,17 +165,6 @@ export function ThinkFlowCenterPanel({
           </button>
         </div>
       </div>
-      {pageReviewChatContext && (
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 48, height: 27, borderRadius: 4, background: '#e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#868e96' }}>
-            P{pageReviewChatContext.pageIndex + 1}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 13, color: '#212529' }}>{pageReviewChatContext.title}</div>
-            <div style={{ fontSize: 11, color: '#868e96' }}>{pageReviewChatContext.pageTitle}</div>
-          </div>
-        </div>
-      )}
       <div className="thinkflow-chat-scroll" ref={chatScrollRef} onMouseUp={handleChatSelectionMouseUp}>
         {/* 表格分析模式 */}
         {chatMode === 'table-analysis' && activeDataset ? (
@@ -221,7 +208,7 @@ export function ThinkFlowCenterPanel({
                   </div>
                   {renderMessageMarkdown(message)}
                 </div>
-                {!isOutlineChatMode && message.role === 'assistant' ? (
+                {!isOutlineChatMode && (message.role === 'assistant' || message.role === 'user') ? (
                   <div className="thinkflow-message-actions">
                     <button
                       type="button"
@@ -230,7 +217,7 @@ export function ThinkFlowCenterPanel({
                       disabled={!message.content}
                       title="沉淀当前消息"
                     >
-                      {message.pushed ? '✓' : '⟩'}
+                      {message.pushed ? <Check size={14} /> : <FileText size={14} />}
                     </button>
                     <button
                       type="button"
@@ -239,7 +226,7 @@ export function ThinkFlowCenterPanel({
                       disabled={!message.content}
                       title="沉淀这一轮问答"
                     >
-                      本轮
+                      QA
                     </button>
                     <button
                       type="button"
@@ -247,7 +234,7 @@ export function ThinkFlowCenterPanel({
                       onClick={() => toggleMessageSelection(message.id)}
                       title="加入多条沉淀"
                     >
-                      {selectedMessageIds.includes(message.id) ? '✓' : '+'}
+                      {selectedMessageIds.includes(message.id) ? <Check size={14} /> : <Plus size={14} />}
                     </button>
                   </div>
                 ) : null}
@@ -278,7 +265,21 @@ export function ThinkFlowCenterPanel({
 
       {selectedMessageIds.length > 0 ? (
         <div className="thinkflow-multi-select-bar">
-          <div className="thinkflow-multi-select-meta">已选 {selectedMessageIds.length} 条消息，你可以把这组内容作为一次明确沉淀。</div>
+          <div className="thinkflow-multi-select-topline">
+            <div className="thinkflow-multi-select-meta">已选 {selectedMessageIds.length} 条消息 · 多条沉淀</div>
+            <div className="thinkflow-multi-select-actions">
+              <button type="button" className="thinkflow-doc-action-btn" onClick={clearSelectedMessages}>
+                取消
+              </button>
+              <button
+                type="button"
+                className="thinkflow-generate-btn"
+                onClick={(event) => openMultiMessagePush(event.currentTarget)}
+              >
+                ⟩ 推送
+              </button>
+            </div>
+          </div>
           <textarea
             className="thinkflow-multi-select-input"
             value={multiSelectPrompt}
@@ -286,43 +287,12 @@ export function ThinkFlowCenterPanel({
             placeholder="可选：补充你希望这组内容如何被整理，例如‘沉淀成产出指导，强调结论和边界条件’"
             rows={2}
           />
-          <div className="thinkflow-multi-select-actions">
-            <button type="button" className="thinkflow-doc-action-btn" onClick={clearSelectedMessages}>
-              取消选择
-            </button>
-            <button
-              type="button"
-              className="thinkflow-generate-btn"
-              onClick={(event) => openMultiMessagePush(event.currentTarget)}
-            >
-              ⟩ 沉淀所选内容
-            </button>
-          </div>
         </div>
       ) : null}
 
       {/* 表格分析模式下隐藏原有聊天输入区 */}
       {chatMode !== 'table-analysis' && (
       <div className="thinkflow-chat-input-area">
-        {pageReviewChatContext && totalPages && totalPages > 0 && (
-          <div className="tf-page-filter">
-            <span className="tf-page-filter__label">筛选:</span>
-            <button
-              type="button"
-              className={`tf-page-filter__chip ${pageReviewFilter === pageReviewChatContext.pageIndex ? 'tf-page-filter__chip--active' : ''}`}
-              onClick={() => onPageReviewFilterChange?.(pageReviewChatContext.pageIndex)}
-            >
-              P{pageReviewChatContext.pageIndex + 1}
-            </button>
-            <button
-              type="button"
-              className={`tf-page-filter__chip ${pageReviewFilter === null ? 'tf-page-filter__chip--active' : ''}`}
-              onClick={() => onPageReviewFilterChange?.(null)}
-            >
-              全部
-            </button>
-          </div>
-        )}
         <div className="thinkflow-chat-input-box">
           <textarea
             value={chatInput}
@@ -333,7 +303,7 @@ export function ThinkFlowCenterPanel({
                 void handleSendMessage();
               }
             }}
-            placeholder={pageReviewChatContext?.placeholder || chatPlaceholder || '输入消息，围绕当前素材梳理你真正想要的结论...'}
+            placeholder={chatPlaceholder || '输入消息，围绕当前素材梳理你真正想要的结论...'}
             className="thinkflow-chat-input"
             rows={2}
           />
@@ -350,13 +320,14 @@ export function ThinkFlowCenterPanel({
                   <label
                     key={doc.id}
                     className={`thinkflow-doc-check ${boundDocIds.includes(doc.id) ? 'is-checked' : ''}`}
+                    title={formatReferenceDocumentLabel(doc)}
                   >
                     <input
                       type="checkbox"
                       checked={boundDocIds.includes(doc.id)}
                       onChange={() => toggleBoundDoc(doc.id)}
                     />
-                    📄 {doc.title}
+                    📄 {formatReferenceDocumentLabel(doc)}
                   </label>
                 ))}
                 {boundDocIds.length > 0 ? <span className="thinkflow-doc-check-tip">对话将参考此文档</span> : null}

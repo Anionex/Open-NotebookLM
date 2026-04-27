@@ -36,6 +36,20 @@ export function ThinkFlowRightPanel({
   documentPanelProps,
   outputPanelProps,
 }: ThinkFlowRightPanelProps) {
+  if (workspaceMode === 'normal') {
+    return (
+      <aside className="thinkflow-right-panel">
+        <div className="thinkflow-right-workbench-head">
+          <button type="button" className="thinkflow-collapse-btn" onClick={onClose}>
+            <ChevronLeft size={14} />
+          </button>
+          <span>文档工作台</span>
+        </div>
+        <DocumentPanelSection {...documentPanelProps} />
+      </aside>
+    );
+  }
+
   return (
     <aside className={`thinkflow-right-panel ${workspaceMode !== 'normal' ? 'is-output-workspace' : ''}`}>
       <div className="thinkflow-right-mode-bar">

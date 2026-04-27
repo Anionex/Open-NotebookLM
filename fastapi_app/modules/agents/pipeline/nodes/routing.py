@@ -5,8 +5,8 @@ Also detects cross-source query intent and runs clarification detection.
 import logging
 from typing import Dict, Any, Optional, List
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def _infer_cross_source_from_registered_tables(question: str, current_datasource
     Then enable cross-source mode.
     """
     try:
-        from fastapi_app.agents.tools.datasource_manager import get_all_datasource_ids, get_datasource_handler
+        from fastapi_app.modules.agents.tools.datasource_manager import get_all_datasource_ids, get_datasource_handler
 
         ds_ids = get_all_datasource_ids()
         if len(ds_ids) <= 1:
@@ -93,7 +93,7 @@ def _detect_clarification(question: str, need_clarification: bool) -> Optional[D
         return None
 
     try:
-        from fastapi_app.agents.clarification_agent import clarification_agent
+        from fastapi_app.modules.agents.clarification_agent import clarification_agent
 
         result = clarification_agent.detect(question)
         if result and result.has_ambiguity:
@@ -144,7 +144,7 @@ def routing_node(state: AgentState, config: PipelineConfig) -> dict:
     - Cross-source detection: keyword heuristic
     - ClarificationAgent: ambiguity detection (when router signals need_clarification)
     """
-    from fastapi_app.agents.router_agent import router_agent, RoutingPath
+    from fastapi_app.modules.agents.router_agent import router_agent, RoutingPath
 
     question = state["question"]
     datasource_id = state.get("datasource_id")
@@ -183,7 +183,7 @@ def routing_node(state: AgentState, config: PipelineConfig) -> dict:
         available_datasources = [{"id": ds_id, "current": ds_id == datasource_id} for ds_id in selected_ids]
         cross_source = True
     elif cross_source:
-        from fastapi_app.agents.tools.datasource_manager import get_all_datasource_ids
+        from fastapi_app.modules.agents.tools.datasource_manager import get_all_datasource_ids
         all_ids = get_all_datasource_ids()
         if len(all_ids) > 1:
             available_datasources = [{"id": ds_id, "current": ds_id == datasource_id} for ds_id in all_ids]

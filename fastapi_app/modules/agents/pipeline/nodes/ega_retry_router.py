@@ -6,8 +6,8 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ def _infer_stage_from_error(error_message: str) -> str:
     if not error_message:
         return "unknown"
     try:
-        from fastapi_app.agents.prompts.error_classifier import classify_error, ErrorType
+        from fastapi_app.modules.agents.prompts.error_classifier import classify_error, ErrorType
 
         c = classify_error(error_message)
         if c.error_type in {ErrorType.TABLE_NOT_FOUND}:

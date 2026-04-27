@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Eye, FolderOpen, Loader2, Package, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Eye, FolderOpen, Loader2, MessageCircle, MessageSquarePlus, Package, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 
 import type { KnowledgeFile } from '../types';
+import { formatThinkFlowDateTime } from './thinkflow-document-utils';
 
 type OutputType = 'ppt' | 'report' | 'mindmap' | 'podcast' | 'flashcard' | 'quiz';
 
@@ -13,15 +14,22 @@ type SidebarOutput = {
   updated_at: string;
 };
 
+type ConversationItem = {
+  id: string;
+  title: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 type Props = {
   activeOutputId: string;
   files: KnowledgeFile[];
   getFileEmoji: (type?: string) => string;
   getOutputEmoji: (type: OutputType) => string;
   isOutputWorkspace: boolean;
-  leftTab: 'materials' | 'outputs';
+  leftTab: 'conversations' | 'materials' | 'outputs';
   loadingFiles: boolean;
-  onLeftTabChange: (next: 'materials' | 'outputs') => void;
+  onLeftTabChange: (next: 'conversations' | 'materials' | 'outputs') => void;
   onOpenOutput: (output: SidebarOutput) => void | Promise<void>;
   onPreviewSource: (file: KnowledgeFile) => void;
   onDeleteSource: (file: KnowledgeFile) => void;
@@ -33,6 +41,10 @@ type Props = {
   uploading: boolean;
   onUpload: React.ChangeEventHandler<HTMLInputElement>;
   onAddSource: () => void;
+  conversationList: ConversationItem[];
+  activeConversationId: string;
+  onSelectConversation: (id: string) => void;
+  onNewConversation: () => void;
 };
 
 function statusLabel(file: KnowledgeFile) {
@@ -81,9 +93,13 @@ export function ThinkFlowLeftSidebar({
   uploading,
   onUpload,
   onAddSource,
+  conversationList,
+  activeConversationId,
+  onSelectConversation,
+  onNewConversation,
 }: Props) {
   const pendingCount = files.filter((file) => file.vectorStatus === 'pending').length;
-  const selectedCount = selectedIds.size > 0 ? selectedIds.size : files.length;
+  const selectedCount = selectedIds.size;
   // 正在重新入库的文件 ID 集合（本地 loading 状态）
   const [embeddingIds, setEmbeddingIds] = useState<Set<string>>(new Set());
 
@@ -106,6 +122,15 @@ export function ThinkFlowLeftSidebar({
       <div className="thinkflow-left-tabs">
         <button
           type="button"
+          className={`thinkflow-left-tab ${leftTab === 'conversations' ? 'is-active' : ''}`}
+          onClick={() => onLeftTabChange('conversations')}
+        >
+          <MessageCircle size={15} />
+          对话
+          {conversationList.length > 0 ? <span className="thinkflow-badge-count">{conversationList.length}</span> : null}
+        </button>
+        <button
+          type="button"
           className={`thinkflow-left-tab ${leftTab === 'materials' ? 'is-active' : ''}`}
           onClick={() => onLeftTabChange('materials')}
         >
@@ -123,7 +148,35 @@ export function ThinkFlowLeftSidebar({
         </button>
       </div>
 
-      {leftTab === 'materials' ? (
+      {leftTab === 'conversations' ? (
+        <div className="thinkflow-left-scroll">
+          <div className="thinkflow-conversation-list-header">
+            <strong>历史对话</strong>
+            <button type="button" className="thinkflow-left-refresh-btn" onClick={onNewConversation} title="新建对话">
+              <MessageSquarePlus size={14} />
+            </button>
+          </div>
+          {conversationList.length === 0 ? (
+            <div className="thinkflow-empty thinkflow-left-empty">暂无对话记录</div>
+          ) : (
+            conversationList.map((conv) => (
+              <button
+                key={conv.id}
+                type="button"
+                className={`thinkflow-conversation-item ${activeConversationId === conv.id ? 'is-active' : ''}`}
+                onClick={() => onSelectConversation(conv.id)}
+              >
+                <div className="thinkflow-conversation-item-title">{conv.title || '未命名对话'}</div>
+                {conv.updated_at || conv.created_at ? (
+                  <div className="thinkflow-conversation-item-time">
+                    {formatThinkFlowDateTime(conv.updated_at || conv.created_at)}
+                  </div>
+                ) : null}
+              </button>
+            ))
+          )}
+        </div>
+      ) : leftTab === 'materials' ? (
         <>
           <div className="thinkflow-left-section-head">
             <div className="thinkflow-left-section-copy">
@@ -257,7 +310,7 @@ export function ThinkFlowLeftSidebar({
               <div className="thinkflow-output-card-info">
                 <div className="thinkflow-output-card-title">{output.title}</div>
                 <div className="thinkflow-output-card-meta">
-                  {output.target_type} · {new Date(output.updated_at).toLocaleDateString('zh-CN')}
+                  {output.target_type} · {formatThinkFlowDateTime(output.updated_at)}
                 </div>
                 <div className="thinkflow-output-card-actions">
                   <span>{activeOutputId === output.id ? '当前查看' : '打开查看'}</span>

@@ -30,7 +30,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from fastapi_app.routers import auth, data_extract, files, kb, kb_documents, kb_embedding, kb_notebooks, kb_outputs_v2, kb_sources, kb_workspace, paper2drawio, paper2ppt, tts, search
+from fastapi_app.routers import auth, data_extract, files, kb, kb_conversation_workspace, kb_documents, kb_embedding, kb_notebooks, kb_outputs_v2, kb_sources, kb_workspace, paper2drawio, paper2ppt, tts, search
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from fastapi_app.middleware.logging import LoggingMiddleware
 from workflow_engine.utils import get_project_root
@@ -76,6 +76,7 @@ def create_app() -> FastAPI:
 
     # Router registration
     app.include_router(kb.router, prefix="/api/v1", tags=["Knowledge Base"])
+    app.include_router(kb_conversation_workspace.router, prefix="/api/v1", tags=["ThinkFlow Conversation Workspace"])
     app.include_router(kb_documents.router, prefix="/api/v1", tags=["Knowledge Base"])
     app.include_router(kb_notebooks.router, prefix="/api/v1", tags=["Knowledge Base"])
     app.include_router(kb_outputs_v2.router, prefix="/api/v1", tags=["Knowledge Base"])

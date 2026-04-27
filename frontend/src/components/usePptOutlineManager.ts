@@ -6,6 +6,7 @@ import {
   diffPptOutline,
 } from './pptOutlineDiff';
 import { mergeOutlineWithManualEdits, formatConflictToast } from './pptOutlineMerge';
+import { formatThinkFlowTime } from './thinkflow-document-utils';
 import type { ManualEditLog } from './thinkflow-types';
 
 // ─── Types (mirrored from ThinkFlowWorkspace) ────────────────────────────────
@@ -330,10 +331,7 @@ export function hasPendingOutlineDraft(output: ThinkFlowOutput | null): boolean 
 }
 
 function formatChatTime(value?: string) {
-  if (!value) return new Date().toLocaleTimeString();
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return new Date().toLocaleTimeString();
-  return parsed.toLocaleTimeString();
+  return formatThinkFlowTime(value || new Date());
 }
 
 export function buildOutlineChatMessages(output: ThinkFlowOutput | null): ThinkFlowMessage[] {
@@ -349,7 +347,7 @@ export function buildOutlineChatMessages(output: ThinkFlowOutput | null): ThinkF
         id: 'ppt_outline_welcome',
         role: 'assistant',
         content: buildOutlineSummaryFallback(getVisiblePptOutline(output)),
-        time: new Date().toLocaleTimeString(),
+        time: formatThinkFlowTime(new Date()),
       },
     ];
   }
@@ -503,7 +501,7 @@ export type UsePptOutlineManagerDeps = {
   activeDocument: ThinkFlowDocument | null;
   notebookQuery: string;
   selectedSourceNames: string[];
-  setLeftTab: React.Dispatch<React.SetStateAction<'materials' | 'outputs'>>;
+  setLeftTab: React.Dispatch<React.SetStateAction<'conversations' | 'materials' | 'outputs'>>;
   setRightMode: React.Dispatch<React.SetStateAction<'summary' | 'doc' | 'guidance' | 'outline'>>;
   enterOutputWorkspace: (mode?: WorkspaceMode) => void;
   buildOutputContextSnapshot: (params: {
@@ -918,7 +916,7 @@ export function usePptOutlineManager(deps: UsePptOutlineManagerDeps) {
   const handlePptOutlineChatMessage = useCallback(async (query: string) => {
     if (!activeOutputId || !activeOutput || activeOutput.target_type !== 'ppt') return;
     const focusIndex = activePptSlide?.index ?? activePptSlideIndex ?? 0;
-    const requestStartedAt = new Date().toLocaleTimeString();
+    const requestStartedAt = formatThinkFlowTime(new Date());
     const pendingUserMessage: ThinkFlowMessage = {
       id: `ppt_outline_user_${Date.now()}`,
       role: 'user',

@@ -78,6 +78,12 @@ export type ThinkFlowDocument = {
   content?: string;
   created_at: string;
   updated_at: string;
+  document_type?: 'summary_doc' | 'output_doc';
+  focus_state?: {
+    type?: string;
+    section_ids?: string[];
+    description?: string;
+  };
   version_count?: number;
   status_tokens?: Record<string, number>;
   push_traces?: DocumentPushTrace[];
@@ -106,7 +112,7 @@ export type OutlineSection = {
 
 export type WorkspaceItemType = 'summary' | 'guidance';
 export type PanelGuideKey = 'summary' | 'doc' | 'guidance';
-export type ThinkFlowLeftTab = 'materials' | 'outputs';
+export type ThinkFlowLeftTab = 'conversations' | 'materials' | 'outputs';
 export type ThinkFlowRightMode = 'summary' | 'doc' | 'guidance' | 'outline';
 export type WorkspaceMode = 'normal' | 'output_focus' | 'output_immersive';
 export type ChatMode = 'chat' | 'table-analysis';

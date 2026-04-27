@@ -5,8 +5,8 @@ import logging
 
 from langchain_core.messages import AIMessage
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def finish_node(state: AgentState, config: PipelineConfig) -> dict:
     """Extract final answer from the last AI message."""
     from fastapi_app.modules.routing_feedback import routing_feedback_tracker
-    from fastapi_app.agents.prompts.error_classifier import classify_error
+    from fastapi_app.modules.agents.prompts.error_classifier import classify_error
 
     messages = state["messages"]
     final_answer = None

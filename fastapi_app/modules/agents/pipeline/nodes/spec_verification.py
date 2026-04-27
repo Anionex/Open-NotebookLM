@@ -6,8 +6,8 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def spec_verification_node(state: AgentState, config: PipelineConfig) -> Dict[st
                 ds_ids = [int(x) for x in (state.get("selected_datasource_ids") or []) if str(x).strip()]
                 ega_context = state.get("ega_context") or {}
                 if ds_ids and isinstance(ega_context, dict) and ega_context.get("alignment_graph"):
-                    from fastapi_app.agents.tools.cross_source_tools import _get_or_create_engine
+                    from fastapi_app.modules.agents.tools.cross_source_tools import _get_or_create_engine
                     from fastapi_app.modules.ega.orchestrator import write_success_memory
 
                     engine = _get_or_create_engine(ds_ids)

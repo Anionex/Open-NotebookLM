@@ -27,12 +27,12 @@ from fastapi_app.core.datasource_interface import (
     DataSourceType,
     ConfigurationException,
 )
-from fastapi_app.adapters.csv_datasource import CSVDataSource
-from fastapi_app.adapters.sql_datasource import SQLDataSource
-from fastapi_app.adapters.excel_datasource import ExcelDataSource
-from fastapi_app.adapters.clickhouse_datasource import ClickHouseDataSource
-from fastapi_app.adapters.oracle_datasource import OracleDataSource
-from fastapi_app.adapters.elasticsearch_datasource import ElasticsearchDataSource
+from fastapi_app.datasources.adapters.csv_datasource import CSVDataSource
+from fastapi_app.datasources.adapters.sql_datasource import SQLDataSource
+from fastapi_app.datasources.adapters.excel_datasource import ExcelDataSource
+from fastapi_app.datasources.adapters.clickhouse_datasource import ClickHouseDataSource
+from fastapi_app.datasources.adapters.oracle_datasource import OracleDataSource
+from fastapi_app.datasources.adapters.elasticsearch_datasource import ElasticsearchDataSource
 
 logger = logging.getLogger(__name__)
 

@@ -45,10 +45,25 @@ import {
   getPptDirectiveDiffKindLabel,
   getPptOutlineDiffKindLabel,
 } from './pptOutlineDiff';
+import {
+  buildPushSourceSummary,
+  canUsePushTransform,
+  coercePushTransform,
+  detectMarkdownModuleHeadingLevel,
+  formatThinkFlowDateTime,
+  formatThinkFlowTime,
+  getDefaultPushTarget,
+  normalizeFocusState,
+  parseMarkdownSections,
+  type StructuredPushTargetType,
+  type StructuredPushTransform,
+  type ThinkFlowFocusState,
+} from './thinkflow-document-utils';
 import type { ChatMode } from './thinkflow-types';
 import { splitSummaryCards } from './summaryCards';
 import type { NotebookContext } from './TableAnalysisPanel';
 import { usePptPageReviewManager } from './usePptPageReviewManager';
+import { useConversationSourceRefs, type ConversationSourceRef } from './useConversationSourceRefs';
 import {
   usePptOutlineManager,
   normalizePptStage,
@@ -78,7 +93,7 @@ type Notebook = {
 
 type ThinkFlowMessage = {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   time: string;
   pushed?: boolean;
@@ -120,6 +135,11 @@ type ThinkFlowDocument = {
   content?: string;
   created_at: string;
   updated_at: string;
+  document_type?: 'summary_doc' | 'output_doc';
+  focus_state?: ThinkFlowFocusState;
+  stash_items?: DocumentStashItem[];
+  change_logs?: DocumentChangeLog[];
+  metadata?: Record<string, any>;
   version_count?: number;
   status_tokens?: Record<string, number>;
   push_traces?: DocumentPushTrace[];
@@ -140,6 +160,8 @@ type DocumentSourceRef = {
 type DocumentPushTrace = {
   id: string;
   mode?: string;
+  transform?: StructuredPushTransform;
+  target?: Record<string, any>;
   title?: string;
   prompt?: string;
   created_at: string;
@@ -149,6 +171,24 @@ type DocumentPushTrace = {
   text_preview?: string;
   block_text?: string;
   source_refs?: DocumentSourceRef[];
+};
+
+type DocumentStashItem = {
+  id: string;
+  content: string;
+  source_refs?: DocumentSourceRef[];
+  created_at: string;
+  updated_at?: string;
+};
+
+type DocumentChangeLog = {
+  id: string;
+  timestamp: string;
+  doc_id: string;
+  type: string;
+  summary: string;
+  related_conv?: string | null;
+  metadata?: Record<string, any>;
 };
 
 type ThinkFlowVersion = {
@@ -373,6 +413,10 @@ type PushPopoverState = {
   y: number;
   preset: PushPreset;
   destinationType: PushDestinationType;
+  targetType: StructuredPushTargetType;
+  targetSectionId: string;
+  newSectionTitle: string;
+  transform: StructuredPushTransform;
   targetDocId: string;
   targetItemId: string;
   newTitle: string;
@@ -473,6 +517,7 @@ function outputLabel(type: OutputType) {
 function buildConversationHistoryPayload(messages: ThinkFlowMessage[]): ConversationHistoryMessage[] {
   return messages
     .filter((item) => item.id !== 'welcome')
+    .filter((item) => item.role === 'user' || item.role === 'assistant')
     .slice(-12)
     .map((item, index) => ({
       id: item.id || `conversation_${index}`,
@@ -659,14 +704,11 @@ function splitTextWithStatusTokens(text: string): Array<{ type: 'text' | 'status
   return parts.length > 0 ? parts : [{ type: 'text', value: text }];
 }
 
-function buildDocumentSections(content: string, traces: DocumentPushTrace[]) {
+function buildDocumentSections(content: string, traces: DocumentPushTrace[], headingLevel = 2) {
   const lines = String(content || '').split('\n');
-  const headingStarts: number[] = [];
-  lines.forEach((line, index) => {
-    if (/^##\s+/.test(line.trim())) headingStarts.push(index);
-  });
+  const parsedSections = parseMarkdownSections(content, headingLevel);
 
-  if (headingStarts.length === 0) {
+  if (parsedSections.length === 0) {
     const trimmed = content.trim();
     return trimmed
       ? [
@@ -683,13 +725,14 @@ function buildDocumentSections(content: string, traces: DocumentPushTrace[]) {
 
   const sections: Array<{
     id: string;
+    heading?: string;
     content: string;
     lineStart: number;
     lineEnd: number;
     traces: DocumentPushTrace[];
   }> = [];
 
-  const firstHeading = headingStarts[0];
+  const firstHeading = parsedSections[0].lineStart - 1;
   if (firstHeading > 0) {
     const preamble = lines.slice(0, firstHeading).join('\n').trim();
     if (preamble) {
@@ -703,18 +746,14 @@ function buildDocumentSections(content: string, traces: DocumentPushTrace[]) {
     }
   }
 
-  headingStarts.forEach((start, index) => {
-    const nextStart = headingStarts[index + 1] ?? lines.length;
-    const chunk = lines.slice(start, nextStart).join('\n').trim();
-    if (!chunk) return;
-    const lineStart = start + 1;
-    const lineEnd = nextStart;
+  parsedSections.forEach((section) => {
     sections.push({
-      id: `section_${lineStart}`,
-      content: chunk,
-      lineStart,
-      lineEnd,
-      traces: traces.filter((trace) => trace.line_start <= lineEnd && trace.line_end >= lineStart),
+      id: section.id,
+      heading: section.heading,
+      content: section.content,
+      lineStart: section.lineStart,
+      lineEnd: section.lineEnd,
+      traces: traces.filter((trace) => trace.line_start <= section.lineEnd && trace.line_end >= section.lineStart),
     });
   });
 
@@ -726,7 +765,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const effectiveUser = user || DEFAULT_USER;
   const notebookTitle = getNotebookTitle(notebook);
 
-  const [leftTab, setLeftTab] = useState<'materials' | 'outputs'>('materials');
+  const [leftTab, setLeftTab] = useState<'conversations' | 'materials' | 'outputs'>('materials');
   const [rightMode, setRightMode] = useState<'summary' | 'doc' | 'guidance' | 'outline'>('doc');
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('normal');
@@ -746,8 +785,12 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
 
   const [documents, setDocuments] = useState<ThinkFlowDocument[]>([]);
   const [activeDocumentId, setActiveDocumentId] = useState('');
+  const [conversationActiveDocumentId, setConversationActiveDocumentId] = useState('');
   const [documentTitle, setDocumentTitle] = useState('');
   const [documentContent, setDocumentContent] = useState('');
+  const [documentFocusState, setDocumentFocusState] = useState<ThinkFlowFocusState>(() => normalizeFocusState());
+  const [documentStashItems, setDocumentStashItems] = useState<DocumentStashItem[]>([]);
+  const [documentChangeLogs, setDocumentChangeLogs] = useState<DocumentChangeLog[]>([]);
   const [documentSaving, setDocumentSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
@@ -787,7 +830,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         id: 'welcome',
         role: 'assistant',
         content: '请先围绕左侧已选素材提问。对话是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成摘要、整理进文档，或者加入产出指导。',
-        time: new Date().toLocaleTimeString(),
+        time: formatThinkFlowTime(new Date()),
       },
     ],
     [],
@@ -796,6 +839,11 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [boundDocIds, setBoundDocIds] = useState<string[]>([]);
+  const {
+    conversationSourceRefs,
+    setConversationSourceRefs,
+    clearConversationSourceRefs,
+  } = useConversationSourceRefs();
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [multiSelectPrompt, setMultiSelectPrompt] = useState('');
   const [globalError, setGlobalErrorRaw] = useState('');
@@ -854,6 +902,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     y: 0,
     preset: 'default',
     destinationType: 'summary',
+    targetType: 'document_end',
+    targetSectionId: '',
+    newSectionTitle: '',
+    transform: 'ai_append',
     targetDocId: '',
     targetItemId: '',
     newTitle: '',
@@ -892,6 +944,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     () => documents.find((item) => item.id === activeDocumentId) || null,
     [activeDocumentId, documents],
   );
+  const conversationActiveDocument = useMemo(
+    () => documents.find((item) => item.id === conversationActiveDocumentId) || null,
+    [conversationActiveDocumentId, documents],
+  );
 
   const summaryItems = useMemo(
     () => workspaceItems.filter((item) => item.type === 'summary'),
@@ -917,11 +973,6 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     [activeGuidanceId, guidanceItems],
   );
 
-  const visibleChatMessages = useMemo(
-    () => (isPptOutlineChatStage ? [...pptOutlineChatMessages, ...pptOutlinePendingMessages] : chatMessages),
-    [chatMessages, isPptOutlineChatStage, pptOutlineChatMessages, pptOutlinePendingMessages],
-  );
-
   const withAssetVersion = (url: string, seed?: string) => {
     const cleanUrl = String(url || '').trim();
     if (!cleanUrl) return '';
@@ -930,22 +981,31 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   };
 
   const documentSections = useMemo(
-    () => buildDocumentSections(documentContent, activeDocument?.push_traces || []),
-    [activeDocument?.push_traces, documentContent],
+    () => buildDocumentSections(
+      documentContent,
+      activeDocument?.push_traces || [],
+      activeDocument?.document_type === 'output_doc' ? detectMarkdownModuleHeadingLevel(documentContent) : 2,
+    ),
+    [activeDocument?.document_type, activeDocument?.push_traces, documentContent],
   );
 
   const selectedFilePaths = useMemo(() => {
-    const chosen = files.filter((file) => selectedIds.has(file.id)).map((file) => resolveFileUrl(file));
-    if (chosen.length > 0) return chosen.filter(Boolean);
-    return files.map((file) => resolveFileUrl(file)).filter(Boolean);
-  }, [files, selectedIds]);
+    const materialRefs = conversationSourceRefs.filter((ref) => ref.type === 'material');
+    return materialRefs
+      .map((ref) => ref.path || resolveFileUrl(files.find((file) => file.id === ref.id) || {}))
+      .filter(Boolean);
+  }, [conversationSourceRefs, files]);
   const selectedSourceNames = useMemo(() => {
-    const chosen = files.filter((file) => selectedIds.has(file.id)).map((file) => file.name || '未命名来源');
-    if (chosen.length > 0) return chosen;
-    return files.map((file) => file.name || '未命名来源');
-  }, [files, selectedIds]);
+    const names = conversationSourceRefs
+      .filter((ref) => ref.type === 'material')
+      .map((ref) => ref.title || files.find((file) => file.id === ref.id)?.name || '未命名来源');
+    return names;
+  }, [conversationSourceRefs, files]);
 
-  const selectedSourceIds = useMemo(() => Array.from(selectedIds).sort(), [selectedIds]);
+  const selectedSourceIds = useMemo(
+    () => conversationSourceRefs.filter((ref) => ref.type === 'material').map((ref) => ref.id).sort(),
+    [conversationSourceRefs],
+  );
 
   // ─── PPT Outline Manager Hook ─────────────────────────────────────────────
   const {
@@ -1066,6 +1126,11 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   });
   // ─────────────────────────────────────────────────────────────────────────
 
+  const visibleChatMessages = useMemo(
+    () => (isPptOutlineChatStage ? [...pptOutlineChatMessages, ...pptOutlinePendingMessages] : chatMessages),
+    [chatMessages, isPptOutlineChatStage, pptOutlineChatMessages, pptOutlinePendingMessages],
+  );
+
   const buildOutputContextSnapshot = ({
     outputId,
     targetType,
@@ -1163,10 +1228,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         vectorError: file.vector_error,
       }));
       setFiles(nextFiles);
-      setSelectedIds((previous) => {
-        if (previous.size > 0) return previous;
-        return new Set(nextFiles.slice(0, 3).map((file) => file.id));
-      });
+      setSelectedIds((previous) => new Set([...previous].filter((id) => nextFiles.some((file) => file.id === id))));
     } catch (error: any) {
       setGlobalError(error?.message || '加载素材失败');
     } finally {
@@ -1183,6 +1245,9 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     const versionData = await parseJson<{ versions: ThinkFlowVersion[] }>(versionResponse);
     setDocumentTitle(detailData.document.title || '');
     setDocumentContent(detailData.document.content || '');
+    setDocumentFocusState(normalizeFocusState(detailData.document.focus_state));
+    setDocumentStashItems(detailData.document.stash_items || []);
+    setDocumentChangeLogs(detailData.document.change_logs || []);
     setVersions(versionData.versions || []);
       setDocuments((previous) =>
       previous.map((item) => (item.id === documentId ? { ...item, ...detailData.document } : item)),
@@ -1205,19 +1270,20 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         setActiveDocumentId('');
         setDocumentTitle('');
         setDocumentContent('');
+        setDocumentFocusState(normalizeFocusState());
+        setDocumentStashItems([]);
+        setDocumentChangeLogs([]);
         setVersions([]);
         setEditMode(false);
         setShowVersionPanel(false);
       }
       setBoundDocIds((previous) => previous.filter((id) => items.some((item) => item.id === id)));
+      setConversationActiveDocumentId((previous) => (previous && items.some((item) => item.id === previous) ? previous : targetId || ''));
       setPushPopover((previous) => ({
         ...previous,
-        targetDocId:
-          previous.targetDocId === '__new__'
-            ? '__new__'
-            : previous.targetDocId && items.some((item) => item.id === previous.targetDocId)
-              ? previous.targetDocId
-              : items[0]?.id || '__new__',
+        targetDocId: previous.targetDocId && items.some((item) => item.id === previous.targetDocId)
+          ? previous.targetDocId
+          : targetId || items[0]?.id || '',
       }));
     } catch (error: any) {
       setGlobalError(error?.message || '加载文档失败');
@@ -1377,6 +1443,33 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       setGlobalError('');
       setConversationId('');
       setChatMessages(welcomeMessages);
+      setConversationList([]);
+      clearConversationSourceRefs();
+      setSelectedIds(new Set());
+      setBoundDocIds([]);
+      setDocuments([]);
+      setActiveDocumentId('');
+      setConversationActiveDocumentId('');
+      setDocumentTitle('');
+      setDocumentContent('');
+      setDocumentFocusState(normalizeFocusState());
+      setDocumentStashItems([]);
+      setDocumentChangeLogs([]);
+      setVersions([]);
+      setWorkspaceItems([]);
+      setActiveSummaryId('');
+      setActiveGuidanceId('');
+      setSummaryTitle('');
+      setSummaryContent('');
+      setGuidanceTitle('');
+      setGuidanceContent('');
+      setPushPopover((previous) => ({
+        ...previous,
+        show: false,
+        targetDocId: '',
+        targetSectionId: '',
+        targetItemId: '',
+      }));
       const [conversations] = await Promise.all([
         refreshConversationList(),
         refreshFiles(),
@@ -1476,7 +1569,72 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   };
   ensureDocumentContentRef.current = ensureDocumentContent;
 
+  const persistConversationWorkspaceState = async ({
+    targetConversationId = conversationId,
+    sourceRefs = conversationSourceRefs,
+    activeDocId = conversationActiveDocumentId,
+  }: {
+    targetConversationId?: string;
+    sourceRefs?: ConversationSourceRef[];
+    activeDocId?: string;
+  }) => {
+    if (!targetConversationId) return null;
+    const response = await apiFetch(`/api/v1/kb/conversations/${targetConversationId}/workspace-state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        notebook_id: notebook.id,
+        notebook_title: notebookTitle,
+        user_id: effectiveUser?.id || 'local',
+        email: effectiveUser?.email || '',
+        source_refs: sourceRefs,
+        active_document_id: activeDocId || '',
+      }),
+    });
+    const data = await parseJson<{ state: { source_refs?: ConversationSourceRef[]; active_document_id?: string } }>(response);
+    const refs = data.state.source_refs || [];
+    setConversationSourceRefs(refs);
+    setSelectedIds(new Set(refs.filter((ref) => ref.type === 'material').map((ref) => ref.id)));
+    setBoundDocIds(refs.filter((ref) => ref.type === 'document' || ref.type === 'output_document').map((ref) => ref.id));
+    setConversationActiveDocumentId(data.state.active_document_id || '');
+    return data.state;
+  };
+
+  const loadConversationWorkspaceState = async (targetConversationId: string) => {
+    if (!targetConversationId) return null;
+    try {
+      const response = await apiFetch(`/api/v1/kb/conversations/${targetConversationId}/workspace-state?${notebookQuery}`);
+      const data = await parseJson<{ state: { source_refs?: ConversationSourceRef[]; active_document_id?: string } }>(response);
+      const refs = data.state.source_refs || [];
+      const storedActiveId = String(data.state.active_document_id || '').trim();
+      const fallbackActiveId =
+        storedActiveId ||
+        activeDocumentId ||
+        documents[0]?.id ||
+        '';
+      setConversationSourceRefs(refs);
+      setConversationActiveDocumentId(fallbackActiveId);
+      setSelectedIds(new Set(refs.filter((ref) => ref.type === 'material').map((ref) => ref.id)));
+      setBoundDocIds(refs.filter((ref) => ref.type === 'document' || ref.type === 'output_document').map((ref) => ref.id));
+      if (!storedActiveId && fallbackActiveId) {
+        void persistConversationWorkspaceState({
+          targetConversationId,
+          sourceRefs: refs,
+          activeDocId: fallbackActiveId,
+        }).catch(() => {});
+      }
+      return { source_refs: refs, active_document_id: fallbackActiveId };
+    } catch (error: any) {
+      setConversationSourceRefs([]);
+      setBoundDocIds([]);
+      setConversationActiveDocumentId(activeDocumentId || documents[0]?.id || '');
+      setGlobalError(error?.message || '加载对话工作区状态失败');
+      return null;
+    }
+  };
+
   const loadConversationMessages = async (targetConversationId: string) => {
+    setConversationId(targetConversationId);
     const response = await apiFetch(`/api/v1/kb/conversations/${targetConversationId}/messages`);
     const data = await parseJson<{ messages?: ConversationHistoryMessage[] }>(response);
     const rows = Array.isArray(data?.messages) ? data.messages : [];
@@ -1486,10 +1644,11 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             id: item.id || `history_${index}`,
             role: item.role === 'assistant' ? 'assistant' : 'user',
             content: item.content || '',
-            time: item.created_at || '',
+            time: formatThinkFlowTime(item.created_at),
           }))
         : welcomeMessages,
     );
+    await loadConversationWorkspaceState(targetConversationId);
   };
 
   const refreshConversationList = async () => {
@@ -1535,6 +1694,14 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     setSelectedMessageIds([]);
     setMultiSelectPrompt('');
     setBoundDocIds([]);
+    clearConversationSourceRefs();
+    const nextActiveDocId = activeDocumentId || documents[0]?.id || '';
+    setConversationActiveDocumentId(nextActiveDocId);
+    await persistConversationWorkspaceState({
+      targetConversationId: nextId,
+      sourceRefs: [],
+      activeDocId: nextActiveDocId,
+    });
     return nextId;
   };
 
@@ -1639,7 +1806,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   };
 
   const openHistoryPanel = async () => {
-    setHistoryOpen(true);
+    setLeftTab('conversations');
     setHistoryLoading(true);
     try {
       const rows = await refreshConversationList();
@@ -1674,15 +1841,25 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   };
 
   const toggleSource = (fileId: string) => {
-    setSelectedIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(fileId)) next.delete(fileId);
-      else next.add(fileId);
-      return next;
-    });
-
     // 当选中 dataset（CSV/Excel）时，自动激活表格分析模式
     const selected = files.find((f) => f.id === fileId);
+    if (!selected) return;
+    const nextRefs = conversationSourceRefs.some((ref) => ref.type === 'material' && ref.id === fileId)
+      ? conversationSourceRefs.filter((ref) => !(ref.type === 'material' && ref.id === fileId))
+      : [
+          ...conversationSourceRefs,
+          {
+            id: selected.id,
+            type: 'material' as const,
+            title: selected.name || '未命名素材',
+            path: resolveFileUrl(selected),
+          },
+        ];
+    setConversationSourceRefs(nextRefs);
+    setSelectedIds(new Set(nextRefs.filter((ref) => ref.type === 'material').map((ref) => ref.id)));
+    void persistConversationWorkspaceState({ sourceRefs: nextRefs }).catch((error: any) => {
+      setGlobalError(error?.message || '更新对话来源失败');
+    });
     if (selected?.type === 'dataset') {
       setActiveDataset(selected);
       setChatMode('table-analysis');
@@ -1692,10 +1869,43 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
   };
 
+  const setConversationActiveDocument = async (documentId: string) => {
+    const previousTitle = conversationActiveDocument?.title || '未设置';
+    const nextDoc = documents.find((item) => item.id === documentId);
+    if (!nextDoc) return;
+    setConversationActiveDocumentId(documentId);
+    await persistConversationWorkspaceState({ activeDocId: documentId });
+    setChatMessages((previous) => [
+      ...previous,
+      {
+        id: `system_active_doc_${Date.now()}`,
+        role: 'system',
+        content: `切换活跃文档：${previousTitle} → ${nextDoc.title || '未命名文档'}`,
+        time: formatThinkFlowTime(new Date()),
+        meta: { type: 'stage_change' },
+      },
+    ]);
+  };
+
   const toggleBoundDoc = (documentId: string) => {
-    setBoundDocIds((previous) => {
-      if (previous.includes(documentId)) return previous.filter((id) => id !== documentId);
-      return [...previous, documentId];
+    const document = documents.find((item) => item.id === documentId);
+    if (!document) return;
+    const sourceType = document.document_type === 'output_doc' ? 'output_document' : 'document';
+    const exists = conversationSourceRefs.some((ref) => ref.id === documentId && (ref.type === 'document' || ref.type === 'output_document'));
+    const nextRefs = exists
+      ? conversationSourceRefs.filter((ref) => !(ref.id === documentId && (ref.type === 'document' || ref.type === 'output_document')))
+      : [
+          ...conversationSourceRefs,
+          {
+            id: document.id,
+            type: sourceType,
+            title: document.title || '未命名文档',
+          },
+        ];
+    setConversationSourceRefs(nextRefs);
+    setBoundDocIds(nextRefs.filter((ref) => ref.type === 'document' || ref.type === 'output_document').map((ref) => ref.id));
+    void persistConversationWorkspaceState({ sourceRefs: nextRefs }).catch((error: any) => {
+      setGlobalError(error?.message || '更新对话参考文档失败');
     });
     setRightPanelOpen(true);
     setActiveDocumentId(documentId);
@@ -1975,7 +2185,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     content,
     rect,
     sourceEntries,
-    preferredDestination = 'summary',
+    preferredDestination = 'document',
     prompt = '',
     preset = 'default',
   }: {
@@ -2004,15 +2214,25 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       viewportHeight - popoverHeight - margin,
     );
     setRightPanelOpen(true);
-    setRightMode(preferredDestination === 'document' ? 'doc' : preferredDestination);
+    setRightMode('doc');
     setSelectionToolbar((previous) => ({ ...previous, show: false }));
+    const defaultTargetType = getDefaultPushTarget(documentFocusState);
+    const defaultTargetDocId = conversationActiveDocumentId || activeDocumentId || documents[0]?.id || '';
+    if (preferredDestination === 'document' && !defaultTargetDocId) {
+      setGlobalError('请先在右侧选择或创建一份活跃文档，再推送到文档。');
+      return;
+    }
     setPushPopover({
       show: true,
       x: nextX,
       y: nextY,
       preset,
       destinationType: preferredDestination,
-      targetDocId: activeDocumentId || documents[0]?.id || '__new__',
+      targetType: defaultTargetType,
+      targetSectionId: documentFocusState.section_ids[0] || documentSections[0]?.id || '',
+      newSectionTitle: '',
+      transform: 'ai_append',
+      targetDocId: defaultTargetDocId,
       targetItemId:
         preferredDestination === 'summary'
           ? (activeSummary?.summary_kind === 'item' ? activeSummaryId : '') || itemSummaryItems[0]?.id || '__new__'
@@ -2044,7 +2264,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           kind: 'message',
         },
       ],
-      preferredDestination: 'summary',
+      preferredDestination: 'document',
       preset: 'default',
     });
   };
@@ -2096,7 +2316,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       content: parts.join('\n\n'),
       rect: event.currentTarget.getBoundingClientRect(),
       sourceEntries: qaEntries,
-      preferredDestination: 'guidance',
+      preferredDestination: 'document',
       prompt: '提炼这一轮问答的核心结论、关键依据与待确认点。',
       preset: 'qa',
     });
@@ -2173,7 +2393,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           kind: 'selection',
         },
       ],
-      preferredDestination: 'summary',
+      preferredDestination: 'document',
     });
   };
 
@@ -2198,7 +2418,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       content,
       rect,
       sourceEntries,
-      preferredDestination: 'summary',
+      preferredDestination: 'document',
       prompt: multiSelectPrompt,
       preset: 'default',
     });
@@ -2259,15 +2479,98 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     );
   };
 
+  const updateDisplayedDocumentFocus = async (nextFocus: ThinkFlowFocusState) => {
+    if (!activeDocumentId) return;
+    setDocumentFocusState(nextFocus);
+    try {
+      const response = await apiFetch(`/api/v1/kb/documents/${activeDocumentId}/focus`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notebook_id: notebook.id,
+          notebook_title: notebookTitle,
+          user_id: effectiveUser?.id || 'local',
+          email: effectiveUser?.email || '',
+          focus_state: nextFocus,
+        }),
+      });
+      const data = await parseJson<{ focus_state: ThinkFlowFocusState }>(response);
+      setDocumentFocusState(normalizeFocusState(data.focus_state));
+      setDocuments((previous) =>
+        previous.map((item) => (item.id === activeDocumentId ? { ...item, focus_state: normalizeFocusState(data.focus_state) } : item)),
+      );
+    } catch (error: any) {
+      setGlobalError(error?.message || '更新文档焦点失败');
+      await loadDocumentDetail(activeDocumentId);
+    }
+  };
+
+  const toggleSectionFocus = (sectionId: string, heading?: string) => {
+    const current = normalizeFocusState(documentFocusState);
+    const isSelected = current.type === 'sections' && current.section_ids.includes(sectionId);
+    const nextIds = isSelected
+      ? current.section_ids.filter((id) => id !== sectionId)
+      : current.type === 'sections'
+        ? [...current.section_ids, sectionId]
+        : [sectionId];
+    const selectedHeadings = documentSections
+      .filter((section) => nextIds.includes(section.id))
+      .map((section) => section.heading || heading || '章节');
+    const focusLabel = activeDocument?.document_type === 'output_doc' ? '确认模块' : '焦点';
+    const description = nextIds.length === 0
+      ? `${focusLabel}：全文`
+      : `${focusLabel}：${selectedHeadings.map((item) => `§ ${item}`).join(' + ')}`;
+    void updateDisplayedDocumentFocus(
+      normalizeFocusState({
+        type: nextIds.length > 0 ? 'sections' : 'full',
+        section_ids: nextIds,
+        stash_item_ids: [],
+        description,
+      }),
+    );
+  };
+
   const renderDocumentSection = (section: ReturnType<typeof buildDocumentSections>[number]) => {
     const shouldHighlight = section.traces.some((trace) => trace.id === highlightedTraceId);
+    const isFocused = documentFocusState.type === 'sections' && documentFocusState.section_ids.includes(section.id);
+    const isOutputDocument = activeDocument?.document_type === 'output_doc';
+    const moduleActionLabel = isFocused ? '已确认并入此模块' : '确认下次并入修改此模块';
+    const activateDocumentSection = () => {
+      toggleSectionFocus(section.id, section.heading);
+    };
+    const handleDocumentSectionClick = (event: React.MouseEvent<HTMLElement>) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest('button, a, input, textarea, select')) return;
+      activateDocumentSection();
+    };
+    const handleDocumentSectionKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      activateDocumentSection();
+    };
     return (
       <section
         key={section.id}
-        className={`thinkflow-doc-section ${shouldHighlight ? 'is-highlighted' : ''}`}
+        className={`thinkflow-doc-section ${isOutputDocument ? 'is-output-module' : ''} ${shouldHighlight ? 'is-highlighted' : ''} ${isFocused ? 'is-focused' : ''}`}
         data-section-id={section.id}
         data-trace-ids={section.traces.map((trace) => trace.id).join(',')}
+        role="button"
+        tabIndex={0}
+        onClick={handleDocumentSectionClick}
+        onKeyDown={handleDocumentSectionKeyDown}
       >
+        {isOutputDocument ? (
+          <button
+            type="button"
+            className="thinkflow-doc-module-confirm"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleSectionFocus(section.id, section.heading);
+            }}
+          >
+            {moduleActionLabel}
+          </button>
+        ) : null}
         <div className="thinkflow-doc-render">
           <ReactMarkdown
             components={{
@@ -2420,9 +2723,13 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     setMultiSelectPrompt('');
   };
 
-  const createDocument = async (title?: string) => {
+  const createDocument = async (
+    title?: string,
+    options?: { documentType?: 'summary_doc' | 'output_doc'; metadata?: Record<string, any>; content?: string },
+  ) => {
     try {
-      const nextTitle = (title || '').trim() || `梳理摘要 ${documents.length + 1}`;
+      const isOutputDoc = options?.documentType === 'output_doc';
+      const nextTitle = (title || '').trim() || (isOutputDoc ? `PPT 产出文档 ${documents.length + 1}` : `梳理摘要 ${documents.length + 1}`);
       const response = await apiFetch('/api/v1/kb/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2432,7 +2739,9 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           user_id: effectiveUser?.id || 'local',
           email: effectiveUser?.email || '',
           title: nextTitle,
-          content: '',
+          content: options?.content ?? '',
+          document_type: options?.documentType || 'summary_doc',
+          metadata: options?.metadata || {},
         }),
       });
       const data = await parseJson<{ document: ThinkFlowDocument }>(response);
@@ -2443,6 +2752,40 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     } catch (error: any) {
       setGlobalError(error?.message || '创建文档失败');
       return '';
+    }
+  };
+
+  const createOutputDocument = async (params?: {
+    title?: string;
+    sourceRefs?: Array<{ id: string; type: 'document' | 'output_document'; title: string; metadata?: Record<string, any> }>;
+  }) => {
+    const sourceRefs = [
+      ...(params?.sourceRefs || conversationSourceRefs),
+      ...(activeDocumentId
+      && !(params?.sourceRefs || []).some((ref) => ref.id === activeDocumentId)
+        ? [{
+            id: activeDocumentId,
+            type: activeDocument?.document_type === 'output_doc' ? 'output_document' : 'document',
+            title: activeDocument?.title || documentTitle || '当前文档',
+            metadata: { range: 'body' },
+          } as ConversationSourceRef]
+        : []),
+    ];
+    const id = await createDocument(params?.title || 'PPT 产出文档', {
+      documentType: 'output_doc',
+      metadata: {
+        output_type: 'ppt',
+        source_refs: sourceRefs,
+        audience: '',
+        style: '',
+        goal: '',
+      },
+      content: '# PPT 产出文档\n\n## 产出目标\n\n[待补充]\n\n## 大纲方向\n\n[待补充]',
+    });
+    if (id) {
+      await setConversationActiveDocument(id);
+      setRightMode('doc');
+      setCaptureFeedback('已创建 PPT 产出文档，可继续编辑后进入 PPT 工作台。');
     }
   };
 
@@ -2505,11 +2848,34 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
   };
 
+  const ensurePushTargetDocument = async (documentId: string): Promise<ThinkFlowDocument | null> => {
+    if (!documentId || documentId === '__new__') return null;
+    const localDocument = documents.find((doc) => doc.id === documentId);
+    if (localDocument) return localDocument;
+    try {
+      const document = await loadDocumentDetail(documentId);
+      setDocuments((previous) => {
+        if (previous.some((item) => item.id === document.id)) return previous;
+        return [document, ...previous];
+      });
+      return document;
+    } catch (error: any) {
+      await refreshDocuments();
+      throw new Error(
+        `当前对话的活跃文档不在此笔记本中。当前笔记本：${notebookTitle} (${notebook.id})。请在右侧切换活跃文档后再推送。`,
+      );
+    }
+  };
+
   const executePush = async () => {
     if (pushSubmitting) return;
     const {
       preset,
       destinationType,
+      targetType,
+      targetSectionId,
+      newSectionTitle,
+      transform,
       targetDocId,
       targetItemId,
       newTitle,
@@ -2524,16 +2890,23 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     }
     setPushError('');
     setPushSubmitting(true);
-    setPushStatusText(describePushAction(destinationType, mode));
+    setPushStatusText(destinationType === 'document' ? '整理推送内容中...' : describePushAction(destinationType, mode));
     try {
-      const resolvedTitle = await resolvePushTitle({
-        destinationType,
-        sourceContent,
-        prompt,
-        manualTitle: newTitle,
-      });
-      setPushStatusText(describePushAction(destinationType, mode));
-      const selectedFiles = files.filter((file) => selectedIds.has(file.id)).slice(0, 3);
+      const requiresGeneratedTitle = destinationType !== 'document';
+      const resolvedTitle = requiresGeneratedTitle
+        ? await resolvePushTitle({
+          destinationType,
+          sourceContent,
+          prompt,
+          manualTitle: newTitle,
+        })
+        : (String(newTitle || '').trim() || inferDocumentTitle(sourceContent, prompt) || '对话沉淀');
+      setPushStatusText(destinationType === 'document' ? '写入文档中...' : describePushAction(destinationType, mode));
+      const selectedFiles = conversationSourceRefs
+        .filter((ref) => ref.type === 'material')
+        .map((ref) => files.find((file) => file.id === ref.id) || null)
+        .filter(Boolean)
+        .slice(0, 3) as KnowledgeFile[];
       const sourceRefs = [
         ...sourceEntries.map((entry) => ({
           source_type: entry.kind,
@@ -2549,12 +2922,22 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       if (destinationType === 'document') {
         let docId = targetDocId;
         let docTitle = documents.find((doc) => doc.id === targetDocId)?.title || resolvedTitle;
-        if (docId === '__new__') {
-          const createdId = await createDocument(resolvedTitle);
-          if (!createdId) return;
-          docId = createdId;
-          docTitle = resolvedTitle;
+        if (!docId) {
+          throw new Error('请先在右侧选择或创建一份活跃文档，再推送到文档。');
         }
+        const verifiedDocument = await ensurePushTargetDocument(docId);
+        docTitle = verifiedDocument?.title || docTitle;
+        const normalizedTransform = coercePushTransform(targetType, transform);
+        const structuredTarget =
+          targetType === 'focus'
+            ? { type: 'focus' }
+            : targetType === 'section'
+              ? { type: 'section', section_id: targetSectionId }
+              : targetType === 'new_section'
+                ? { type: 'new_section', heading: newSectionTitle || resolvedTitle || '新增章节' }
+                : targetType === 'stash'
+                  ? { type: 'stash' }
+                  : { type: 'document_end' };
         const response = await apiFetch(`/api/v1/kb/documents/${docId}/push`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2563,19 +2946,43 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             notebook_title: notebookTitle,
             user_id: effectiveUser?.id || 'local',
             email: effectiveUser?.email || '',
-            mode,
+            mode: normalizedTransform === 'raw_append' ? 'append' : normalizedTransform === 'ai_merge' ? 'merge' : 'organize',
             title: resolvedTitle || '对话沉淀',
             prompt,
             text_items: [sourceContent],
             source_refs: sourceRefs,
+            target: structuredTarget,
+            transform: normalizedTransform,
+            related_conv: conversationId || undefined,
           }),
         });
-        const data = await parseJson<{ document: ThinkFlowDocument; trace?: DocumentPushTrace }>(response);
+        const data = await parseJson<{ document: ThinkFlowDocument; trace?: DocumentPushTrace; stash_item?: DocumentStashItem }>(response);
         setActiveDocumentId(docId);
+        setConversationActiveDocumentId(docId);
         setRightPanelOpen(true);
         setRightMode('doc');
         if (data.trace?.id) setHighlightedTraceId(data.trace.id);
+        if (data.trace?.target?.section_id) {
+          setDocumentFocusState(
+            normalizeFocusState({
+              type: 'sections',
+              section_ids: [String(data.trace.target.section_id)],
+              stash_item_ids: [],
+              description: `焦点：${data.trace.target.heading || '推送目标章节'}`,
+            }),
+          );
+        } else if (data.trace?.target?.type === 'stash' && data.stash_item?.id) {
+          setDocumentFocusState(
+            normalizeFocusState({
+              type: 'stash_item',
+              section_ids: [],
+              stash_item_ids: [data.stash_item.id],
+              description: '焦点：暂存区第 1 条',
+            }),
+          );
+        }
         await refreshDocuments(docId);
+        void persistConversationWorkspaceState({ activeDocId: docId }).catch(() => {});
         setPushPopover((previous) => ({ ...previous, show: false }));
         setCaptureFeedback(`已整理进文档《${docTitle}》`);
       } else {
@@ -2694,27 +3101,38 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       id: `user_${Date.now()}`,
       role: 'user',
       content: query,
-      time: new Date().toLocaleTimeString(),
+      time: formatThinkFlowTime(new Date()),
     };
     const assistantMessage: ThinkFlowMessage = {
       id: `assistant_${Date.now()}`,
       role: 'assistant',
       content: '',
-      time: new Date().toLocaleTimeString(),
+      time: formatThinkFlowTime(new Date()),
     };
 
     setChatMessages((previous) => [...previous, userMessage, assistantMessage]);
     setChatInput('');
 
     try {
-      const boundDocs = await Promise.all(boundDocIds.map((id) => ensureDocumentContent(id)));
-      const validDocs = boundDocs.filter(Boolean) as ThinkFlowDocument[];
-      const docContext = validDocs
-        .map((doc) => `参考文档《${doc.title}》:\n${String(doc.content || '').slice(0, 2400)}`)
-        .join('\n\n');
-      const finalQuery = docContext
-        ? `${docContext}\n\n用户问题：${query}\n\n要求：优先围绕上述梳理文档与当前素材回答。`
-        : query;
+      const targetConversationId = await ensureConversationId();
+      const contextResponse = targetConversationId
+        ? await apiFetch(`/api/v1/kb/conversations/${targetConversationId}/chat-context`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              notebook_id: notebook.id,
+              notebook_title: notebookTitle,
+              user_id: effectiveUser?.id || 'local',
+              email: effectiveUser?.email || '',
+              user_message: query,
+              history: buildConversationHistoryPayload(chatMessages),
+            }),
+          })
+        : null;
+      const contextData = contextResponse
+        ? await parseJson<{ context?: { context_text?: string } }>(contextResponse)
+        : null;
+      const finalQuery = contextData?.context?.context_text || query;
 
       const response = await apiFetch('/api/v1/kb/chat/stream', {
         method: 'POST',
@@ -2724,6 +3142,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           query: finalQuery,
           history: chatMessages
             .filter((item) => item.id !== 'welcome')
+            .filter((item) => item.role === 'user' || item.role === 'assistant')
             .map((item) => ({ role: item.role, content: item.content })),
           email: effectiveUser?.email || '',
           user_id: effectiveUser?.id || 'local',
@@ -2810,6 +3229,19 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
         { role: 'user', content: query },
         { role: 'assistant', content: fullAnswer },
       ]);
+      if (targetConversationId) {
+        await apiFetch(`/api/v1/kb/conversations/${targetConversationId}/mark-sent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notebook_id: notebook.id,
+            notebook_title: notebookTitle,
+            user_id: effectiveUser?.id || 'local',
+            email: effectiveUser?.email || '',
+          }),
+        });
+        void loadConversationWorkspaceState(targetConversationId);
+      }
     } catch (error: any) {
       setGlobalError(error?.message || '发送消息失败');
       setChatMessages((previous) =>
@@ -2887,6 +3319,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             '你是 ThinkFlow 的 AI 笔记整理器。',
             '请根据给定来源与对话片段，输出一份简洁、可继续编辑的 markdown 摘要。',
             '不要直接复制原始问答，要先归纳。',
+            'Markdown 层级规则：最大标题只能使用二级标题 ##；不要输出一级标题 #；主要模块必须用 ##，不要把主要模块写成 ###。',
             '必须包含这些二级标题：',
             '## 这段在说什么',
             '## 当前结论',
@@ -2899,6 +3332,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             '请根据给定来源与对话片段，输出一份高权重、只读的 markdown 产出指导。',
             '这份内容将直接进入后续 PPT / 报告 / 其他产出的核心上下文。',
             '不要复述原始问答，要输出明确要求。',
+            'Markdown 层级规则：最大标题只能使用二级标题 ##；不要输出一级标题 #；主要模块必须用 ##，不要把主要模块写成 ###。',
             '必须包含这些二级标题：',
             '## 产出目标',
             '## 必须覆盖',
@@ -3811,7 +4245,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
   const documentPanelProps = {
     documents: documents.map((doc) => ({ id: doc.id, title: doc.title })),
     activeDocumentId,
-    activeDocument: activeDocument ? { id: activeDocument.id, title: activeDocument.title } : null,
+    activeDocument: activeDocument ? { id: activeDocument.id, title: activeDocument.title, document_type: activeDocument.document_type } : null,
     documentTitle,
     documentContent,
     editMode,
@@ -3821,6 +4255,13 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     documentSections,
     renderDocumentSection,
     docBodyRef,
+    focusState: documentFocusState,
+    stashItems: documentStashItems,
+    changeLogs: documentChangeLogs,
+    conversationActiveDocumentId,
+    conversationActiveDocument: conversationActiveDocument
+      ? { id: conversationActiveDocument.id, title: conversationActiveDocument.title }
+      : null,
     guidanceItems: guidanceItems.map((item) => ({ id: item.id, title: item.title })),
     selectedGuidanceIds,
     outputButtons,
@@ -3830,8 +4271,12 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
       setActiveDocumentId(id);
       setRightMode('doc');
       await loadDocumentDetail(id);
+      await setConversationActiveDocument(id);
     },
-    onCreateDocument: createDocument,
+    onActivateDisplayedDocument: () => activeDocumentId ? setConversationActiveDocument(activeDocumentId) : Promise.resolve(),
+    onClearFocus: () => updateDisplayedDocumentFocus(normalizeFocusState()),
+    onCreateDocument: async () => { await createDocument(); },
+    onCreateOutputDocument: createOutputDocument,
     onToggleDocumentEdit: () => setEditMode((previous) => !previous),
     onToggleVersionPanel: () => setShowVersionPanel((previous) => !previous),
     onDeleteDocument: deleteDocument,
@@ -3858,6 +4303,8 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
     isOutputHeaderCollapsed,
     onOutputWorkspaceScroll: handleOutputWorkspaceScroll,
   };
+
+  const pushSourceSummary = buildPushSourceSummary(pushPopover.sourceEntries);
 
   return (
     <div className="thinkflow-root">
@@ -3894,7 +4341,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           isOutputWorkspace={hideLeftSidebar}
           leftTab={leftTab}
           loadingFiles={loadingFiles}
-          onLeftTabChange={setLeftTab}
+          onLeftTabChange={(tab) => {
+            setLeftTab(tab);
+            if (tab === 'conversations') void refreshConversationList();
+          }}
           onOpenOutput={openExistingOutput}
           onPreviewSource={handlePreviewSource}
           onDeleteSource={(file) => void handleDeleteSource(file)}
@@ -3906,6 +4356,10 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           onUpload={handleUpload}
           onAddSource={() => setShowAddSourceModal(true)}
           onReEmbedSource={handleReEmbedSource}
+          conversationList={conversationList}
+          activeConversationId={conversationId}
+          onSelectConversation={(id) => void loadConversationMessages(id)}
+          onNewConversation={handleNewConversation}
         />
 
         <ThinkFlowCenterPanel
@@ -3964,10 +4418,6 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             userId: effectiveUser?.id || 'local',
             userEmail: effectiveUser?.email || '',
           }}
-          pageReviewChatContext={pageReviewChatContext}
-          pageReviewFilter={pageReviewFilter}
-          onPageReviewFilterChange={setPageReviewFilter}
-          totalPages={activePptOutline.length}
         />
 
         {rightPanelOpen ? (
@@ -4210,8 +4660,8 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
           >
             <div className="thinkflow-push-header">
               <div>
-                <h3>沉淀到工作区</h3>
-                <p>把当前对话整理到右侧工作区，后续可以继续复用。</p>
+                <h3>推送到文档</h3>
+                <p>AI 只会通过这次显式推送修改文档。</p>
               </div>
               <button
                 type="button"
@@ -4226,159 +4676,81 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
             {pushError ? <div className="thinkflow-push-status is-error">{pushError}</div> : null}
             <div className="thinkflow-push-body">
               <div className="thinkflow-push-field">
-                <div className="thinkflow-push-label">沉淀目标</div>
-                <div className="thinkflow-push-destinations">
-                  {[
-                    { value: 'summary', label: '摘要', desc: '沉淀关键理解与结论' },
-                    { value: 'document', label: '文档', desc: '整理成持续演进的主文档' },
-                    { value: 'guidance', label: '产出指导', desc: '作为后续输出的重要约束和方向' },
-                  ].map((item) => (
-                    <label
-                      key={item.value}
-                      className={`thinkflow-push-mode ${pushPopover.destinationType === item.value ? 'is-active' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        checked={pushPopover.destinationType === item.value}
-                        disabled={pushSubmitting}
-                        onChange={() =>
-                          setPushPopover((previous) => ({
-                            ...previous,
-                            destinationType: item.value as PushDestinationType,
-                            targetItemId:
-                              item.value === 'summary'
-                                ? (activeSummary?.summary_kind === 'item' ? activeSummaryId : '') || itemSummaryItems[0]?.id || '__new__'
-                                : item.value === 'guidance'
-                                  ? activeGuidanceId || guidanceItems[0]?.id || '__new__'
-                                  : previous.targetItemId,
-                          }))
-                        }
-                      />
-                      <div>
-                        <div className="thinkflow-push-mode-title">{item.label}</div>
-                        <div className="thinkflow-push-mode-desc">{item.desc}</div>
-                      </div>
-                    </label>
+                <div className="thinkflow-push-label">目标位置</div>
+                <select
+                  className="thinkflow-push-select"
+                  value={pushPopover.targetType}
+                  disabled={pushSubmitting}
+                  onChange={(event) => {
+                    const targetType = event.target.value as StructuredPushTargetType;
+                    setPushPopover((previous) => ({
+                      ...previous,
+                      targetType,
+                      transform: coercePushTransform(targetType, previous.transform),
+                    }));
+                  }}
+                >
+                  {getDefaultPushTarget(documentFocusState) === 'focus' ? <option value="focus">当前焦点：{documentFocusState.description}</option> : null}
+                  {documentSections.map((section) => (
+                    <option key={section.id} value="section">
+                      章节：{section.heading || section.id}
+                    </option>
                   ))}
-                </div>
+                  <option value="new_section">+ 新建章节</option>
+                  <option value="stash">暂存区</option>
+                  <option value="document_end">文档末尾</option>
+                </select>
+                {pushPopover.targetType === 'section' ? (
+                  <select
+                    className="thinkflow-push-select"
+                    value={pushPopover.targetSectionId}
+                    disabled={pushSubmitting}
+                    onChange={(event) => setPushPopover((previous) => ({ ...previous, targetSectionId: event.target.value }))}
+                  >
+                    {documentSections.map((section) => (
+                      <option key={section.id} value={section.id}>
+                        {section.heading || section.id}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {pushPopover.targetType === 'new_section' ? (
+                  <input
+                    className="thinkflow-outline-input"
+                    value={pushPopover.newSectionTitle}
+                    disabled={pushSubmitting}
+                    onChange={(event) => setPushPopover((previous) => ({ ...previous, newSectionTitle: event.target.value }))}
+                    placeholder="新章节标题"
+                  />
+                ) : null}
               </div>
 
-              {pushPopover.destinationType === 'document' ? (
-                <div className="thinkflow-push-field">
-                  <div className="thinkflow-push-label">目标文档</div>
-                  <select
-                    className="thinkflow-push-select"
-                    value={pushPopover.targetDocId}
-                    disabled={pushSubmitting}
-                    onChange={(event) => setPushPopover((previous) => ({ ...previous, targetDocId: event.target.value }))}
-                  >
-                    {documents.map((doc) => (
-                      <option key={doc.id} value={doc.id}>
-                        {doc.title}
-                      </option>
-                    ))}
-                    <option value="__new__">+ 新建文档</option>
-                  </select>
-                </div>
-              ) : (
-                <div className="thinkflow-push-field">
-                  <div className="thinkflow-push-label">目标{pushPopover.destinationType === 'summary' ? '摘要' : '产出指导'}</div>
-                  <select
-                    className="thinkflow-push-select"
-                    value={pushPopover.targetItemId || '__new__'}
-                    disabled={pushSubmitting}
-                    onChange={(event) => setPushPopover((previous) => ({ ...previous, targetItemId: event.target.value }))}
-                  >
-                    {(pushPopover.destinationType === 'summary' ? itemSummaryItems : guidanceItems).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.title}
-                      </option>
-                    ))}
-                    <option value="__new__">+ 新建{pushPopover.destinationType === 'summary' ? '摘要' : '产出指导'}</option>
-                  </select>
-                </div>
-              )}
-
-              {(pushPopover.destinationType === 'document' ? pushPopover.targetDocId === '__new__' : (pushPopover.targetItemId || '__new__') === '__new__') ? (
-                <div className="thinkflow-push-field">
-                  <div className="thinkflow-push-label">命名方式</div>
-                  <div className="thinkflow-push-title-modes">
-                    <label className={`thinkflow-push-mode ${pushPopover.titleMode === 'ai' ? 'is-active' : ''}`}>
-                      <input
-                        type="radio"
-                        checked={pushPopover.titleMode === 'ai'}
-                        disabled={pushSubmitting}
-                        onChange={() => setPushPopover((previous) => ({ ...previous, titleMode: 'ai', newTitle: '' }))}
-                      />
-                      <div>
-                        <div className="thinkflow-push-mode-title">AI 命名</div>
-                        <div className="thinkflow-push-mode-desc">自动生成一个简洁可读的标题</div>
-                      </div>
-                    </label>
-                    <label className={`thinkflow-push-mode ${pushPopover.titleMode === 'manual' ? 'is-active' : ''}`}>
-                      <input
-                        type="radio"
-                        checked={pushPopover.titleMode === 'manual'}
-                        disabled={pushSubmitting}
-                        onChange={() =>
-                          setPushPopover((previous) => ({
-                            ...previous,
-                            titleMode: 'manual',
-                            newTitle: previous.newTitle || inferDocumentTitle(previous.sourceContent, previous.prompt),
-                          }))
-                        }
-                      />
-                      <div>
-                        <div className="thinkflow-push-mode-title">手动填写</div>
-                        <div className="thinkflow-push-mode-desc">你可以直接定标题，不填时也会回退为 AI 命名</div>
-                      </div>
-                    </label>
-                  </div>
-                  {pushPopover.titleMode === 'manual' ? (
-                    <>
-                      <div className="thinkflow-push-label">新建名称</div>
-                      <input
-                        className="thinkflow-outline-input"
-                        value={pushPopover.newTitle}
-                        disabled={pushSubmitting}
-                        onChange={(event) => setPushPopover((previous) => ({ ...previous, newTitle: event.target.value }))}
-                        placeholder="可手动填写；留空则仍会回退为 AI 命名"
-                      />
-                    </>
-                  ) : (
-                    <div className="thinkflow-push-title-hint">当前将由 AI 自动命名，你确认沉淀后会直接生成。</div>
-                  )}
-                </div>
-              ) : null}
-
-              {pushPopover.destinationType === 'document' ? (
-                <div className="thinkflow-push-field">
-                  <div className="thinkflow-push-label">处理方式</div>
-                  <div className="thinkflow-push-modes">
-                    {[
-                      { value: 'append', label: '直接追加', desc: '原文放入文档末尾' },
-                      { value: 'organize', label: 'AI整理后追加', desc: '整理成当前提纲', recommended: true },
-                      { value: 'merge', label: 'AI融合到已有内容', desc: '融入现有段落' },
-                    ].map((item) => (
-                      <label key={item.value} className={`thinkflow-push-mode ${pushPopover.mode === item.value ? 'is-active' : ''}`}>
+              <div className="thinkflow-push-field">
+                <div className="thinkflow-push-label">处理方式</div>
+                <div className="thinkflow-push-modes">
+                  {[
+                    { value: 'ai_append', label: '整理后追加', desc: '推荐：先归纳再写入目标位置' },
+                    { value: 'raw_append', label: '原文追加', desc: '不改写来源内容，直接放入目标' },
+                    { value: 'ai_merge', label: '融合到此章节', desc: '只适合当前焦点或现有章节' },
+                  ].map((item) => {
+                    const disabled = !canUsePushTransform(pushPopover.targetType, item.value as StructuredPushTransform);
+                    return (
+                      <label key={item.value} className={`thinkflow-push-mode ${pushPopover.transform === item.value ? 'is-active' : ''} ${disabled ? 'is-disabled' : ''}`}>
                         <input
                           type="radio"
-                          checked={pushPopover.mode === item.value}
-                          disabled={pushSubmitting}
-                          onChange={() => setPushPopover((previous) => ({ ...previous, mode: item.value as PushMode }))}
+                          checked={pushPopover.transform === item.value}
+                          disabled={pushSubmitting || disabled}
+                          onChange={() => setPushPopover((previous) => ({ ...previous, transform: item.value as StructuredPushTransform }))}
                         />
                         <div>
-                          <div className="thinkflow-push-mode-title">
-                            {item.label}
-                            {item.recommended ? <span className="thinkflow-push-recommended">推荐</span> : null}
-                          </div>
+                          <div className="thinkflow-push-mode-title">{item.label}</div>
                           <div className="thinkflow-push-mode-desc">{item.desc}</div>
                         </div>
                       </label>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              ) : null}
+              </div>
 
               <div className="thinkflow-push-field">
                 <div className="thinkflow-push-label">补充指示（可选）</div>
@@ -4387,24 +4759,14 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                   value={pushPopover.prompt}
                   disabled={pushSubmitting}
                   onChange={(event) => setPushPopover((previous) => ({ ...previous, prompt: event.target.value }))}
-                  placeholder={
-                    pushPopover.destinationType === 'guidance'
-                      ? '如：这是给 PPT 的指导，强调业务价值、避免学术化表达'
-                      : pushPopover.destinationType === 'summary'
-                        ? '如：提炼关键结论，保留仍待确认的问题'
-                        : '如：提炼核心数据；标注 [待确认]；转成当前提纲'
-                  }
+                  placeholder={pushPopover.transform === 'raw_append' ? '原文追加不需要指令' : '如：提炼核心数据；标注 [待确认]；转成当前提纲'}
                 />
               </div>
 
               <div className="thinkflow-push-field">
                 <div className="thinkflow-push-label">本次沉淀来源</div>
                 <div className="thinkflow-push-preview">
-                  {pushPopover.sourceEntries.map((entry) => (
-                    <span key={`${entry.messageId}_${entry.kind}`} className="thinkflow-push-preview-chip">
-                      {entry.kind === 'qa' ? 'QA' : entry.kind === 'multi' ? '多轮' : entry.role === 'assistant' ? 'AI' : '你'} · {entry.time}
-                    </span>
-                  ))}
+                  <span className="thinkflow-push-preview-chip">{pushSourceSummary.label}</span>
                   <p>{pushPopover.sourceContent.slice(0, 220)}</p>
                 </div>
               </div>
@@ -4420,7 +4782,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                 取消
               </button>
               <button type="button" className="thinkflow-generate-btn" onClick={() => void executePush()} disabled={pushSubmitting}>
-                {pushSubmitting ? '处理中...' : '确认沉淀'}
+                {pushSubmitting ? '处理中...' : '推送 ⟩'}
               </button>
             </div>
           </div>
@@ -4460,7 +4822,7 @@ const ThinkFlowWorkspace = ({ notebook, onBack }: { notebook: Notebook; onBack: 
                     >
                       <div className="thinkflow-history-meta">
                         <strong>{item.title || '新对话'}</strong>
-                        {item.updated_at ? <span>{item.updated_at}</span> : null}
+                        {item.updated_at || item.created_at ? <span>{formatThinkFlowDateTime(item.updated_at || item.created_at)}</span> : null}
                       </div>
                     </button>
                   ))}

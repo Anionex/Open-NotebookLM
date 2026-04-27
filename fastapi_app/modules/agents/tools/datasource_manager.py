@@ -12,7 +12,7 @@ from typing import Dict, Optional, Tuple
 
 from sqlmodel import Session
 
-from fastapi_app.adapters.csv_datasource import CSVDataSource
+from fastapi_app.datasources.adapters.csv_datasource import CSVDataSource
 from fastapi_app.core.database import engine
 from fastapi_app.core.datasource_interface import DataSourceInterface, DataSourceMetadata, DataSourceType
 from fastapi_app.models.chat_models import Datasource

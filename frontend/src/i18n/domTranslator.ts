@@ -160,7 +160,6 @@ const textMap: Record<string, string> = {
   '导出 CSV': 'Export CSV',
   '摘要': 'Summary',
   '梳理文档': 'Document',
-  '产出指导': 'Output guidance',
   '大纲编排': 'Outline',
   '+ 新建': '+ New',
   '完成编辑': 'Done editing',
@@ -171,8 +170,6 @@ const textMap: Record<string, string> = {
   '保存中': 'Saving',
   '保存摘要': 'Save summary',
   '编辑全文': 'Edit full text',
-  '当前指导': 'Current guidance',
-  '产出指导不是聊天副本，而是你从对话里抽出来的高权重 brief。': 'Output guidance is not a chat copy. It is a high-priority brief extracted from conversation.',
   '这是只读的高权重上下文，不允许直接编辑；需要改动时请重新从对话沉淀。': 'This is read-only high-priority context. Capture it again from chat if it needs changes.',
   '正在准备并生成': 'Preparing and generating ',
   '从文档页点击一个产出按钮后，这里会直接显示当前结果工作台。': 'Click an output button from the document page to show the result workspace here.',
@@ -187,19 +184,17 @@ const textMap: Record<string, string> = {
   '文档': 'Document',
   '保存Document': 'Save document',
   '保存文档': 'Save document',
-  '暂无Outputs指导': 'No output guidance yet',
-  '暂无产出指导': 'No output guidance yet',
   '优先使用当前Document': 'Use the current document first',
   '优先使用当前梳理文档': 'Use the current document first',
   '如果Document为空，会先基于Current sources自动生成一份Sources梳理': 'If the document is empty, ThinkFlow will first generate a source synthesis from the current sources.',
   '如果文档为空，会先基于当前来源自动生成一份来源梳理': 'If the document is empty, ThinkFlow will first generate a source synthesis from the current sources.',
-  '请先围绕左侧SelectedSources提问。Chat是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成Summary、Organize进Document，或者加入Outputs指导。': 'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture an answer, a Q&A pair, or multiple turns into Summary, organize it into Document, or add it to Output guidance.',
-  '请先围绕左侧selected sources提问。Chat是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成Summary、Organize进Document，或者加入Outputs指导。': 'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture an answer, a Q&A pair, or multiple turns into Summary, organize it into Document, or add it to Output guidance.',
-  '请先围绕左侧已选来源提问。对话是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成摘要、梳理进文档，或者加入产出指导。': 'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture an answer, a Q&A pair, or multiple turns into Summary, organize it into Document, or add it to Output guidance.',
+  '请先围绕左侧SelectedSources提问。Chat是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成Summary、Organize进Document。': 'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture an answer, a Q&A pair, or multiple turns into Summary or organize it into Document.',
+  '请先围绕左侧selected sources提问。Chat是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成Summary、Organize进Document。': 'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture an answer, a Q&A pair, or multiple turns into Summary or organize it into Document.',
+  '请先围绕左侧已选来源提问。对话是主线，你可以按需把某个回答、某组问答或多轮内容沉淀成摘要、梳理进文档。': 'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture an answer, a Q&A pair, or multiple turns into Summary or organize it into Document.',
   '这里是后续 PPT、Report和Mind map的主输入区，用来持续累积你确认过的正文内容，而不是临时聊天副本。': 'This is the main input area for later PPT, reports, and mind maps. It continuously accumulates confirmed body content, not temporary chat copies.',
   '这里是后续 PPT、报告和导图的主输入区，用来持续累积你确认过的正文内容，而不是临时聊天副本。': 'This is the main input area for later PPT, reports, and mind maps. It continuously accumulates confirmed body content, not temporary chat copies.',
   '来源是主输入；梳理文档用于沉淀结构化理解，也可以作为后续产出的增强上下文。': 'Sources are the primary input. Documents preserve structured understanding and can enhance later outputs.',
-  '来源是主输入；当前梳理文档和产出指导会作为可选增强上下文': 'Sources are the primary input. The current document and output guidance act as optional enhancement context.',
+  '来源是主输入；当前梳理文档会作为可选增强上下文': 'Sources are the primary input. The current document acts as optional enhancement context.',
   '当前没有选择梳理文档，本次会直接基于来源和可选参考生成结果。': 'No document is selected for this run. ThinkFlow will generate the result directly from sources and any optional references.',
   '可追加、AI Organize、AI 融合，也可以手动编辑全文并回看History版本。': 'You can append, organize with AI, merge with AI, manually edit the full text, and review history versions.',
   '可追加、AI 整理、AI 融合，也可以手动编辑全文并回看历史版本。': 'You can append, organize with AI, merge with AI, manually edit the full text, and review history versions.',
@@ -207,7 +202,6 @@ const textMap: Record<string, string> = {
   '右侧是你确认过的梳理文档，会作为后续 PPT / 报告 / 导图的直接输入。': 'The right side contains your confirmed document, used directly as input for later PPT, reports, and mind maps.',
   '先在中间持续Chat，再把真正有价值的段落或回答推送到这里。': 'Keep chatting in the center first, then push truly useful paragraphs or answers here.',
   '先在中间持续对话，再把真正有价值的段落或回答推送到这里。': 'Keep chatting in the center first, then push truly useful paragraphs or answers here.',
-  '输出指导': 'Output guidance',
   '沉淀到工作区': 'Capture to workspace',
   '把当前对话整理到右侧工作区，后续可以继续复用。': 'Organize the current chat into the right workspace for reuse.',
   '沉淀目标': 'Capture target',
@@ -249,7 +243,6 @@ const textMap: Record<string, string> = {
   '未选择来源文件': 'No source files selected',
   '梳理文档 / 参考文档': 'Documents / references',
   '未选择梳理文档': 'No document selected',
-  '未选择产出指导': 'No guidance selected',
   '正在整理来源，请稍候。': 'Preparing sources. Please wait.',
   '来源解析失败，请关闭后重试。': 'Failed to parse sources. Close and retry.',
   '确认并生成大纲': 'Confirm and generate outline',
@@ -305,7 +298,6 @@ const textMap: Record<string, string> = {
   '回流来源': 'Send back to sources',
   '摘要区说明': 'Summary panel guide',
   '梳理文档说明': 'Document panel guide',
-  '产出指导说明': 'Guidance panel guide',
 };
 
 const reverseTextMap = Object.fromEntries(Object.entries(textMap).map(([zh, en]) => [en, zh]));
@@ -354,12 +346,6 @@ const dynamicRules = [
     zhBack: (match: RegExpMatchArray) => `来源 ${match[1]}`,
   },
   {
-    zh: /^产出指导 (\d+)$/,
-    en: (match: RegExpMatchArray) => `Guidance ${match[1]}`,
-    enPattern: /^Guidance (\d+)$/,
-    zhBack: (match: RegExpMatchArray) => `产出指导 ${match[1]}`,
-  },
-  {
     zh: /^新(Chat.*)$/,
     en: (match: RegExpMatchArray) => `New ${match[1]}`,
     enPattern: /^New (Chat.*)$/,
@@ -369,8 +355,8 @@ const dynamicRules = [
 
 const phraseFallbacks: Array<[RegExp, string]> = [
   [
-    /请先围绕左侧.*?提问。.*?加入.*?指导。/,
-    'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture useful answers into Summary, Document, or Output guidance.',
+    /请先围绕左侧.*?提问。.*?沉淀成.*?文档。/,
+    'Ask questions around the selected sources on the left first. Chat is the main flow; you can capture useful answers into Summary or organize it into Document.',
   ],
 ];
 

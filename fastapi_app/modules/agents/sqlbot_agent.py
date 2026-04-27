@@ -19,13 +19,13 @@ from typing import Optional, Dict, List
 from datetime import datetime
 from pathlib import Path
 
-from fastapi_app.agents.pipeline.state import AgentState, OutputMode, DataFormat, build_initial_state
-from fastapi_app.agents.pipeline.config import PipelineConfig
-from fastapi_app.agents.pipeline.graph import build_graph
+from fastapi_app.modules.agents.pipeline.state import AgentState, OutputMode, DataFormat, build_initial_state
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.graph import build_graph
 if os.getenv("SQLBOT_EMBEDDED_MINIMAL", "").strip().lower() in {"1", "true", "yes", "on"}:
-    from fastapi_app.agents.tools.embedded_registry import get_all_tools
+    from fastapi_app.modules.agents.tools.embedded_registry import get_all_tools
 else:
-    from fastapi_app.agents.tools.registry import get_all_tools
+    from fastapi_app.modules.agents.tools.registry import get_all_tools
 from fastapi_app.core.config import settings
 from fastapi_app.core.llm_factory import LLMFactory, LLMConfig
 
@@ -204,7 +204,7 @@ class SQLBotAgent:
             }
         finally:
             # Cleanup unified engine if it was used for cross-source queries
-            from fastapi_app.agents.tools.cross_source_tools import close_unified_engine
+            from fastapi_app.modules.agents.tools.cross_source_tools import close_unified_engine
             close_unified_engine()
 
     def stream(self, datasource_id: int, question: str, max_retries: int = 3):

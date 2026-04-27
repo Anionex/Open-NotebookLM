@@ -7,9 +7,9 @@ through as rewritten_query. This keeps the agent stable and easier to evaluate.
 import logging
 from typing import Dict, Any
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
-from fastapi_app.agents.pipeline.nodes.ega_prepare import should_run_ega_prepare
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.nodes.ega_prepare import should_run_ega_prepare
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def query_understanding_node(state: AgentState, config: PipelineConfig) -> dict:
         if any(k in (question or "") for k in analysis_keywords):
             try:
                 from fastapi_app.modules.rag.analysis_cot import analysis_cot_service, AnalysisCoTResult
-                from fastapi_app.agents.tools.datasource_manager import get_datasource_handler
+                from fastapi_app.modules.agents.tools.datasource_manager import get_datasource_handler
 
                 ds = get_datasource_handler(datasource_id)
                 schema_text = ""

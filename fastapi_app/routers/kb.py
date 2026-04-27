@@ -1230,36 +1230,26 @@ async def chat_with_kb_stream(
 
 
 # ---------- 1.1 对话记录：入库与读取 ----------
-def _supabase_upsert_conversation(email: str, user_id: Optional[str], notebook_id: Optional[str]) -> Optional[Dict[str, Any]]:
+def _supabase_create_conversation(
+    email: str,
+    user_id: Optional[str],
+    notebook_id: Optional[str],
+    title: str = "新对话",
+) -> Optional[Dict[str, Any]]:
     sb = get_supabase_admin_client()
     if not sb:
         return None
     try:
-        q = sb.table("kb_conversations").select("id,created_at,updated_at")
-        if email:
-            q = q.eq("user_email", email)
-        if user_id:
-            q = q.eq("user_id", user_id)
-        if notebook_id:
-            q = q.eq("notebook_id", notebook_id)
-        else:
-            q = q.is_("notebook_id", "null")
-        r = q.order("updated_at", desc=True).limit(1).execute()
-        rows = (r.data or []) if hasattr(r, "data") else []
-        if rows:
-            # update updated_at
-            sb.table("kb_conversations").update({"updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}).eq("id", rows[0]["id"]).execute()
-            return rows[0]
         ins = sb.table("kb_conversations").insert({
             "user_email": email,
             "user_id": user_id,
             "notebook_id": notebook_id,
-            "title": "对话",
+            "title": title,
         }).execute()
         data = (ins.data or []) if hasattr(ins, "data") else []
         return data[0] if data else None
     except Exception as e:
-        log.warning("supabase conversation upsert failed: %s", e)
+        log.warning("supabase conversation create failed: %s", e)
         return None
 
 
@@ -1290,13 +1280,13 @@ async def list_conversations_get(
 
 
 @router.post("/conversations")
-async def get_or_create_conversation(
+async def create_conversation(
     email: str = Body(..., embed=True),
     user_id: Optional[str] = Body(None, embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
 ) -> Dict[str, Any]:
-    """Get or create one conversation for this user+notebook. Returns conversation id."""
-    conv = _supabase_upsert_conversation(email, user_id, notebook_id)
+    """Always create a new conversation for this user+notebook. Returns conversation id."""
+    conv = _supabase_create_conversation(email, user_id, notebook_id)
     if conv:
         return {"success": True, "conversation_id": conv.get("id"), "conversation": conv}
     return {"success": False, "conversation_id": None}
@@ -1330,6 +1320,20 @@ async def append_conversation_messages(
     try:
         rows = [{"conversation_id": conversation_id, "role": m.get("role", "user"), "content": m.get("content", "")} for m in messages]
         sb.table("kb_chat_messages").insert(rows).execute()
+        first_user_message = next((m.get("content", "").strip() for m in messages if m.get("role") == "user" and m.get("content", "").strip()), "")
+        next_updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if first_user_message:
+            conv = sb.table("kb_conversations").select("title").eq("id", conversation_id).limit(1).execute()
+            conv_rows = (conv.data or []) if hasattr(conv, "data") else []
+            current_title = str(conv_rows[0].get("title") or "").strip() if conv_rows else ""
+            update_payload = {"updated_at": next_updated_at}
+            if current_title in {"", "对话", "新对话"}:
+                next_title = first_user_message[:28].strip()
+                if next_title:
+                    update_payload["title"] = next_title
+            sb.table("kb_conversations").update(update_payload).eq("id", conversation_id).execute()
+        else:
+            sb.table("kb_conversations").update({"updated_at": next_updated_at}).eq("id", conversation_id).execute()
         return {"success": True}
     except Exception as e:
         log.warning("append_conversation_messages failed: %s", e)

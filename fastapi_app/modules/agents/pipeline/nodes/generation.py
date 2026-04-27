@@ -7,8 +7,8 @@ from typing import Dict, Any
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from fastapi_app.agents.pipeline.state import AgentState, OutputMode
-from fastapi_app.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.state import AgentState, OutputMode
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
 from fastapi_app.core.config import settings
 from fastapi_app.services.log_service import AgentLogService
 
@@ -44,8 +44,8 @@ def agent_node(state: AgentState, config: PipelineConfig) -> dict:
     3. If SQL verified and result ready, skip LLM
     4. If max retries exceeded, return error
     """
-    from fastapi_app.agents.prompts.builder import build_system_prompt
-    from fastapi_app.agents.prompts.correction import build_correction_prompt
+    from fastapi_app.modules.agents.prompts.builder import build_system_prompt
+    from fastapi_app.modules.agents.prompts.correction import build_correction_prompt
 
     messages = state["messages"]
     error_count = state.get("error_count", 0)
@@ -310,7 +310,7 @@ def _try_multi_candidate(state: AgentState, config: PipelineConfig, rag_context:
     Returns state update dict if successful, None to fall back to normal generation.
     """
     try:
-        from fastapi_app.agents.multi_candidate_generator import multi_candidate_generator
+        from fastapi_app.modules.agents.multi_candidate_generator import multi_candidate_generator
 
         question = state["question"]
         datasource_id = state["datasource_id"]

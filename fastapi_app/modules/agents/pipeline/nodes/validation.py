@@ -13,9 +13,9 @@ import re
 import logging
 from typing import Dict, Any, Tuple, List, Optional
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
-from fastapi_app.agents.prompts.error_classifier import infer_failure_stage
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.prompts.error_classifier import infer_failure_stage
 
 logger = logging.getLogger(__name__)
 

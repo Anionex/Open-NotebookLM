@@ -268,6 +268,49 @@
   padding: 8px;
 }
 
+/* ─── Conversation list ─────────────────────────────────────────────── */
+.thinkflow-conversation-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+}
+.thinkflow-conversation-list-header strong {
+  font-size: 12px;
+  color: var(--tf-text-secondary, #666);
+}
+.thinkflow-conversation-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+.thinkflow-conversation-item:hover {
+  background: rgba(255, 255, 255, 0.78);
+}
+.thinkflow-conversation-item.is-active {
+  background: #dfeafe;
+}
+.thinkflow-conversation-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tf-text, #1a1a1a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thinkflow-conversation-item-time {
+  font-size: 11px;
+  color: var(--tf-text-secondary, #999);
+}
+
 .thinkflow-output-card {
   width: 100%;
   display: flex;
@@ -405,35 +448,48 @@
 
 .thinkflow-multi-select-bar {
   margin: 0 18px 12px;
-  padding: 12px;
-  border: 1px solid rgba(47, 103, 239, 0.16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 40px rgba(26, 38, 63, 0.08);
+  padding: 9px 10px;
+  border: 1px solid rgba(47, 103, 239, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 26px rgba(26, 38, 63, 0.08);
+}
+
+.thinkflow-multi-select-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .thinkflow-multi-select-meta {
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--tf-subtle);
 }
 
 .thinkflow-multi-select-input {
   width: 100%;
   resize: vertical;
+  min-height: 42px;
+  margin-top: 8px;
   border: 1px solid var(--tf-border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
-  padding: 10px 12px;
+  padding: 8px 10px;
   font: inherit;
+  font-size: 12px;
   color: var(--tf-text);
 }
 
 .thinkflow-multi-select-actions {
-  margin-top: 10px;
+  margin-top: 0;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .thinkflow-guidance-strip {
@@ -539,7 +595,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 18px 12px;
+  padding: 14px 18px 10px;
+  background: #fbfcfd;
 }
 
 .thinkflow-message-row {
@@ -561,20 +618,20 @@
 .thinkflow-message-shell {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  max-width: min(78%, 760px);
+  gap: 8px;
+  max-width: min(82%, 780px);
 }
 
 .thinkflow-message-shell.user {
-  max-width: min(70%, 680px);
+  max-width: min(72%, 680px);
 }
 
 .thinkflow-message-actions {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  width: 58px;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  width: auto;
   margin-top: 4px;
   flex-shrink: 0;
 }
@@ -582,11 +639,11 @@
 .thinkflow-push-trigger,
 .thinkflow-message-more,
 .thinkflow-message-select {
-  width: 100%;
+  width: 28px;
   min-width: 0;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 12px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -624,9 +681,10 @@
 .thinkflow-bubble {
   max-width: 680px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: #f5f4f2;
+  border-radius: 10px;
+  background: #ffffff;
   border: 1px solid var(--tf-border);
+  box-shadow: 0 8px 24px rgba(22, 34, 58, 0.04);
   transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
   flex: 1;
   min-width: 0;
@@ -905,6 +963,131 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--tf-muted);
+}
+
+.thinkflow-conversation-source-row {
+  margin: 8px 12px 10px;
+  border: 1px solid rgba(223, 230, 240, 0.92);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  overflow: hidden;
+}
+
+.thinkflow-conversation-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+}
+
+.thinkflow-conversation-source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--tf-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.thinkflow-conversation-source-row.is-expanded .thinkflow-conversation-source-toggle svg:last-child {
+  transform: rotate(180deg);
+}
+
+.thinkflow-conversation-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.thinkflow-conversation-source-body {
+  border-top: 1px solid rgba(229, 228, 225, 0.9);
+  padding: 10px;
+}
+
+.thinkflow-conversation-source-empty {
+  color: var(--tf-muted);
+  font-size: 12px;
+  padding: 4px 0 10px;
+}
+
+.thinkflow-conversation-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.thinkflow-conversation-source-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 5px;
+  padding: 4px 7px;
+  border: 1px solid rgba(47, 103, 239, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 11px;
+}
+
+.thinkflow-conversation-source-pill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(47, 103, 239, 0.12);
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.thinkflow-conversation-source-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.thinkflow-conversation-source-picker > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.thinkflow-conversation-source-picker strong {
+  font-size: 11px;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-conversation-source-picker span {
+  font-size: 11px;
+  color: var(--tf-muted);
+}
+
+.thinkflow-conversation-source-picker button {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(229, 228, 225, 0.92);
+  border-radius: 6px;
+  background: rgba(250, 249, 247, 0.82);
+  color: var(--tf-text);
+  font-size: 11px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.thinkflow-conversation-source-picker button:disabled {
+  color: var(--tf-muted);
+  cursor: default;
+  background: rgba(245, 245, 244, 0.72);
 }
 
 .thinkflow-selection-toolbar {
@@ -1216,6 +1399,20 @@
   color: var(--tf-accent);
 }
 
+.thinkflow-doc-tab.is-conversation-active {
+  font-weight: 700;
+}
+
+.thinkflow-doc-active-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--tf-accent);
+  vertical-align: middle;
+}
+
 .thinkflow-doc-tab.is-all-summary {
   border: 1px solid rgba(154, 190, 255, 0.72);
   background: rgba(240, 246, 255, 0.86);
@@ -1238,6 +1435,54 @@
   gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.thinkflow-right-workbench-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(229, 228, 225, 0.92);
+  color: var(--tf-subtle);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.thinkflow-doc-focus-bar,
+.thinkflow-doc-active-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(229, 228, 225, 0.92);
+  border-radius: 8px;
+  background: rgba(250, 249, 247, 0.86);
+  font-size: 12px;
+}
+
+.thinkflow-doc-focus-bar > div {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  color: var(--tf-subtle);
+}
+
+.thinkflow-doc-focus-bar span,
+.thinkflow-doc-active-warning span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinkflow-doc-active-warning {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: rgba(255, 251, 235, 0.88);
+  color: #92400e;
 }
 
 .thinkflow-doc-action-btn.is-active,
@@ -1271,12 +1516,76 @@
 }
 
 .thinkflow-doc-section {
+  position: relative;
   padding: 11px 12px;
   border: 1px solid rgba(224, 230, 239, 0.88);
   border-radius: 14px;
   background: var(--tf-bg-secondary);
   box-shadow: 0 8px 18px rgba(25, 34, 52, 0.04);
+  cursor: pointer;
   transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.thinkflow-doc-section:hover {
+  border-color: rgba(59, 130, 246, 0.74);
+  background: rgba(248, 251, 255, 0.98);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.16), 0 4px 12px rgba(25, 34, 52, 0.08);
+}
+
+.thinkflow-doc-section.is-focused {
+  border-color: rgba(37, 99, 235, 0.82);
+  background: rgba(239, 246, 255, 0.98);
+  box-shadow: 0 18px 38px rgba(37, 99, 235, 0.2), 0 5px 14px rgba(25, 34, 52, 0.1);
+}
+
+.thinkflow-doc-section:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 2px;
+}
+
+.thinkflow-doc-section.is-output-module {
+  padding-top: 38px;
+}
+
+.thinkflow-doc-section.is-output-module.is-focused {
+  border-color: rgba(37, 99, 235, 0.82);
+  background: rgba(239, 246, 255, 0.98);
+  box-shadow: 0 18px 38px rgba(37, 99, 235, 0.2), 0 5px 14px rgba(25, 34, 52, 0.1);
+}
+
+.thinkflow-doc-focus-rail {
+  display: none;
+}
+
+.thinkflow-doc-module-confirm {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 8px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.thinkflow-doc-section.is-output-module:hover .thinkflow-doc-module-confirm,
+.thinkflow-doc-section.is-output-module.is-focused .thinkflow-doc-module-confirm {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.thinkflow-doc-section.is-output-module.is-focused .thinkflow-doc-module-confirm {
+  background: #2563eb;
+  color: #fff;
 }
 
 .thinkflow-doc-section.is-highlighted {
@@ -1288,6 +1597,75 @@
 .thinkflow-doc-render {
   font-size: 13px;
   line-height: 1.72;
+}
+
+.thinkflow-doc-stash {
+  margin-top: 12px;
+  border-top: 1px dashed rgba(180, 188, 203, 0.86);
+  padding-top: 10px;
+}
+
+.thinkflow-doc-stash-head {
+  margin-bottom: 8px;
+  color: var(--tf-subtle);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.thinkflow-doc-stash-empty {
+  color: var(--tf-muted);
+  font-size: 12px;
+  padding: 8px 0;
+}
+
+.thinkflow-doc-stash-item {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(229, 228, 225, 0.92);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.thinkflow-doc-stash-meta {
+  margin-bottom: 6px;
+  color: var(--tf-muted);
+  font-size: 11px;
+}
+
+.thinkflow-doc-stash-item p {
+  margin: 0;
+  color: var(--tf-subtle);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.thinkflow-doc-change-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+  color: var(--tf-muted);
+  font-size: 11px;
+}
+
+.thinkflow-doc-change-strip span {
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.thinkflow-doc-change-strip em {
+  min-width: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(239, 246, 255, 0.82);
+  color: #355d9d;
 }
 
 .thinkflow-note-board {
@@ -1589,6 +1967,11 @@
   border-radius: 9px;
   background: rgba(246, 245, 242, 0.88);
   color: var(--tf-subtle);
+}
+
+.thinkflow-doc-section.is-output-module .thinkflow-doc-render blockquote {
+  border-left: 0;
+  background: rgba(246, 248, 252, 0.82);
 }
 
 .thinkflow-doc-render code {
@@ -3833,6 +4216,11 @@
   accent-color: var(--tf-accent);
 }
 
+.thinkflow-push-mode.is-disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
 .thinkflow-push-mode-title {
   font-size: 11px;
   font-weight: 500;
@@ -3850,18 +4238,6 @@
   background: var(--tf-accent);
   color: #fff;
   font-size: 10px;
-}
-
-.thinkflow-push-title-modes {
-  display: grid;
-  gap: 8px;
-}
-
-.thinkflow-push-title-hint {
-  margin-top: 8px;
-  font-size: 10px;
-  line-height: 1.6;
-  color: var(--tf-muted);
 }
 
 .thinkflow-push-actions {
@@ -4034,35 +4410,48 @@
 
 .thinkflow-multi-select-bar {
   margin: 0 18px 12px;
-  padding: 12px;
-  border: 1px solid rgba(47, 103, 239, 0.16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 40px rgba(26, 38, 63, 0.08);
+  padding: 9px 10px;
+  border: 1px solid rgba(47, 103, 239, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 26px rgba(26, 38, 63, 0.08);
+}
+
+.thinkflow-multi-select-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .thinkflow-multi-select-meta {
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--tf-subtle);
 }
 
 .thinkflow-multi-select-input {
   width: 100%;
   resize: vertical;
+  min-height: 42px;
+  margin-top: 8px;
   border: 1px solid var(--tf-border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
-  padding: 10px 12px;
+  padding: 8px 10px;
   font: inherit;
+  font-size: 12px;
   color: var(--tf-text);
 }
 
 .thinkflow-multi-select-actions {
-  margin-top: 10px;
+  margin-top: 0;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .thinkflow-guidance-strip {
@@ -5094,4 +5483,76 @@
 .tf-page-review-actions__revert:hover {
   border-color: var(--tf-border, #e9ecef);
   background: var(--tf-bg-secondary, #f8f9fa);
+}
+
+.thinkflow-output-doc-wizard {
+  position: fixed;
+  top: 84px;
+  right: 36px;
+  z-index: 132;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(78vh, 720px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(223, 229, 239, 0.94);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 28px 72px rgba(20, 28, 45, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.thinkflow-output-doc-wizard-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.thinkflow-output-doc-wizard-head h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--tf-text);
+}
+
+.thinkflow-output-doc-wizard-head p {
+  margin: 5px 0 0;
+  color: var(--tf-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.thinkflow-output-doc-source-list {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.thinkflow-output-doc-source-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid rgba(229, 228, 225, 0.92);
+  border-radius: 8px;
+  background: rgba(250, 249, 247, 0.86);
+}
+
+.thinkflow-output-doc-source-item strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tf-text);
+  font-size: 12px;
+}
+
+.thinkflow-output-doc-source-item label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--tf-subtle);
+  font-size: 11px;
 }

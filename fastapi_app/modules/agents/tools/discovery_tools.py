@@ -21,10 +21,10 @@ from langchain_core.tools import tool
 
 from fastapi_app.core.config import settings
 from fastapi_app.core.datasource_interface import DataSourceMetadata, DataSourceType
-from fastapi_app.adapters.csv_datasource import CSVDataSource
-from fastapi_app.adapters.excel_datasource import ExcelDataSource
-from fastapi_app.adapters.sql_datasource import SQLDataSource
-from fastapi_app.agents.tools.datasource_manager import (
+from fastapi_app.datasources.adapters.csv_datasource import CSVDataSource
+from fastapi_app.datasources.adapters.excel_datasource import ExcelDataSource
+from fastapi_app.datasources.adapters.sql_datasource import SQLDataSource
+from fastapi_app.modules.agents.tools.datasource_manager import (
     get_all_datasource_ids,
     get_datasource_handler,
     set_datasource_handler,

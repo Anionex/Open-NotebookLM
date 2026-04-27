@@ -6,19 +6,19 @@ import logging
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
-from fastapi_app.agents.pipeline.state import AgentState
-from fastapi_app.agents.pipeline.config import PipelineConfig
-from fastapi_app.agents.pipeline.nodes.routing import routing_node, should_route
-from fastapi_app.agents.pipeline.nodes.understanding import query_understanding_node
-from fastapi_app.agents.pipeline.nodes.retrieval import retrieve_knowledge_node
-from fastapi_app.agents.pipeline.nodes.generation import agent_node, should_continue
-from fastapi_app.agents.pipeline.nodes.tool_processing import process_tool_output_node
-from fastapi_app.agents.pipeline.nodes.validation import validate_sql_aliases_node
-from fastapi_app.agents.pipeline.nodes.ega_prepare import ega_prepare_node, should_run_ega_prepare
-from fastapi_app.agents.pipeline.nodes.spec_verification import spec_verification_node
-from fastapi_app.agents.pipeline.nodes.ega_retry_router import ega_retry_router_node, should_ega_retry_route
-from fastapi_app.agents.pipeline.nodes.export import export_data_node
-from fastapi_app.agents.pipeline.nodes.finish import finish_node
+from fastapi_app.modules.agents.pipeline.state import AgentState
+from fastapi_app.modules.agents.pipeline.config import PipelineConfig
+from fastapi_app.modules.agents.pipeline.nodes.routing import routing_node, should_route
+from fastapi_app.modules.agents.pipeline.nodes.understanding import query_understanding_node
+from fastapi_app.modules.agents.pipeline.nodes.retrieval import retrieve_knowledge_node
+from fastapi_app.modules.agents.pipeline.nodes.generation import agent_node, should_continue
+from fastapi_app.modules.agents.pipeline.nodes.tool_processing import process_tool_output_node
+from fastapi_app.modules.agents.pipeline.nodes.validation import validate_sql_aliases_node
+from fastapi_app.modules.agents.pipeline.nodes.ega_prepare import ega_prepare_node, should_run_ega_prepare
+from fastapi_app.modules.agents.pipeline.nodes.spec_verification import spec_verification_node
+from fastapi_app.modules.agents.pipeline.nodes.ega_retry_router import ega_retry_router_node, should_ega_retry_route
+from fastapi_app.modules.agents.pipeline.nodes.export import export_data_node
+from fastapi_app.modules.agents.pipeline.nodes.finish import finish_node
 
 logger = logging.getLogger(__name__)
 

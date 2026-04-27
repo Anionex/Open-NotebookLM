@@ -19,12 +19,46 @@ from workflow_engine.logger import get_logger
 from workflow_engine.state import Paper2FigureState
 from workflow_engine.toolkits.multimodaltool.mineru_tool import _shrink_markdown
 from workflow_engine.utils import get_project_root
-from workflow_engine.workflow import run_workflow
+from workflow_engine.workflow import list_workflows, run_workflow
 
 from fastapi_app.notebook_paths import get_notebook_paths
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
 
 log = get_logger(__name__)
+
+
+def _resolve_pagecontent_workflow_name(use_long_paper: bool = False) -> str:
+    """
+    兼容不同部署环境中的 pagecontent workflow 名称。
+
+    历史版本使用:
+    - paper2page_content
+    - paper2page_content_for_long_paper
+
+    当前 ThinkFlow 运行时实际注册的是:
+    - kb_page_content
+    """
+    available = set(list_workflows().keys())
+    candidates: list[str] = []
+    if use_long_paper:
+        candidates.append("paper2page_content_for_long_paper")
+    candidates.extend(["paper2page_content", "kb_page_content"])
+
+    for name in candidates:
+        if name in available:
+            if name != candidates[0]:
+                log.warning(
+                    "[paper2ppt] pagecontent workflow fallback: requested=%s resolved=%s available=%s",
+                    candidates[0],
+                    name,
+                    sorted(available),
+                )
+            return name
+
+    raise KeyError(
+        "No pagecontent workflow available. candidates=%s available=%s"
+        % (candidates, sorted(available))
+    )
 
 
 def _merge_pagecontent_assets(
@@ -289,10 +323,8 @@ async def run_paper2page_content_wf_api(
     state = _init_state_from_request(req, result_path=result_root)
 
     log.info(f"[paper2page_content_wf_api] start, result_path={state.result_path}, input_type={req.input_type}")
-    if req.use_long_paper:
-        final_state: Paper2FigureState = await run_workflow("paper2page_content_for_long_paper", state)
-    else:    
-        final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
+    workflow_name = _resolve_pagecontent_workflow_name(use_long_paper=req.use_long_paper)
+    final_state: Paper2FigureState = await run_workflow(workflow_name, state)
     # 提取结果
     pagecontent = final_state["pagecontent"] or []
     log.critical(f"[paper2page_content_wf_api] pagecontent={pagecontent}")
@@ -335,7 +367,8 @@ async def run_paper2page_content_refine_wf_api(
             state.mineru_root = mineru_root
 
     log.info(f"[paper2page_content_refine_wf_api] start, result_path={state.result_path}")
-    final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
+    workflow_name = _resolve_pagecontent_workflow_name(use_long_paper=False)
+    final_state: Paper2FigureState = await run_workflow(workflow_name, state)
 
     pagecontent = final_state["pagecontent"] or []
     result_path = final_state["result_path"] or str(result_root)
@@ -510,10 +543,8 @@ async def run_paper2ppt_full_pipeline(
         f"[paper2ppt_full_pipeline] step1 paper2page_content, "
         f"result_path={state_pc.result_path}, input_type={req.input_type}, use_long_paper={req.use_long_paper}"
     )
-    if req.use_long_paper:
-        state_pc = await run_workflow("paper2page_content_for_long_paper", state_pc)
-    else:
-        state_pc = await run_workflow("paper2page_content", state_pc)
+    workflow_name = _resolve_pagecontent_workflow_name(use_long_paper=req.use_long_paper)
+    state_pc = await run_workflow(workflow_name, state_pc)
 
     pagecontent = getattr(state_pc, "pagecontent", []) or []
     # 确保 result_path 一致
