@@ -97,19 +97,18 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
         return _extract_text_result(res_state, "kb_prompt_agent")
 
     def _single_doc_prompt(filename: str, content: str, max_depth: int, language: str) -> str:
-        return f"""请根据以下单篇文档内容生成一个思维导图。
+        return f"""请根据以下文档内容生成一个总结型思维导图。
 要求：
 - 当前只处理这一篇文档，不要混入其他文档信息
+- 提取关键概念、论点和结构化要点，保留重要的数据和示例
 - 最大层级深度为 {max_depth} 层
 - 使用 {language} 语言
-- 提取关键概念、论点和结构化要点
-- 保留关键数据、时间、比例、数量、金额、指标或实验结果
-- 节点命名尽量简练
-- 直接输出 Markdown 标题层级，使用 #、##、### 表示层级
-- 不要使用代码块，不要输出解释
+- 直接输出 Markdown 标题层级，使用 #、##、### 等markdown标记表示层级
 
 === 文档: {filename} ===
 {content}
+
+直接输出最终思维导图，不要任何解释或额外文本。
 """
 
     def _merge_prompt(document_trees: List[Dict[str, str]], max_depth: int, language: str) -> str:
@@ -117,19 +116,21 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
             f"=== 文档思维导图: {item['filename']} ===\n{item['markdown']}"
             for item in document_trees
         )
-        return f"""请根据下面多篇文档各自生成的思维导图，生成一个最终思维导图。
-要求：
-- 最大层级深度为 {max_depth} 层
-- 使用 {language} 语言
-- 先判断文档之间的主题相关性和内容重叠度，再决定组织方式
-- 如果多篇文档讨论同一主题、同一任务链路或高度重叠的方法体系，可以按主题融合，并合并相近概念
-- 如果文档主题明显不同、只是同属宽泛领域，优先保留清晰的并列主分支，不要为了融合而强行抽象出共同上位概念
-- 对弱相关文档，主分支可以使用各自的核心主题，而不是文档文件名；在各主题下保留该文档的关键结构
-- 文档独有内容应保留在对应主题下，避免被过度概括或丢失
-- 保留关键数据、时间、比例、数量、金额、指标或实验结果
-- 直接输出 Markdown 标题层级，使用 #、##、### 表示层级
-- 不要使用代码块，不要输出解释
+        return f"""我们已有多篇文档，并已分别生成了各自的思维导图。现在需要将这些导图整合为一个统一的最终思维导图。
 
+约束
+1. 先分析关系再组织结构。若文档主题或方法体系高度重叠 → 按主题融合，合并相近节点；若主题差异明显 → 保持为并列主分支，不强行统一抽象
+2. 结构要求
+   主分支使用“主题”命名，而不是文档名
+   相似内容需合并去重
+   每篇文档的独有信息必须保留，避免丢失或过度概括
+3. 直接输出 Markdown 标题层级，使用 #、##、### 等markdown标记表示层级
+4. 最大层级深度为：{max_depth}
+5. 使用 {language} 语言
+
+不输出任何解释，仅输出最终思维导图
+
+已有的文档思维导图如下：
 {tree_sections}
 """
 
