@@ -72,8 +72,8 @@ export function MermaidPreview({ mermaidCode, title = '思维导图预览', onNo
             paddingY: 10,
           },
           node: {
-            fillColor: '#f8fdff',
-            color: '#0ea5e9',
+            fillColor: '#ffffff',
+            color: '#111827',
             borderColor: '#bae6fd',
             borderWidth: 1,
             borderRadius: 10,
@@ -238,7 +238,7 @@ export function MermaidPreview({ mermaidCode, title = '思维导图预览', onNo
     URL.revokeObjectURL(url);
   };
 
-  const btnBase = 'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors';
+  const btnBase = 'flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors';
   const btnGhost = `${btnBase} border border-sky-200 bg-white text-sky-700 shadow-sm hover:bg-sky-50`;
   const btnAccent = `${btnBase} border border-sky-200 bg-sky-50 text-sky-700 shadow-sm hover:bg-sky-100`;
 
@@ -250,36 +250,36 @@ export function MermaidPreview({ mermaidCode, title = '思维导图预览', onNo
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button type="button" onClick={handleExpandAll} className={btnGhost} title="展开全部">
-          <Expand size={14} />
+          <Expand size={12} />
           展开全部
         </button>
         <button type="button" onClick={handleCollapseAll} className={btnGhost} title="收缩全部">
-          <Shrink size={14} />
+          <Shrink size={12} />
           收缩全部
         </button>
         <button type="button" onClick={handleZoomIn} className={btnGhost} title="放大">
-          <ZoomIn size={14} />
+          <ZoomIn size={12} />
         </button>
         <button type="button" onClick={handleZoomOut} className={btnGhost} title="缩小">
-          <ZoomOut size={14} />
+          <ZoomOut size={12} />
         </button>
         <button type="button" onClick={handleFit} className={btnGhost} title="适应画布">
-          <Maximize2 size={14} />
+          <Maximize2 size={12} />
           适应
         </button>
 
         <div className="mx-1 h-5 w-px bg-gray-200" />
 
         <button type="button" onClick={() => void handleDownloadPng()} className={btnAccent} title="下载 PNG（全部展开）">
-          <Download size={14} />
+          <Download size={12} />
           PNG
         </button>
         <button type="button" onClick={() => void handleDownloadTxt()} className={btnAccent} title="下载层级文本">
-          <FileText size={14} />
+          <FileText size={12} />
           文本
         </button>
         <button type="button" onClick={handleDownloadMermaid} className={btnAccent} title="下载 Mermaid 代码">
-          <Code size={14} />
+          <Code size={12} />
           Mermaid
         </button>
       </div>
